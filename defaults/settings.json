@@ -1,0 +1,36 @@
+{
+  "c0re_url": "http://127.0.0.1:7080",
+  "brains": {
+    "extract": ["qwen3-vl:8b-instruct", "gemma4:31b-cloud", "qwen3-vl:4b-instruct"],
+    "decide":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
+    "screen":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
+    "answer":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
+    "chat":    ["qwen3-vl:8b-instruct", "gemma4:31b-cloud", "qwen3-vl:4b-instruct"]
+  },
+  "brain_timeout_s": 12,
+
+  "laya": {"device": "cuda", "retrain_every": 20},
+  "zones": {
+    "act_bar": 0.85,
+    "guess_bar": 0.40,
+    "use_measured": true,
+    "act_bar_floor": 0.70,
+    "ask_zone_min": 0.20,
+    "clarify_timeout_s": 30
+  },
+
+  "whisper": {
+    "model": "large-v3-turbo",
+    "device": "cuda",
+    "precision": "int8_float16",
+    "hotwords": "Otto",
+    "end_silence_s": 0.8,
+    "misheard_below": -0.9,
+    "mic_device": null
+  },
+  "voice_out": {"engine": "kokoro", "voice": "af_bella", "device": "cuda", "speed": 1.0},
+
+  "browser": "chrome",
+  "everything_es_path": null,
+  "show_details": true
+}

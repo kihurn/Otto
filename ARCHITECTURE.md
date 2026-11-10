@@ -1,6 +1,6 @@
 # Otto: Architecture
 
-*Version 1, 10 November 2026. Written after Phase 0. Nothing in Phase 1 onward is built yet.*
+*Version 2, 10 November 2026. Written after Phase 0; updated with the decisions made since (three confidence zones, misheard-word checks, Kokoro voice replies, Chrome, Python 3.12). Nothing in Phase 1 onward is built yet.*
 
 Otto is a private desktop assistant that lives on Ki Hurn's Windows PC (later the Mac and iPhone too). You talk or type to it. It decides what you want in a fraction of a second, does it with reliable code, and only calls a large language model when something has to be understood, written or looked at. It learns your way of doing things when you say **"Otto, save that"**.
 
@@ -24,9 +24,9 @@ These ideas shape every decision below.
 
 ## 2. The big picture
 
-![Otto architecture](architecture.png)
+![Otto architecture](architecture.svg)
 
-*(Same diagram as an editable vector: `architecture.svg`. The Mermaid version below shows the same flow.)*
+*(The Mermaid version below shows the same flow.)*
 
 ```mermaid
 flowchart TD
@@ -38,18 +38,20 @@ flowchart TD
 
     IN --> API["Otto core (Python)<br/>CLI in Phase 1, local API from Phase 2"]
 
-    API --> G["1. Guards<br/>gibberish check, wake word, 'cancel'"]
+    API --> G["1. Guards<br/>gibberish, misheard?, wake word, 'cancel'"]
     G --> L["2. Laya: which area? which action?<br/>~60 ms, GPU"]
-    L --> C{"3. Confident enough?<br/>(our own bar, not Laya's)"}
-    C -- yes --> D["4. Details<br/>rules first, Qwen if needed"]
-    C -- no --> B["Brain decides<br/>Gemma 4 -> Qwen 8B -> Qwen 4B"]
-    B --> D
+    L --> C{"3. How sure?<br/>(three zones, set on the test set)"}
+    C -- high --> D["4. Details<br/>rules first, Qwen if needed"]
+    C -- middle --> Q["Ask you to confirm<br/>'Open Valorant?'"]
+    C -- low --> B["Brain's best guess<br/>Gemma 4 -> Qwen 8B -> Qwen 4B"]
+    B --> Q
+    Q -- yes --> D
     D --> R["5. Plan<br/>saved recipe, or a new plan from the brain"]
     R --> S{"6. Safety gate<br/>read / undoable / ask first"}
     S -- "ask first" --> U["You confirm or cancel"]
     U --> H
     S -- ok --> H["7. Hands and connectors<br/>apps, media, web, files, notes, timer,<br/>screen, later calendar / email / CRM"]
-    H --> O["8. Reply<br/>text in Phase 1, overlay + voice later"]
+    H --> O["8. Reply<br/>text + spoken (Kokoro) in Phase 1, overlay in Phase 2"]
     O --> M["9. Memory and learning<br/>log, recipes, examples, retrain Laya"]
 
     B -. "through C0RE" .-> CORE["C0RE gateway :7080<br/>Ollama: Gemma 4 cloud, Qwen 3-VL 8B/4B"]
@@ -60,14 +62,16 @@ The same flow as plain text:
 
 ```text
 you speak/type
-   -> guards (gibberish? cancel?)
-   -> Laya: area + action                (fast, local)
-   -> sure?  no -> brain decides         (Gemma 4, falls back to Qwen)
-   -> details: app, query, time, text    (rules first, Qwen if needed)
+   -> guards (gibberish? misheard? cancel?)   "Did you say ...?"
+   -> Laya: area + action                     (fast, local)
+   -> how sure?  high   -> carry on
+                 middle -> "Open Valorant?"   (you: "yeah")
+                 low    -> brain guesses, then asks you the same way
+   -> details: app, query, time, text         (rules first, Qwen if needed)
    -> plan: saved recipe or new plan
    -> safety gate: ask you if risky
-   -> Hands do it                        (plain Python, no guessing)
-   -> reply
+   -> Hands do it                             (plain Python, no guessing)
+   -> reply in text and voice                 (Kokoro, sentence by sentence)
    -> log it; "save that" -> recipe + teaching example
 ```
 
@@ -77,10 +81,12 @@ you speak/type
 
 | Part | Job | Built with | Phase |
 |---|---|---|---|
-| **Ears** | Turn speech into text | faster-whisper large-v3-turbo, GPU, int8 (~0.5 s per sentence) | 1 (optional), 2 |
-| **Guards** | Catch gibberish, "cancel / stop", strip the wake word ("Otto" / "auto") | wordfreq, simple rules | 1 |
+| **Ears** | Turn speech into text, with a confidence score per sentence | faster-whisper large-v3-turbo, GPU, int8 (~0.5 s per sentence), hotword "Otto" | 1 (`--voice`) |
+| **Guards** | Catch gibberish, possible mishearing, "cancel / stop"; strip the wake word ("Otto" / "auto") | wordfreq, Whisper confidence, fuzzy app-name match, simple rules | 1 |
 | **Router** | Decide area and action | Laya trainable engine (`laya.load(vegaml=True)`), GPU | 1 |
-| **Confidence gate** | Act, or hand over to the brain | Our own bar, set on the test set | 1 |
+| **Confidence zones** | High: act. Middle: ask you to confirm. Low: brain's best guess, then ask | Two bars, set on the test set | 1 |
+| **Clarifier** | Asks one short question, understands short replies ("yeah", "nah", "Lo-fi beats"), remembers it for ~30 s | Conversation state in the core | 1 |
+| **Voice out** | Speaks Otto's replies, sentence by sentence; ignores the mic while speaking | Kokoro (82M, Apache 2.0); VoiceStudio optional later for a custom voice | 1 (`--voice`) |
 | **Details** | Pull out the app, search words, times, numbers, note text | Rules and lookups first; Qwen 8B returning JSON | 1 |
 | **Brain** | Understand hard requests, plan new tasks, write, answer, read the screen | C0RE → Gemma 4 cloud → Qwen 3-VL 8B → 4B | 1 |
 | **Recipes** | Remembered ways of doing tasks, replayed without any model | JSON file | 1 |
@@ -91,7 +97,6 @@ you speak/type
 | **Learning loop** | Turn your confirmations into a better Laya, safely | Laya `fit()`, the test set, rules for switching to a new version | 1, improved in each phase |
 | **Local API** | Lets the overlay (and later the iPhone) talk to the core | FastAPI on `127.0.0.1`, secret token | 2 |
 | **Body (overlay)** | The floating Otto mascot, text box, confirm buttons, hotkeys | Tauri 2 (Rust + HTML/JS) | 2 |
-| **Voice out** | Otto speaks its replies | A local text-to-speech model (to be chosen) | 5 |
 | **Workspace connectors** | Calendar, email, CRM (Google Sheets), proposals (Google Docs) | Google APIs; also offered as an MCP server | 4 |
 
 ---
@@ -110,12 +115,12 @@ Example: **"Otto, open Spotify and search lofi beats"** (spoken).
 | Plan | Recipe found: `spotify` + `search_in_app` → open link `spotify:search:{query}` | < 1 ms |
 | Safety | Opening an app is *undoable*, so do it and say so | – |
 | Hands | `os.startfile("spotify:search:lofi%20beats")` | ~0.3 s for Spotify to show |
-| Reply | "Searching Spotify for lofi beats." | – |
+| Reply | "Searching Spotify for lofi beats." shown and spoken (Kokoro starts on the first sentence) | ~0.2 s to start speaking |
 | Memory | One line added to today's log | – |
 
 **Total from the end of your sentence: about 2 seconds, with no language model involved.**
 
-When Laya is unsure (say "chuck on some chill music"), the brain is asked to choose the area, action and details. This adds about 1 second with Gemma. Otto then asks "Did that work?". If you say "save that", next time Laya handles it alone.
+When Laya is only fairly sure (say "Otto, Valorant"), Otto asks **"Open Valorant?"** and waits for a short answer. When it's unsure (say "chuck on some chill music"), the brain makes a best guess first (about 1 second with Gemma), and Otto asks about that guess the same way. Every confirmed answer becomes a teaching example, so next time Laya handles it alone.
 
 ---
 
@@ -145,13 +150,22 @@ Laya can answer several questions in one pass, so the action question may later 
 - **Gibberish:** if not one word is a real word (wordfreq), Laya isn't asked. Otto says "Sorry, I didn't catch that."
 - **Wake word:** "Otto", or Whisper's "auto", at the start is removed.
 - **Cancel words:** "stop", "cancel", "never mind" during a confirmation cancel it straight away.
+- **Misheard?** If Whisper's own confidence in a sentence is low, Otto asks "Did you say '…'?" before doing anything. If a word is close to, but not exactly, an installed app's name ("valor and"), Otto asks "Did you mean Valorant?".
+- **Junk words around a real request** ("dad awdafd open spotify") are fine: Laya and the details step look past them.
 
-### 5.3 Confidence: our own bar
-Phase 0 showed that Laya's built-in "safe to act" (AUTO) signal becomes overconfident as it learns: by 22 examples per area it said AUTO on everything. So:
-- Otto uses Laya's **percentage** for the chosen answer.
-- The bar is set from the **test set**: the lowest percentage at which Laya's answers are still right at least 95% of the time.
-- The bar is re-measured every time Laya relearns, and saved alongside it.
-- Below the bar, the brain decides. Laya stays fast for the easy majority and the brain covers the rest.
+### 5.3 Confidence: three zones, our own bars
+Phase 0 showed that Laya's built-in "safe to act" (AUTO) signal becomes overconfident as it learns: by 22 examples per area it said AUTO on everything. So Otto uses Laya's **percentage** for the chosen answer, with two bars set from the **test set**:
+
+| Zone | Rule | What Otto does |
+|---|---|---|
+| **High** | above the *act* bar: where Laya is right ≥ 95% of the time | Carries on (risky actions still ask) |
+| **Middle** | between the bars | Asks "Open Valorant?" and waits for yes/no |
+| **Low** | below the *guess* bar | The brain makes a best guess, then Otto asks about it; if nothing sensible, "What would you like me to do?" |
+
+- Otto asks **once**. If the answer is still unclear, it says so and does nothing.
+- Short replies within ~30 s are treated as answers to the question ("yeah", "nah", "close it instead", "Lo-fi beats").
+- Every confirmed answer is saved as a teaching example, so the questions teach Laya exactly where it is weakest. Phrasings you've confirmed several times stop being asked about once Laya has learned them.
+- Both bars are re-measured every time Laya relearns, and saved alongside it. Until the test set exists, every answer counts as "middle".
 
 ### 5.4 What Phase 0 measured (on 44 unseen requests)
 | Examples per area | Right |
@@ -186,6 +200,8 @@ It runs at about 60 ms per decision on the GPU, with 1.6 GB of graphics memory, 
 
 DeepSeek, GLM and Kimi cloud models were dropped because they aren't on Ollama's free plan. They can be added back in settings if you buy credits.
 
+**Why not a local 14B?** A 14B model at normal compression (~10 GB) doesn't fit next to Laya, Whisper and Windows on the 12 GB card, heavier compression loses most of its advantage, and no 14B Qwen can read images. Gemma 4 31B already handles the hard thinking. The logs record how well the local backup does; if Qwen 8B struggles, adding another model is a settings change.
+
 ---
 
 ## 7. Hands: doing things on Windows
@@ -202,14 +218,14 @@ Each action is a Python function with a fixed name, typed parameters, and a **ri
 
 | Action | What it does | Risk |
 |---|---|---|
-| `open_app(name)` | Fuzzy-match against the Start menu app list, then launch | undoable |
+| `open_app(name)` | Fuzzy-match against the Start menu app list, then launch. Not installed → "Valorant isn't installed" | undoable |
 | `switch_to(app)` / `minimise(app)` | Bring a window to the front, or minimise it | undoable |
 | `close_app(app)` | Close a window (could lose unsaved work) | **ask first** |
-| `open_link(uri)` | App links and websites | undoable |
+| `open_link(uri)` | App links; websites open in **Chrome** | undoable |
 | `search_in_app(app, query)` | Link if the app has one, else shortcut plus typing | undoable |
 | `click_button(app, name)` | UI Automation click by button name | undoable* |
 | `media(key)` / `set_volume(n)` | Media keys, volume through `pycaw` | undoable |
-| `web_search(query)` | Opens the default browser on a search | undoable |
+| `web_search(query)` | Opens **Chrome** on a Google search | undoable |
 | `find_files(query)` | Everything command line (`es.exe`) | read |
 | `open_file(path)` | Opens with the default app | undoable |
 | `type_text(app, text)` | Types into Notepad (never into a password box) | undoable |
@@ -271,7 +287,7 @@ A recipe is a saved plan, keyed by **area + action + target**:
                                                    |
                           score on test_set.csv (NEVER used for teaching)
                                                    |
-                   better or equal? -> switch to it, set the new confidence bar
+                   better or equal? -> switch to it, set the new confidence zones
                    worse?           -> keep the old one, tell you
 ```
 
@@ -311,7 +327,7 @@ All of Otto's own data lives in one folder, `otto-data`, next to the code, so it
 
 ```text
 otto-data/
-├── settings.json        brains and fallback order, confidence bar, hotkeys, which areas are on
+├── settings.json        brains and fallback order, confidence zones, voice, browser, hotkeys, which areas are on
 ├── recipes.json         saved ways of doing things
 ├── examples.csv         teaching examples (starter + yours + confirmed brain decisions)
 ├── test_set.csv         ~100 requests you labelled, never taught
@@ -335,14 +351,17 @@ otto-data/
     "chat":     ["qwen3-vl:8b-instruct", "gemma4:31b-cloud"]
   },
   "brain_timeout_s": 8,
-  "laya": {"device": "cuda", "confidence_bar": null, "retrain_every": 20},
+  "laya": {"device": "cuda", "retrain_every": 20},
+  "zones": {"act_bar": null, "guess_bar": null, "clarify_timeout_s": 30},
   "whisper": {"model": "large-v3-turbo", "device": "cuda", "precision": "int8_float16",
-              "hotwords": "Otto", "end_silence_s": 0.8},
+              "hotwords": "Otto", "end_silence_s": 0.8, "misheard_below": -0.8},
+  "voice_out": {"engine": "kokoro", "voice": "af_heart", "device": "cuda", "speed": 1.0},
+  "browser": "chrome",
   "voice_mode": false
 }
 ```
 
-`confidence_bar: null` means "not measured yet", so the brain double-checks everything until the test set exists.
+`act_bar: null` means "not measured yet", so Otto asks before acting until the test set exists. `misheard_below` is a starting guess for Whisper's confidence and will be tuned from your logs. The Kokoro voice is a placeholder; you pick one from its list.
 
 ---
 
@@ -360,7 +379,8 @@ otto/
 │   ├── config.py            loads settings.json and environment variables
 │   ├── pipeline.py          the request flow from section 4, start to finish
 │   ├── guards.py            gibberish, wake word, cancel words
-│   ├── router.py            Laya: area + action, confidence bar
+│   ├── router.py            Laya: area + action, confidence zones
+│   ├── clarify.py           the one-question follow-up and short replies ("yeah", "nah")
 │   ├── details.py           rules first, then the brain, to pull out parameters
 │   ├── brain.py             C0RE client, fallback chains, JSON checking
 │   ├── planner.py           recipe lookup, or ask the brain for a plan from the named actions
@@ -377,7 +397,8 @@ otto/
 │   ├── timers.py            timers, alarms, reminders, notifications
 │   └── answers.py           time/date, maths, web search + brain answers
 ├── senses/
-│   ├── ears.py              microphone + faster-whisper (the live listener from Phase 0)
+│   ├── ears.py              microphone + faster-whisper (the live listener from Phase 0), misheard check
+│   ├── mouth.py             Kokoro voice replies, sentence by sentence; mutes the mic while speaking
 │   └── eyes.py              screenshot, window text, clipboard
 ├── api/                     (Phase 2) FastAPI local API for the overlay and iPhone
 │   └── server.py
@@ -386,8 +407,10 @@ otto/
 ├── tools/
 │   ├── try_laya.py          type to Laya and teach it (from Phase 0)
 │   ├── label_tests.py       helper to label the test set quickly
-│   └── score.py             full report: accuracy, confidence bar, speed
-└── otto-data/               (section 11; not shared, not committed)
+│   └── score.py             full report: accuracy, confidence zones, speed
+└── otto-data/               (section 11; backed up by OneDrive, not committed to git)
+
+Otto's private Python lives **outside** the project, at `C:\Users\User\.otto\venv` (Python 3.12), so OneDrive doesn't sync several GB of libraries. Downloaded models live in `C:\Users\User\.cache`, also outside OneDrive.
 ```
 
 ---
@@ -402,7 +425,8 @@ otto/
 | Laya trainable engine | ~1.6 GB |
 | Whisper large-v3-turbo (int8) | ~1 GB |
 | Qwen 3-VL 8B (via Ollama, when loaded) | ~5.7 GB |
-| **Total** | **~9.3 GB, leaving ~2.5 GB spare** |
+| Kokoro voice (small) | ~0.5 GB (or 0 on the processor) |
+| **Total** | **~9.8 GB, leaving ~2 GB spare** |
 
 Gemma 4 runs in the cloud and uses no graphics memory. Qwen 4B (~3.5 GB) should only be loaded when needed. Ollama unloads idle models after a few minutes.
 
@@ -421,11 +445,11 @@ Gemma 4 runs in the cloud and uses no graphics memory. Qwen 4B (~3.5 GB) should 
 
 | Phase | How you use Otto |
 |---|---|
-| 1 | PowerShell `otto>` prompt. Optional `--voice`: talk, and it listens like `check_live.py` |
+| 1 | PowerShell `otto>` prompt. `--voice`: talk to Otto and it answers out loud (Kokoro) |
 | 2 | The floating **Otto** overlay (Tauri): hold-a-key to talk, text box, confirm buttons, status. The core becomes a local API. |
 | 3 | The overlay can **point** at buttons and walk you through steps (Nūs-style), and understands the screen better |
 | 4 | Calendar, email and CRM in the same conversation. The same tools are also offered as an MCP server for other apps. |
-| 5 | Otto speaks its replies. An iPhone web app over Tailscale (HTTPS, so the mic works). Mac version (needs Mac-specific Hands and Eyes). |
+| 5 | Custom Otto voice (VoiceStudio, optional). iPhone web app over Tailscale (HTTPS, so the mic works). Mac version (needs Mac-specific Hands and Eyes). |
 
 ---
 
@@ -434,11 +458,11 @@ Gemma 4 runs in the cloud and uses no graphics memory. Qwen 4B (~3.5 GB) should 
 | Phase | Builds | Pass marks |
 |---|---|---|
 | **0 ✅** | Checks: C0RE models, Laya, Whisper, memory, web search | Done |
-| **1: Brain + Hands** | Sections 4–12: guards, Laya area + action, brain chains, details, recipes, safety, Hands, basic Eyes, learning loop, logs, test set, `otto>` prompt (+ optional voice) | When Laya acts alone it's right ≥ 95% of the time; ≥ 90% of all requests handled correctly; recipes work ≥ 95% of the time; < 1 s typed / < 2.5 s spoken |
+| **1: Brain + Hands** | Sections 4–12: guards (incl. misheard checks), Laya area + action, three confidence zones + clarifier, brain chains, details, recipes, safety, Hands, basic Eyes, learning loop, logs, test set, `otto>` prompt, `--voice` with Kokoro replies | When Laya acts alone it's right ≥ 95% of the time; ≥ 90% of all requests handled correctly; recipes work ≥ 95% of the time; < 1 s typed / < 2.5 s spoken |
 | **2: Body** | Local API, Tauri overlay with the Otto mascot, hotkeys, hold-to-talk, panic key | Overlay round trip feels instant; confirmations work from the overlay |
 | **3: Eyes** | Pointing at buttons, step-by-step guidance, better screen understanding (replaces Lenz) | Points at the right button ≥ 90% of the time on common apps |
 | **4: Workspace** | Calendar, email, CRM (Google Sheets), proposals (Google Docs), MCP server | Client changes always previewed; nothing sent without a yes |
-| **5: Reach** | Spoken replies, iPhone web app, Mac | – |
+| **5: Reach** | Custom voice, iPhone web app, Mac | – |
 
 If Phase 1 misses its pass marks after a fair amount of teaching, Otto narrows its focus to a **CRM assistant with an MCP server**, which was the original idea.
 
@@ -448,19 +472,21 @@ If Phase 1 misses its pass marks after a fair amount of teaching, Otto narrows i
 
 | Question | Suggested answer |
 |---|---|
-| Voice in Phase 1? | Yes, as an optional `--voice` mode; it already works |
-| Who writes the test set? | Claude drafts ~100 requests from your real phrasing; you correct the labels |
-| Brains per job | As in section 6 (Qwen for details and small talk, Gemma for thinking, screen and answers) |
-| Spotify desktop app, browser | Needed to confirm the app links and the browser to use |
-| Wake word | Hold-a-key first (Phase 2); an always-listening "Otto" wake word later, if wanted |
-| Text-to-speech model | Choose in Phase 5 (local options to be tested then) |
-| Mascot design | Ki Hurn designs it; the overlay will accept an image or animation |
+| Voice in Phase 1? | **Decided:** yes, `--voice`, with spoken replies (Kokoro) |
+| Who writes the test set? | **Decided:** Claude drafts ~100 requests in your style; you correct the labels |
+| Brains per job | **Decided:** as in section 6 |
+| Apps and browser | **Decided:** Spotify desktop app is installed; Chrome for all web; uninstalled apps get "X isn't installed" |
+| Local model size | **Decided:** keep Qwen 8B; revisit only if the logs show it struggling |
+| Python | **Decided:** 3.12 for Otto (Kokoro and others don't support 3.14 yet) |
+| Wake word | Open: hold-a-key first (Phase 2); an always-listening "Otto" wake word later, if wanted |
+| Kokoro voice | Open: pick one from Kokoro's list during Phase 1 |
+| Mascot design | Open: Ki Hurn designs it; the overlay will accept an image or animation |
 
 ## 17. Known risks
 
 | Risk | What we do about it |
 |---|---|
-| Laya plateaus below the pass marks | More of your examples, two-step questions, our own confidence bar; the brain covers the rest. Larger Laya readers or full training are the next options. |
+| Laya plateaus below the pass marks | More of your examples, two-step questions, our own confidence zones and asking you; the brain covers the rest. Larger Laya readers or full training are the next options. |
 | Gemma's free cloud allowance runs out or changes | Automatic fallback to Qwen; everything still works locally, just a bit less clever |
 | App updates break recipes or button names | Recipes track success; links and shortcuts are preferred over clicking |
 | Graphics memory gets tight (games, other models) | Whisper can move to the processor; Qwen 4B only when needed |

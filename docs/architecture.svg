@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" font-family="Segoe UI, system-ui, -apple-system, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+<marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7c3aed"/></marker>
+<marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c2410c"/></marker>
+<marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#b7791f"/></marker>
+<marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0f8b7a"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2f6fd6"/></marker>
+</defs>
+<rect width="1600" height="1050" fill="#f8fafc"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#0f172a" text-anchor="start">Otto: how a request flows</text>
+<text x="40" y="82" font-size="16" font-weight="400" fill="#475569" text-anchor="start">Laya decides fast · plain Python does the work · the brain is only the fallback · you approve anything risky</text>
+<rect x="520" y="130" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="162.0" r="15" fill="#334155"/>
+<text x="550" y="167.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+<text x="578" y="157" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Guards</text>
+<text x="578" y="179" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">gibberish · misheard? → &quot;Did you say …?&quot; · wake word · cancel</text>
+<text x="1064" y="157" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">&lt; 1 ms</text>
+<path d="M 800.0 194 L 800.0 218" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="220" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="252.0" r="15" fill="#334155"/>
+<text x="550" y="257.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+<text x="578" y="247" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Laya: which area? which action?</text>
+<text x="578" y="269" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">e.g. apps → search_in_app · GPU, trainable</text>
+<text x="1064" y="247" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">~60 ms</text>
+<path d="M 800.0 284 L 800.0 308" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="310" width="560" height="64" rx="10" fill="#f5f0ff" stroke="#7c3aed" stroke-width="2"/>
+<circle cx="550" cy="342.0" r="15" fill="#7c3aed"/>
+<text x="550" y="347.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+<text x="578" y="337" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">How sure?  three zones</text>
+<text x="578" y="359" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">high → carry on · middle → asks &quot;Open Valorant?&quot; · low → brain</text>
+<path d="M 800.0 374 L 800.0 398" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="810.0" y="391" font-size="12.5" font-weight="600" fill="#475569" text-anchor="start">sure</text>
+<rect x="520" y="400" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="432.0" r="15" fill="#334155"/>
+<text x="550" y="437.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+<text x="578" y="427" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Details</text>
+<text x="578" y="449" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">app, search words, times, text · rules first, Qwen if needed</text>
+<text x="1064" y="427" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">~5 ms+</text>
+<path d="M 800.0 464 L 800.0 488" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="490" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="522.0" r="15" fill="#334155"/>
+<text x="550" y="527.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">5</text>
+<text x="578" y="517" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Plan</text>
+<text x="578" y="539" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">saved recipe → replay with no model · else the brain plans</text>
+<text x="1064" y="517" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">&lt; 1 ms</text>
+<path d="M 800.0 554 L 800.0 578" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="580" width="560" height="64" rx="10" fill="#fff1ea" stroke="#c2410c" stroke-width="2"/>
+<circle cx="550" cy="612.0" r="15" fill="#c2410c"/>
+<text x="550" y="617.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">6</text>
+<text x="578" y="607" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Safety gate</text>
+<text x="578" y="629" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">read → do it · undoable → do it + tell you · risky → ask first</text>
+<path d="M 800.0 644 L 800.0 668" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="670" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="702.0" r="15" fill="#334155"/>
+<text x="550" y="707.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
+<text x="578" y="697" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Hands do it</text>
+<text x="578" y="719" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">fixed named actions only · never raw commands</text>
+<text x="1064" y="697" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">~0.3 s</text>
+<path d="M 800.0 734 L 800.0 758" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="760" width="560" height="64" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.6"/>
+<circle cx="550" cy="792.0" r="15" fill="#334155"/>
+<text x="550" y="797.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
+<text x="578" y="787" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Reply</text>
+<text x="578" y="809" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">text + spoken with Kokoro, sentence by sentence (P1) · overlay (P2)</text>
+<text x="1064" y="787" font-size="13.5" font-weight="600" fill="#334155" text-anchor="end">~0.2 s</text>
+<path d="M 800.0 824 L 800.0 848" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="520" y="850" width="560" height="64" rx="10" fill="#fdf6e7" stroke="#b7791f" stroke-width="1.6"/>
+<circle cx="550" cy="882.0" r="15" fill="#b7791f"/>
+<text x="550" y="887.5" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">9</text>
+<text x="578" y="877" font-size="17" font-weight="700" fill="#0f172a" text-anchor="start">Log + learn</text>
+<text x="578" y="899" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">&quot;save that&quot; → recipe + example · &quot;forget that&quot;</text>
+<rect x="40" y="120" width="400" height="352" rx="14" fill="#eef4fd" stroke="#2f6fd6" stroke-width="1.4"/>
+<text x="58" y="148" font-size="17" font-weight="700" fill="#2f6fd6" text-anchor="start">Ways in</text>
+<rect x="56" y="164" width="368" height="62" rx="9" fill="#ffffff" stroke="#bcd0f2" stroke-width="1.2"/>
+<text x="72" y="190" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Voice</text>
+<text x="72" y="211" font-size="13" font-weight="400" fill="#475569" text-anchor="start">--voice mode · faster-whisper, ~0.5 s · hotkey in P2</text>
+<rect x="387.6" y="175" width="24.4" height="20" rx="10" fill="#0f8b7a"/>
+<text x="399.8" y="189.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P1</text>
+<rect x="56" y="238" width="368" height="62" rx="9" fill="#ffffff" stroke="#bcd0f2" stroke-width="1.2"/>
+<text x="72" y="264" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Typing</text>
+<text x="72" y="285" font-size="13" font-weight="400" fill="#475569" text-anchor="start">otto&gt; prompt in PowerShell</text>
+<rect x="387.6" y="249" width="24.4" height="20" rx="10" fill="#0f8b7a"/>
+<text x="399.8" y="263.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P1</text>
+<rect x="56" y="312" width="368" height="62" rx="9" fill="#ffffff" stroke="#bcd0f2" stroke-width="1.2"/>
+<text x="72" y="338" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Otto overlay</text>
+<text x="72" y="359" font-size="13" font-weight="400" fill="#475569" text-anchor="start">floating mascot, text box, confirm buttons</text>
+<rect x="387.6" y="323" width="24.4" height="20" rx="10" fill="#2f6fd6"/>
+<text x="399.8" y="337.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P2</text>
+<rect x="56" y="386" width="368" height="62" rx="9" fill="#ffffff" stroke="#bcd0f2" stroke-width="1.2"/>
+<text x="72" y="412" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">iPhone web app</text>
+<text x="72" y="433" font-size="13" font-weight="400" fill="#475569" text-anchor="start">over Tailscale (HTTPS so the mic works)</text>
+<rect x="387.6" y="397" width="24.4" height="20" rx="10" fill="#64748b"/>
+<text x="399.8" y="411.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P5</text>
+<path d="M 440 162.0 L 518 162.0" fill="none" stroke="#2f6fd6" stroke-width="1.8" marker-end="url(#b)"/>
+<rect x="40" y="574" width="400" height="76" rx="12" fill="#ffffff" stroke="#c2410c" stroke-width="2"/>
+<text x="58" y="604" font-size="17" font-weight="700" fill="#c2410c" text-anchor="start">You: yes / no</text>
+<text x="58" y="627" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">when unsure or risky, Otto says exactly what it will do</text>
+<path d="M 520 604.0 L 442 604.0" fill="none" stroke="#c2410c" stroke-width="1.8" marker-end="url(#o)"/>
+<path d="M 440 622.0 L 518 622.0" fill="none" stroke="#c2410c" stroke-width="1.8" marker-end="url(#o)"/>
+<rect x="40" y="690" width="400" height="234" rx="14" fill="#fdf6e7" stroke="#b7791f" stroke-width="1.4"/>
+<text x="58" y="718" font-size="17" font-weight="700" fill="#b7791f" text-anchor="start">Memory  (otto-data folder)</text>
+<text x="60" y="746" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">recipes.json</text>
+<text x="172" y="746" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">saved ways of doing tasks</text>
+<text x="60" y="771" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">examples.csv</text>
+<text x="172" y="771" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">teaching examples (yours + confirmed)</text>
+<text x="60" y="796" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">test_set.csv</text>
+<text x="172" y="796" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">~100 requests, never taught</text>
+<text x="60" y="821" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">laya/</text>
+<text x="172" y="821" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">current + older versions</text>
+<text x="60" y="846" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">logs/</text>
+<text x="172" y="846" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">every request, timing, result</text>
+<path d="M 520 882.0 L 442 882.0" fill="none" stroke="#b7791f" stroke-width="1.8" marker-end="url(#m)"/>
+<path d="M 440 730 L 480 730 L 480 252.0 L 518 252.0" fill="none" stroke="#b7791f" stroke-width="1.8" stroke-dasharray="7 6" marker-end="url(#m)"/>
+<rect x="442" y="490" width="76" height="62" rx="6" fill="#f8fafc"/>
+<text x="480" y="508" font-size="12.5" font-weight="700" fill="#b7791f" text-anchor="middle">relearn</text>
+<text x="480" y="524" font-size="11" font-weight="400" fill="#b7791f" text-anchor="middle">~11 s, kept</text>
+<text x="480" y="538" font-size="11" font-weight="400" fill="#b7791f" text-anchor="middle">only if the</text>
+<text x="480" y="551" font-size="11" font-weight="400" fill="#b7791f" text-anchor="middle">test improves</text>
+<rect x="1160" y="120" width="400" height="352" rx="14" fill="#f5f0ff" stroke="#7c3aed" stroke-width="1.4"/>
+<text x="1178" y="148" font-size="17" font-weight="700" fill="#7c3aed" text-anchor="start">Brain, through C0RE (127.0.0.1:7080)</text>
+<text x="1178" y="170" font-size="13" font-weight="400" fill="#475569" text-anchor="start">only when needed · replies as checked JSON</text>
+<rect x="1176" y="186" width="368" height="62" rx="9" fill="#ffffff" stroke="#d6c7fb" stroke-width="1.2"/>
+<text x="1192" y="212" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Gemma 4 31B</text>
+<text x="1528" y="212" font-size="12.5" font-weight="600" fill="#7c3aed" text-anchor="end">cloud, free plan</text>
+<text x="1192" y="233" font-size="13" font-weight="400" fill="#475569" text-anchor="start">decide · plan · screen · answers</text>
+<path d="M 1220 248 L 1220 266" fill="none" stroke="#7c3aed" stroke-width="1.4" marker-end="url(#p)"/>
+<text x="1232" y="261" font-size="11" font-weight="400" fill="#7c3aed" text-anchor="start">if out of quota / offline / slow</text>
+<rect x="1176" y="268" width="368" height="62" rx="9" fill="#ffffff" stroke="#d6c7fb" stroke-width="1.2"/>
+<text x="1192" y="294" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Qwen 3-VL 8B</text>
+<text x="1528" y="294" font-size="12.5" font-weight="600" fill="#7c3aed" text-anchor="end">local GPU</text>
+<text x="1192" y="315" font-size="13" font-weight="400" fill="#475569" text-anchor="start">details · small talk · backup</text>
+<path d="M 1220 330 L 1220 348" fill="none" stroke="#7c3aed" stroke-width="1.4" marker-end="url(#p)"/>
+<text x="1232" y="343" font-size="11" font-weight="400" fill="#7c3aed" text-anchor="start">if out of quota / offline / slow</text>
+<rect x="1176" y="350" width="368" height="62" rx="9" fill="#ffffff" stroke="#d6c7fb" stroke-width="1.2"/>
+<text x="1192" y="376" font-size="15.5" font-weight="700" fill="#0f172a" text-anchor="start">Qwen 3-VL 4B</text>
+<text x="1528" y="376" font-size="12.5" font-weight="600" fill="#7c3aed" text-anchor="end">local GPU</text>
+<text x="1192" y="397" font-size="13" font-weight="400" fill="#475569" text-anchor="start">last backup</text>
+<path d="M 1080 342.0 L 1158 342.0" fill="none" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#p)"/>
+<text x="1120.0" y="334.0" font-size="12.5" font-weight="600" fill="#7c3aed" text-anchor="middle">low</text>
+<path d="M 1160 432.0 L 1082 432.0" fill="none" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#p)"/>
+<text x="1120.0" y="424.0" font-size="12.5" font-weight="600" fill="#7c3aed" text-anchor="middle">guess</text>
+<path d="M 1080 522.0 L 1120 522.0 L 1120 442 L 1158 442" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="7 6" marker-end="url(#p)"/>
+<rect x="1160" y="550" width="400" height="374" rx="14" fill="#eaf8f5" stroke="#0f8b7a" stroke-width="1.4"/>
+<text x="1178" y="578" font-size="17" font-weight="700" fill="#0f8b7a" text-anchor="start">Hands: plain Python, fixed actions</text>
+<rect x="1176" y="594" width="48.4" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1200.2" y="613" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">apps</text>
+<rect x="1232.4" y="594" width="56.0" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1260.4" y="613" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">media</text>
+<rect x="1296.4" y="594" width="40.8" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1316.8000000000002" y="613" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">web</text>
+<rect x="1345.2" y="594" width="154.79999999999998" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1422.6000000000001" y="613" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">files (Everything)</text>
+<rect x="1176" y="630" width="56.0" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1204.0" y="649" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">notes</text>
+<rect x="1240.0" y="630" width="63.599999999999994" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1271.8" y="649" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">timers</text>
+<rect x="1311.6" y="630" width="71.19999999999999" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1347.1999999999998" y="649" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">answers</text>
+<rect x="1176" y="666" width="200.39999999999998" height="28" rx="14" fill="#ffffff" stroke="#9fd9cf" stroke-width="1.2"/>
+<text x="1276.2" y="685" font-size="13" font-weight="600" fill="#0f5f54" text-anchor="middle">eyes: screen / clipboard</text>
+<text x="1178" y="722" font-size="13.5" font-weight="700" fill="#334155" text-anchor="start">Reliability ladder</text>
+<text x="1178" y="743" font-size="13" font-weight="400" fill="#475569" text-anchor="start">link → shortcut → UI Automation → screenshot click</text>
+<rect x="1176" y="762" width="368" height="58" rx="9" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="1192" y="786" font-size="14" font-weight="700" fill="#475569" text-anchor="start">Later connectors</text>
+<rect x="1322" y="771" width="24.4" height="20" rx="10" fill="#b7791f"/>
+<text x="1334.2" y="785.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P4</text>
+<text x="1192" y="807" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start">calendar · email · CRM (Google Sheets) · Docs · MCP</text>
+<path d="M 1080 702.0 L 1158 702.0" fill="none" stroke="#0f8b7a" stroke-width="1.8" marker-end="url(#t)"/>
+<text x="1120.0" y="694.0" font-size="12.5" font-weight="600" fill="#0f8b7a" text-anchor="middle">action</text>
+<rect x="40" y="946" width="1520" height="82" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="60" y="976" font-size="14.5" font-weight="700" fill="#0f172a" text-anchor="start">Speed (Phase 0 numbers)</text>
+<text x="60" y="1001" font-size="13.5" font-weight="400" fill="#475569" text-anchor="start">Typed, Laya sure: &lt; 1 s   ·   Spoken: ~2 s after you stop   ·   Brain needed: +1 s   ·   Screen question: 2–3 s</text>
+<text x="1000" y="976" font-size="14.5" font-weight="700" fill="#0f172a" text-anchor="start">Built in phase</text>
+<rect x="1000" y="988" width="24.4" height="20" rx="10" fill="#0f8b7a"/>
+<text x="1012.2" y="1002.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P1</text>
+<text x="1030.4" y="1003" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start">brain + hands</text>
+<rect x="1129.4" y="988" width="24.4" height="20" rx="10" fill="#2f6fd6"/>
+<text x="1141.6000000000001" y="1002.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P2</text>
+<text x="1159.8000000000002" y="1003" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start">overlay</text>
+<rect x="1216.8000000000002" y="988" width="24.4" height="20" rx="10" fill="#b7791f"/>
+<text x="1229.0000000000002" y="1002.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P4</text>
+<text x="1247.2000000000003" y="1003" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start">workspace</text>
+<rect x="1318.2000000000003" y="988" width="24.4" height="20" rx="10" fill="#64748b"/>
+<text x="1330.4000000000003" y="1002.5" font-size="11.5" font-weight="700" fill="#ffffff" text-anchor="middle">P5</text>
+<text x="1348.6000000000004" y="1003" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start">later</text>
+<line x1="1000" y1="1020" x2="1030" y2="1020" stroke="#475569" stroke-width="1.6" stroke-dasharray="6 5"/>
+<text x="1038" y="1024" font-size="12" font-weight="400" fill="#475569" text-anchor="start">dashed = only sometimes</text>
+</svg>

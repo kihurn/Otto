@@ -43,6 +43,9 @@ In PowerShell, paste these two lines. The first one asks for the key and hides w
 [Environment]::SetEnvironmentVariable("OTTO_C0RE_KEY", "<your-c0re-key>", "User"); $env:OTTO_C0RE_KEY = "<your-c0re-key>"
 
 if ($env:OTTO_C0RE_KEY) { "key is set" } else { "key is NOT set" }
+
+
+[Environment]::SetEnvironmentVariable("OTTO_SPOTIFY_CLIENT_ID", "68c28eef5af2493ba46a78333ec69acd", "User"); $env:OTTO_C0RE_KEY = "68c28eef5af2493ba46a78333ec69acd"
 ```
 
 Now **close PowerShell and open a new one** in the same folder (the key only shows up in new windows). Check it worked:

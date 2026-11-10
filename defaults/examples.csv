@@ -1,0 +1,299 @@
+text,area,action,source,added
+open spotify,apps,,starter,2026-11-10
+launch discord for me,apps,,starter,2026-11-10
+can you open vs code,apps,,starter,2026-11-10
+open spotify and search lofi beats,apps,,starter,2026-11-10
+switch to chrome,apps,,starter,2026-11-10
+minimise this window,apps,,starter,2026-11-10
+close notepad,apps,,starter,2026-11-10
+search for taylor swift in spotify,apps,,starter,2026-11-10
+click the new tab button in chrome,apps,,starter,2026-11-10
+bring up the calculator,apps,,starter,2026-11-10
+open settings and go to bluetooth,apps,,starter,2026-11-10
+start steam,apps,,starter,2026-11-10
+pause the music,media,,starter,2026-11-10
+play,media,,starter,2026-11-10
+skip this song,media,,starter,2026-11-10
+next track,media,,starter,2026-11-10
+go back to the previous song,media,,starter,2026-11-10
+turn the volume up,media,,starter,2026-11-10
+volume down a bit,media,,starter,2026-11-10
+mute,media,,starter,2026-11-10
+set volume to 30 percent,media,,starter,2026-11-10
+resume playback,media,,starter,2026-11-10
+stop the video,media,,starter,2026-11-10
+louder please,media,,starter,2026-11-10
+open youtube,web,,starter,2026-11-10
+go to github.com,web,,starter,2026-11-10
+search the web for best budget mechanical keyboards,web,,starter,2026-11-10
+google how to cook rice in a rice cooker,web,,starter,2026-11-10
+open my gmail,web,,starter,2026-11-10
+look up reviews for the rtx 5070,web,,starter,2026-11-10
+open reddit in a new tab,web,,starter,2026-11-10
+search online for the semester calendar,web,,starter,2026-11-10
+take me to netflix,web,,starter,2026-11-10
+open the canvas website,web,,starter,2026-11-10
+find cheap flights to tokyo online,web,,starter,2026-11-10
+browse to wikipedia,web,,starter,2026-11-10
+find my resume,files,,starter,2026-11-10
+where is the pdf for my econ assignment,files,,starter,2026-11-10
+open the downloads folder,files,,starter,2026-11-10
+find files named budget,files,,starter,2026-11-10
+search my pc for photos from last week,files,,starter,2026-11-10
+locate the otto project folder,files,,starter,2026-11-10
+open my latest screenshot,files,,starter,2026-11-10
+find the excel file with my grades,files,,starter,2026-11-10
+where did i save the lab report,files,,starter,2026-11-10
+show me the documents folder,files,,starter,2026-11-10
+find mp4 files on my desktop,files,,starter,2026-11-10
+open the file called notes.txt,files,,starter,2026-11-10
+write a note saying buy milk,notes,,starter,2026-11-10
+open notepad and type hello world,notes,,starter,2026-11-10
+jot this down: meeting with prof at 3pm,notes,,starter,2026-11-10
+create a new note for my shopping list,notes,,starter,2026-11-10
+type out a quick todo list in notepad,notes,,starter,2026-11-10
+take a note: call mom tonight,notes,,starter,2026-11-10
+write remember to submit the form in notepad,notes,,starter,2026-11-10
+start a new text file called ideas,notes,,starter,2026-11-10
+add eggs to my note,notes,,starter,2026-11-10
+save this as a note: the wifi password is on the router,notes,,starter,2026-11-10
+draft a short paragraph about my weekend in notepad,notes,,starter,2026-11-10
+note down that the exam is on friday,notes,,starter,2026-11-10
+set a timer for 10 minutes,timer,,starter,2026-11-10
+timer 25 minutes for study,timer,,starter,2026-11-10
+remind me in an hour to stretch,timer,,starter,2026-11-10
+start a 5 minute countdown,timer,,starter,2026-11-10
+set an alarm for 7am,timer,,starter,2026-11-10
+wake me up at 6:30 tomorrow,timer,,starter,2026-11-10
+pomodoro timer please,timer,,starter,2026-11-10
+remind me to take out the trash at 8pm,timer,,starter,2026-11-10
+how long is left on my timer,timer,,starter,2026-11-10
+cancel the timer,timer,,starter,2026-11-10
+set a 90 second timer for the eggs,timer,,starter,2026-11-10
+ping me in 20 minutes,timer,,starter,2026-11-10
+what time is it,question,,starter,2026-11-10
+who is the president of the united states,question,,starter,2026-11-10
+what's the date today,question,,starter,2026-11-10
+how many days until christmas,question,,starter,2026-11-10
+what is the capital of australia,question,,starter,2026-11-10
+what's 15 percent of 80,question,,starter,2026-11-10
+how's the weather today,question,,starter,2026-11-10
+convert 50 usd to myr,question,,starter,2026-11-10
+who won the last world cup,question,,starter,2026-11-10
+what does photosynthesis mean,question,,starter,2026-11-10
+how tall is mount everest,question,,starter,2026-11-10
+what day is it,question,,starter,2026-11-10
+what's on my screen,screen,,starter,2026-11-10
+explain this error message,screen,,starter,2026-11-10
+summarise this page for me,screen,,starter,2026-11-10
+what does this window say,screen,,starter,2026-11-10
+read what i copied,screen,,starter,2026-11-10
+what am i looking at,screen,,starter,2026-11-10
+translate the text on my screen,screen,,starter,2026-11-10
+is there anything important in this email i have open,screen,,starter,2026-11-10
+what button should i click here,screen,,starter,2026-11-10
+help me understand this chart,screen,,starter,2026-11-10
+summarize the article i have open,screen,,starter,2026-11-10
+what's in my clipboard,screen,,starter,2026-11-10
+otto save that,memory,,starter,2026-11-10
+remember how you did that,memory,,starter,2026-11-10
+save this method for next time,memory,,starter,2026-11-10
+forget that,memory,,starter,2026-11-10
+that worked remember it,memory,,starter,2026-11-10
+don't do it that way again,memory,,starter,2026-11-10
+remember that this is how spotify search works,memory,,starter,2026-11-10
+delete that saved method,memory,,starter,2026-11-10
+that was wrong forget it,memory,,starter,2026-11-10
+keep that for next time,memory,,starter,2026-11-10
+save that recipe,memory,,starter,2026-11-10
+undo what you just learned,memory,,starter,2026-11-10
+hey otto,chitchat,,starter,2026-11-10
+good morning,chitchat,,starter,2026-11-10
+thanks,chitchat,,starter,2026-11-10
+you're awesome,chitchat,,starter,2026-11-10
+how are you doing,chitchat,,starter,2026-11-10
+what can you do,chitchat,,starter,2026-11-10
+lol nice,chitchat,,starter,2026-11-10
+who made you,chitchat,,starter,2026-11-10
+goodnight otto,chitchat,,starter,2026-11-10
+tell me a joke,chitchat,,starter,2026-11-10
+i'm bored,chitchat,,starter,2026-11-10
+nevermind,chitchat,,starter,2026-11-10
+the thing,unsure,,starter,2026-11-10
+uhh,unsure,,starter,2026-11-10
+do it,unsure,,starter,2026-11-10
+asdfgh,unsure,,starter,2026-11-10
+order me a pizza,unsure,,starter,2026-11-10
+book a flight for me,unsure,,starter,2026-11-10
+hmm wait,unsure,,starter,2026-11-10
+what about the other one,unsure,,starter,2026-11-10
+make it better,unsure,,starter,2026-11-10
+send it,unsure,,starter,2026-11-10
+fix my computer,unsure,,starter,2026-11-10
+the blue one,unsure,,starter,2026-11-10
+open discord,apps,,starter,2026-11-10
+launch obs,apps,,starter,2026-11-10
+pull up file explorer,apps,,starter,2026-11-10
+open word,apps,,starter,2026-11-10
+fire up valorant,apps,,starter,2026-11-10
+switch over to discord,apps,,starter,2026-11-10
+go back to vs code,apps,,starter,2026-11-10
+maximise this window,apps,,starter,2026-11-10
+close spotify,apps,,starter,2026-11-10
+quit chrome,apps,,starter,2026-11-10
+search for drake on spotify,apps,,starter,2026-11-10
+in chrome open a new tab,apps,,starter,2026-11-10
+click the play button in spotify,apps,,starter,2026-11-10
+open the calculator app,apps,,starter,2026-11-10
+pause,media,,starter,2026-11-10
+stop the music,media,,starter,2026-11-10
+next song please,media,,starter,2026-11-10
+play the next one,media,,starter,2026-11-10
+previous track,media,,starter,2026-11-10
+replay that song,media,,starter,2026-11-10
+turn it up,media,,starter,2026-11-10
+turn it down,media,,starter,2026-11-10
+too loud,media,,starter,2026-11-10
+volume 50,media,,starter,2026-11-10
+unmute,media,,starter,2026-11-10
+resume the music,media,,starter,2026-11-10
+pause the video,media,,starter,2026-11-10
+make it quieter,media,,starter,2026-11-10
+open google,web,,starter,2026-11-10
+go to youtube.com,web,,starter,2026-11-10
+search google for cheap laptops,web,,starter,2026-11-10
+look up how to tie a tie,web,,starter,2026-11-10
+open instagram in the browser,web,,starter,2026-11-10
+take me to my university portal website,web,,starter,2026-11-10
+search for rtx 4070 super benchmarks online,web,,starter,2026-11-10
+open twitter,web,,starter,2026-11-10
+go to amazon,web,,starter,2026-11-10
+search youtube for lofi hip hop,web,,starter,2026-11-10
+open the wikipedia page for black holes,web,,starter,2026-11-10
+find a recipe for banana bread online,web,,starter,2026-11-10
+open chatgpt in the browser,web,,starter,2026-11-10
+browse reddit,web,,starter,2026-11-10
+find my tax documents,files,,starter,2026-11-10
+where's my essay draft,files,,starter,2026-11-10
+open the pictures folder,files,,starter,2026-11-10
+find the powerpoint for my presentation,files,,starter,2026-11-10
+search for files with invoice in the name,files,,starter,2026-11-10
+open my desktop folder,files,,starter,2026-11-10
+find the video i recorded yesterday,files,,starter,2026-11-10
+locate my cv pdf,files,,starter,2026-11-10
+open the most recent download,files,,starter,2026-11-10
+find all zip files in downloads,files,,starter,2026-11-10
+where is otto's config file,files,,starter,2026-11-10
+open the music folder,files,,starter,2026-11-10
+search my computer for budget.xlsx,files,,starter,2026-11-10
+find the screenshot i took this morning,files,,starter,2026-11-10
+write down buy eggs and bread,notes,,starter,2026-11-10
+make a note: dentist on tuesday,notes,,starter,2026-11-10
+open notepad and write my todo list,notes,,starter,2026-11-10
+type this into notepad: hello from otto,notes,,starter,2026-11-10
+new note called groceries,notes,,starter,2026-11-10
+add milk to the shopping note,notes,,starter,2026-11-10
+take a quick note that i owe sam 20 dollars,notes,,starter,2026-11-10
+put this in a note: project due next week,notes,,starter,2026-11-10
+start a text file with my ideas for the app,notes,,starter,2026-11-10
+write a short poem in notepad,notes,,starter,2026-11-10
+jot down the wifi name is home5g,notes,,starter,2026-11-10
+create a note listing my classes,notes,,starter,2026-11-10
+note that the meeting moved to 4pm,notes,,starter,2026-11-10
+type out an email draft in notepad,notes,,starter,2026-11-10
+set a 15 minute timer,timer,,starter,2026-11-10
+timer for 3 minutes,timer,,starter,2026-11-10
+remind me in 30 minutes to check the oven,timer,,starter,2026-11-10
+alarm at 6am,timer,,starter,2026-11-10
+wake me at 7:15,timer,,starter,2026-11-10
+set a pomodoro for 50 minutes,timer,,starter,2026-11-10
+remind me tomorrow at 9 to submit the form,timer,,starter,2026-11-10
+countdown 2 minutes,timer,,starter,2026-11-10
+stop the timer,timer,,starter,2026-11-10
+how much time is left,timer,,starter,2026-11-10
+set a reminder for my meeting at 2pm,timer,,starter,2026-11-10
+remind me to drink water every hour,timer,,starter,2026-11-10
+cancel my alarm,timer,,starter,2026-11-10
+add another 5 minutes to the timer,timer,,starter,2026-11-10
+what's the time,question,,starter,2026-11-10
+what year is it,question,,starter,2026-11-10
+how much is 12 times 15,question,,starter,2026-11-10
+who is the prime minister of malaysia,question,,starter,2026-11-10
+what's the weather like tomorrow,question,,starter,2026-11-10
+how many ounces in a cup,question,,starter,2026-11-10
+what's the capital of japan,question,,starter,2026-11-10
+when is the next public holiday,question,,starter,2026-11-10
+who wrote harry potter,question,,starter,2026-11-10
+what's the square root of 144,question,,starter,2026-11-10
+how far is the moon,question,,starter,2026-11-10
+what does api stand for,question,,starter,2026-11-10
+is it going to rain today,question,,starter,2026-11-10
+what's bitcoin worth right now,question,,starter,2026-11-10
+what does this say,screen,,starter,2026-11-10
+can you read this for me,screen,,starter,2026-11-10
+explain what's on my screen,screen,,starter,2026-11-10
+summarise this document,screen,,starter,2026-11-10
+what's this error,screen,,starter,2026-11-10
+what should i click next,screen,,starter,2026-11-10
+read the text in this window,screen,,starter,2026-11-10
+what is this popup about,screen,,starter,2026-11-10
+translate this page,screen,,starter,2026-11-10
+what does the copied text say,screen,,starter,2026-11-10
+describe this image on my screen,screen,,starter,2026-11-10
+check this email for typos,screen,,starter,2026-11-10
+what's this graph showing,screen,,starter,2026-11-10
+summarise what i copied,screen,,starter,2026-11-10
+save that,memory,,starter,2026-11-10
+remember that,memory,,starter,2026-11-10
+otto remember this method,memory,,starter,2026-11-10
+that's the right way save it,memory,,starter,2026-11-10
+forget what you just did,memory,,starter,2026-11-10
+don't remember that,memory,,starter,2026-11-10
+save this as a recipe,memory,,starter,2026-11-10
+good job keep that,memory,,starter,2026-11-10
+that's not how to do it forget it,memory,,starter,2026-11-10
+remember this for next time,memory,,starter,2026-11-10
+remove that saved recipe,memory,,starter,2026-11-10
+learn from that,memory,,starter,2026-11-10
+save it,memory,,starter,2026-11-10
+wipe that from memory,memory,,starter,2026-11-10
+hi,chitchat,,starter,2026-11-10
+hello otto,chitchat,,starter,2026-11-10
+thank you so much,chitchat,,starter,2026-11-10
+good job otto,chitchat,,starter,2026-11-10
+how's it going,chitchat,,starter,2026-11-10
+what are you,chitchat,,starter,2026-11-10
+are you there,chitchat,,starter,2026-11-10
+haha,chitchat,,starter,2026-11-10
+see you later,chitchat,,starter,2026-11-10
+what's your name,chitchat,,starter,2026-11-10
+i love you otto,chitchat,,starter,2026-11-10
+you're funny,chitchat,,starter,2026-11-10
+sorry,chitchat,,starter,2026-11-10
+ok cool,chitchat,,starter,2026-11-10
+that one,unsure,,starter,2026-11-10
+uh what,unsure,,starter,2026-11-10
+can you,unsure,,starter,2026-11-10
+the other thing,unsure,,starter,2026-11-10
+do the thing,unsure,,starter,2026-11-10
+hmm,unsure,,starter,2026-11-10
+buy me shoes,unsure,,starter,2026-11-10
+call my mom,unsure,,starter,2026-11-10
+go,unsure,,starter,2026-11-10
+no wait,unsure,,starter,2026-11-10
+fix it,unsure,,starter,2026-11-10
+and then,unsure,,starter,2026-11-10
+whatever,unsure,,starter,2026-11-10
+pay my bill,unsure,,starter,2026-11-10
+hello,chitchat,,you,2026-11-10
+can you open spotify?,apps,,you,2026-11-10
+pause the song,media,,you,2026-11-10
+who won the champions league?,question,,you,2026-11-10
+hey otto,chitchat,,you,2026-11-10
+thanks bro,chitchat,,you,2026-11-10
+whats wrong?,screen,,you,2026-11-10
+whats wrong right now on my screen?,screen,,you,2026-11-10
+whats on my schedule?,unsure,,you,2026-11-10
+can you open valorant,apps,,you,2026-11-10
+fuck,unsure,,you,2026-11-10
+dad awdafd open spotify,apps,,you,2026-11-10

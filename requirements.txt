@@ -1,0 +1,21 @@
+# Otto, Phase 1. Python 3.12. PyTorch (GPU build) is installed first by setup.ps1.
+laya==0.4.30
+faster-whisper==1.2.1
+av>=15,<19
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12>=9.10,<10
+nvidia-cuda-runtime-cu12==12.9.79
+kokoro==0.9.4
+sounddevice
+soundfile
+numpy
+pillow
+mss
+pywinauto
+pywin32
+psutil
+pycaw
+comtypes
+rapidfuzz
+wordfreq
+winotify
