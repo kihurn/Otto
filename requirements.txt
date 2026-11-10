@@ -19,3 +19,6 @@ comtypes
 rapidfuzz
 wordfreq
 winotify
+pynput
+winrt-runtime
+winrt-Windows.Media.Control

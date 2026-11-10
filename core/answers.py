@@ -95,8 +95,8 @@ def web_search(query: str, max_results: int = 3) -> list[dict]:
         return []
 
 
-STYLE = ("Answer in one or two short spoken-style sentences, no lists or markdown, because the answer "
-         "may be read aloud.")
+STYLE = ("Answer in ONE short spoken-style sentence (under 25 words), no lists or markdown, because the "
+         "answer may be read aloud.")
 
 
 def answer(text: str, brain) -> tuple[str, str]:

@@ -1,0 +1,2 @@
+# For running the tests (not needed to use Otto)
+pytest

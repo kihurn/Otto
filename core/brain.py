@@ -69,6 +69,29 @@ class Brain:
         self.url = settings.get("c0re_url", "http://127.0.0.1:7080").rstrip("/")
         self.timeout = float(settings.get("brain_timeout_s", 12))
         self.cooldown: dict[str, float] = {}  # model -> time it may be tried again
+        self.context_fn = None                 # set by the pipeline: what's happening right now
+
+    def brief(self) -> str:
+        """The Otto brief (otto-data/brief.md) with the live details filled in."""
+        path = config.BRIEF_FILE if config.BRIEF_FILE.exists() else config.DEFAULTS / "brief.md"
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+        ctx = {}
+        if self.context_fn:
+            try:
+                ctx = self.context_fn() or {}
+            except Exception:
+                ctx = {}
+
+        class Missing(dict):
+            def __missing__(self, key):
+                return "unknown"
+        try:
+            return text.format_map(Missing(ctx))[:4000]
+        except (ValueError, IndexError):
+            return text[:4000]
 
     # ---- low level -----------------------------------------------------------------------
     def _post(self, path: str, body: dict, timeout: float) -> dict:
@@ -118,6 +141,7 @@ class Brain:
         """Ask the first working model for this job. Raises NoBrainAvailable if all fail."""
         chain = self.settings.get("brains", {}).get(job) or self.settings["brains"]["decide"]
         messages = []
+        system = "\n\n".join(x for x in (self.brief(), system) if x)
         if system:
             messages.append({"role": "system", "content": system})
         user = {"role": "user", "content": prompt}

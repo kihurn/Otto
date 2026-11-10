@@ -104,6 +104,10 @@ def parse_clock(text: str) -> str | None:
 
 def _apps(text: str, apps) -> Intent | None:
     t = _t(text)
+    if re.search(r"\bplay\b|\blisten to\b|\bput on\b", t) and not re.search(r"\b(?:youtube|netflix|steam)\b", t):
+        music = music_intent(text)
+        if music:
+            return music
     # "click the play button in spotify"
     m = re.search(r"\b(?:click|press|tap|hit)(?: on)?\s+(?:the\s+)?(?P<b>.+?)(?:\s+button)?(?:\s+(?:in|on)\s+(?P<app>.+))?$", t)
     if m and m.group("app"):
@@ -136,6 +140,45 @@ def _apps(text: str, apps) -> Intent | None:
     return intent
 
 
+_GENERIC_MUSIC = {"music", "the music", "some music", "it", "this", "that", "something", "a song", "songs", "again",
+                  "the song", "spotify", "on spotify", "it again", "this song", "that song", "the video", "video"}
+_NOW_PLAYING = re.compile(r"what(?:'s|s| is)\s+(?:this song|playing|this track|the song|on)\b|what song is (?:this|playing|on)|"
+                          r"who (?:sings|is singing|sang) (?:this|that)|name of (?:this|the) song|what am i listening to")
+_LIKED = re.compile(r"\b(?:play|put on|shuffle|start|throw on|chuck on)\b.*?\b(?:my (?:music|songs|liked songs|likes|"
+                    r"favou?rites|library|tunes)|liked songs|songs i like|music i like)\b")
+
+
+def music_intent(text: str) -> Intent | None:
+    """Spotify-style requests, wherever they appear in a sentence (also inside longer requests like
+    'open spotify, search and play "the hills" by "the weeknd"')."""
+    t = _t(text)
+    if _NOW_PLAYING.search(t):
+        return Intent("media", "now_playing")
+    m = re.search(r"\bmy playlist(?:\s+(?:called|named))?\s+(?P<q>.+?)(?:\s+on spotify)?$", t)
+    if m and re.search(r"\b(?:play|put on|shuffle|start)\b", t):
+        return Intent("media", "play_music", {"query": m.group("q").strip(" \"'"), "kind": "playlist"})
+    if _LIKED.search(t):
+        return Intent("media", "play_liked")
+    raw = text.strip()
+    m = re.search(r"\b(?:play|put on|listen to|queue up)\s+[\"“](?P<q>[^\"”]+)[\"”](?:\s+by\s+[\"“]?(?P<a>[^\"”]+?)[\"”]?)?"
+                  r"(?:\s+(?:on|in)\s+spotify)?\s*[.?!]*$", raw, re.I)
+    if not m:
+        m = re.search(r"\b(?:play|put on|throw on|chuck on|listen to|queue up)\s+(?:me\s+)?(?:some\s+)?"
+                      r"(?P<k>the\s+song|the\s+track|the\s+album|the\s+playlist|the\s+artist|song|track|album|playlist|artist)?\s*"
+                      r"(?P<q>.+?)(?:\s+by\s+(?P<a>.+?))?(?:\s+(?:on|in|using)\s+spotify)?\s*[.?!]*$", raw, re.I)
+    if not m:
+        return None
+    q = m.group("q").strip(" \"'“”").strip()
+    if q.lower() in _GENERIC_MUSIC or re.search(r"\b(?:on|in)\s+(?:youtube|netflix|chrome)\b", q, re.I):
+        return None
+    k = (m.groupdict().get("k") or "").lower().replace("the ", "").strip()
+    kind = {"song": "track", "track": "track", "album": "album", "playlist": "playlist", "artist": "artist"}.get(k, "auto")
+    artist = (m.group("a") or "").strip(" \"'“”")
+    if artist:
+        kind = "track" if kind == "auto" else kind
+    return Intent("media", "play_music", {"query": q, "kind": kind, "artist": artist})
+
+
 def _media(text: str) -> Intent | None:
     t = _t(text)
     m = re.search(r"(?:volume|sound)\s*(?:to|at|=)?\s*(\d{1,3})\s*%?|(\d{1,3})\s*(?:%|percent)\s*(?:volume)?", t)
@@ -151,11 +194,13 @@ def _media(text: str) -> Intent | None:
         return Intent("media", "next")
     if re.search(r"\b(?:previous|last song|last track|go back|replay|restart|back a song)\b", t):
         return Intent("media", "previous")
-    m = re.search(r"^play\s+(?:some\s+)?(?P<q>.+?)(?:\s+on spotify)?$", t)
-    if m and m.group("q") not in ("it", "this", "that", "music", "the music", "the song", "again", "song"):
-        return Intent("apps", "search_in_app", {"app": "Spotify", "query": m.group("q")})
-    if re.search(r"\b(?:pause|play|resume|stop|unpause|continue)\b", t):
-        return Intent("media", "play_pause")
+    music = music_intent(text)
+    if music:
+        return music
+    if re.search(r"\b(?:pause|stop|hold on|shush)\b", t):
+        return Intent("media", "pause")
+    if re.search(r"\b(?:play|resume|unpause|continue|start)\b", t):
+        return Intent("media", "play")
     return None
 
 
@@ -196,7 +241,7 @@ def _files(text: str) -> Intent | None:
     words = t
     for k in _FILE_EXT:
         words = re.sub(k, " ", words)
-    named = re.search(r"(?:called|named)\s+(\S+)", t)
+    named = re.search(r"(?:called|named)\s+(.+?)(?:\s+(?:in|on|from)\s+(?:my\s+|the\s+)?\w+)?$", t)
     words = re.sub(_FILE_FILLER, " ", words)
     words = " ".join(w for w in re.findall(r"[\w.'-]+", words) if len(w) > 1 or w.isdigit())
     if named:
@@ -263,6 +308,8 @@ def _timer(text: str) -> Intent | None:
 
 def by_rules(area: str, text: str, apps) -> Intent | None:
     try:
+        if area in ("question", "chitchat", "web") and _NOW_PLAYING.search(_t(text)):
+            return Intent("media", "now_playing")
         if area == "apps":
             return _apps(text, apps)
         if area == "media":
@@ -286,7 +333,7 @@ def by_rules(area: str, text: str, apps) -> Intent | None:
 
 PARAMS = {
     "apps": "app (the app's name), query (for search_in_app), button (for click_button)",
-    "media": "level (0-100, for set_volume)",
+    "media": "level (0-100, for set_volume), query + kind (track/artist/album/playlist) + artist (for play_music)",
     "web": "site (for open_site), query (for web_search)",
     "files": "query (words in the file name)",
     "notes": "text (exactly what to write), title (optional)",

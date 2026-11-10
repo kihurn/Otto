@@ -1,166 +1,160 @@
-# Otto: Phase 1
+# Otto 1.1
 
-Otto is your desktop assistant. You type or talk; **Laya** decides what you want in a fraction of a
-second; plain Python code does it; the **brain** (Gemma 4 in the cloud, Qwen on your PC through
-C0RE) only steps in when something needs understanding, writing or looking at. When Otto isn't
-sure, it asks you. When you confirm, it learns.
+Otto is your desktop assistant. You talk or type; **Laya** decides what you want in a fraction of a
+second; plain Python does it; the **brain** (Gemma 4 in the cloud, Qwen on your PC, through C0RE) only
+steps in when something needs understanding, writing or looking at. When Otto isn't sure, it asks
+you. When you confirm, it learns.
 
-The full design is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-**This phase is a test.** At the end we check the pass marks (section 9) and decide whether Otto
-keeps growing into a desktop agent, or narrows to a CRM assistant.
+Design: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). What changed: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
-## 1. Put the files in place
+## 1. Updating from 1.0
 
-1. Paste everything from the zip into `C:\Users\User\OneDrive\Documents\Otto`.
-2. Delete the old **top-level** `ARCHITECTURE.md` and `architecture.svg`. They now live in `docs\`.
-3. If you haven't yet, delete `otto-phase0\.venv` (several GB that OneDrive would upload).
+1. Paste everything from the zip into `C:\Users\User\OneDrive\Documents\Otto` (replace files when asked).
+2. Delete `tool.cmd` and `tools\voice_test.py` if they're still there; the `otto` command replaces them.
+3. Run setup again (it adds three small packages and puts `otto` on your PATH):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\setup.ps1
+   ```
+4. **Open a new terminal**, then:
+   ```powershell
+   otto check
+   otto spotify
+   ```
+   `otto spotify` opens Chrome once so you can let Otto control Spotify (click **Agree**).
 
-Otto's private Python goes **outside** OneDrive, in `C:\Users\User\.otto\venv`. Downloaded models go to
-`C:\Users\User\.cache`. Neither is synced. Your own data (`otto-data\`) stays in the project, so OneDrive backs it up.
+Your `otto-data` (examples, recipes, test set, Laya's learning) is kept. Your talking speed becomes 1.15
+if you never changed it.
 
-## 2. Keys (you did this in Phase 0)
+## 2. Keys: the `.env` file
 
-Otto reads its keys from Windows environment variables, never from files:
-- `OTTO_C0RE_KEY` (needed). The C0RE key must allow `gemma4:31b-cloud`, `qwen3-vl:8b-instruct` and `qwen3-vl:4b-instruct`.
-- `OLLAMA_API_KEY` (optional, for up-to-date answers via web search).
-
-Check in a new PowerShell window:
-```powershell
-if ($env:OTTO_C0RE_KEY) { "C0RE key is set" } else { "C0RE key is NOT set" }
+Otto reads keys from a `.env` file in the Otto folder, or from `C:\Users\User\.otto\.env` (outside OneDrive).
+To make one: `Copy-Item .env.example .env`, then `notepad .env`:
+```text
+OTTO_C0RE_KEY=c0re_...            needed
+OLLAMA_API_KEY=...                optional: up-to-date answers via web search
+OTTO_SPOTIFY_CLIENT_ID=...        needed for Spotify control
 ```
-If it's not set, see `otto-phase0\README.md`, step 3.
+If both files exist, the one in the Otto folder wins. `.env` is in `.gitignore`, so git never sees it.
+`otto check` tells you which file was used (never the keys themselves).
 
-## 3. Install
+## 3. Install (first time only)
 
-In PowerShell, in the Otto folder:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
-This takes about 10–15 minutes and downloads about 6 GB. It ends with `GPU visible: True`.
+About 10–15 minutes and 6 GB, installed outside OneDrive (`C:\Users\User\.otto\venv`). It also adds the
+Otto folder to your PATH, so **open a new terminal** afterwards and `otto` works anywhere.
 
-**Everything (for file search):**
-1. Install **Everything** from https://www.voidtools.com/downloads/ and let it index.
-2. On the same page, download **"Command-line interface"** (ES, a small zip). Put `es.exe` in `C:\Program Files\Everything\`
-   (next to Everything.exe) or in Otto's `tools\` folder.
+**Everything (file search):** install it from https://www.voidtools.com/downloads/, and from the same page
+get the **Command-line interface** (ES). Put `es.exe` next to `Everything.exe` (usually `C:\Program Files\Everything\`).
 
-## 4. Check the test set (about 10 minutes, do this once)
+## 4. The `otto` command
 
-Laya's exam is 100 requests I wrote in your style (`otto-data\test_set.csv`). They're **never taught**, so
-the score stays honest, and they decide how sure Laya must be before Otto acts alone. Check my labels:
-```powershell
-.\tool.cmd label_tests
-```
-For each request: **Enter** if the area is right, or type the right number. Add your own with **+**.
+| Command | What it does |
+|---|---|
+| `otto` | type to Otto (`otto --speak` to hear replies, `otto --dry-run` to only pretend) |
+| `otto voice` | talk to Otto (see section 5) |
+| `otto check` | checks keys, C0RE, models, GPU, Everything, Spotify, microphone |
+| `otto mic` | lists microphones; `otto mic 3` chooses one; `otto mic default`; `otto mic test` writes down what it hears |
+| `otto mode` | listening mode: `otto mode wake`, `otto mode always`, `otto mode push` |
+| `otto speed` | talking speed: `otto speed 1.2` (1.0 = normal) |
+| `otto voices` | `otto voices bella`, `otto voices michael`, `otto voices test` plays both |
+| `otto model` | which model does which job; `otto model chat gemma4:31b-cloud` puts it first; `otto model all qwen3-vl:8b-instruct` |
+| `otto settings` | shows every setting; `otto set listen.follow_up_s 10` changes any of them |
+| `otto spotify` | connect Spotify (once) |
+| `otto label` | check the test set's labels (do this once, ~10 minutes) |
+| `otto score` | Laya's test score, confidence zones and mistakes |
+| `otto teach` | teach Laya by typing, without doing anything |
+| `otto help` | this list |
 
-## 5. Use Otto
+While Otto is running, the same settings work with a colon: `:mic 3`, `:mode push`, `:speed 1.2`, `:voice michael`,
+`:model chat ...`, `:set KEY VALUE`, plus `:mute`, `:retrain`, `:score`, `:timers`, `:details`, `:reload`, `:help`, `:quit`.
 
-```powershell
-.\otto.cmd            # type to Otto
-.\otto.cmd --speak    # type, and Otto answers out loud
-.\otto.cmd --voice    # talk to Otto, and it answers out loud
-.\otto.cmd --dry-run  # Otto says what it WOULD do, without doing it (good for a first try)
-```
-The first start teaches Laya all the examples and takes its test (about 20–30 seconds). After that it starts quickly.
+## 5. Talking to Otto (`otto voice`)
 
-**Things to try:**
+| Mode | How it works |
+|---|---|
+| **wake** (default) | Otto listens all the time but only acts on sentences starting with **"Hey Otto"** (a short beep says it heard you). After it replies, you have ~8 seconds to carry on without "Hey Otto". When Otto asks you something, just answer. Saying only "Hey Otto" gets a "Yeah?". |
+| **always** | every sentence is for Otto |
+| **push** | Otto only hears you while you **hold F8** |
+
+- **F8** (hold) = push to talk, in every mode. In wake mode it means "this one's for you" without saying "Hey Otto".
+- **F9** = mute / unmute. Or say "Hey Otto, stop listening" (unmute with F9).
+- Change the keys: `otto set listen.push_to_talk_key f7`, `otto set listen.mute_key f10`.
+- Change the mode for one run: `otto voice --mode push`.
+- In wake mode Whisper hears the room, but nothing is acted on or logged unless it starts with "Hey Otto".
+  It all stays on your PC.
+
+## 6. Things to try
+
 ```text
-open spotify and search lofi       pause            volume 30          skip
-open youtube                       google best gaming mouse            take me to github
-find my resume                     open my downloads                   open the latest screenshot
-write down call the bank tomorrow  write a short poem in notepad       add bread to my note
-set a timer for 10 minutes         remind me in 15 minutes to check the food     how long left
-what's 15 percent of 80            who won the last world cup          what's the time
-what's on my screen                what does this error mean           what's in my clipboard
-close discord   (asks first)       search for taylor swift in discord  (Otto works it out, then: "save that")
+play the hills by the weeknd       play my music          what's playing       pause / skip / volume 30
+play the album after hours         play my playlist gym   put on some drake
+open spotify, search and play "the hills" by "the weeknd"         (one Spotify action)
+open discord, then set a timer for 20 minutes and google best gaming mouse   (three steps)
+find my resume  ->  its called student resume                        (follow-up)
+turn it up  ->  more  ->  do that again
+open youtube    google best gaming mouse    write down call the bank tomorrow
+what's 15 percent of 80    who won the last world cup    what's on my screen
+close discord   (asks first)      search for taylor swift in discord, then "save that"
 ```
 
-**The grey line under each reply** shows how Otto decided, e.g.
-`laya: apps 94% -> high (58 ms) | search_in_app {...} [rules] | plan: builtin`
-- `high` = Laya was sure, so Otto acted. `middle` = Otto asked you. `low` = the brain guessed, then Otto asked you.
-- `[rules]` = the details came from simple rules (instant). `[brain:...]` = a model filled them in.
-- `plan: builtin / recipe / brain:...` = done the built-in way, from a saved recipe, or a new plan from the brain.
+**The grey line** under each reply explains the decision: `laya: apps 94% -> high`, `understood as: "..."`
+for follow-ups, `split into 3 steps` for multi-step requests, `[rules]` or `[brain:...]` for the details,
+and `plan: builtin / recipe / brain:...`. Hide it with `:details`.
 
-Type `:details` to hide it, and `:help` for all commands.
+## 7. Teaching Otto
 
-## 6. Teaching Otto
+- **When it asks** ("Open VALORANT?"), answer yes / yeah / nah / no, or say what you meant. Yes = a teaching example.
+- **"save that"**: if the brain worked out *how* (e.g. searching inside Discord), the steps become a **recipe**
+  and next time Otto does it instantly. Otherwise the request becomes a teaching example.
+- **"forget that"** undoes the last thing it learned (asks first).
+- Laya relearns every 20 new examples, and keeps the new version only if it scores at least as well on the test.
 
-- **When it asks** ("Open VALORANT?"), answer **yes / yeah / nah / no**, or just say what you meant.
-  Every yes becomes a teaching example. If you rephrase ("otto, valorant" → "can you open valorant"), it learns that too.
-- **"save that"** after something worked:
-  - if the brain had to work out *how* (e.g. searching inside Discord), Otto saves the steps as a **recipe**
-    and next time does it instantly, with no brain;
-  - otherwise it saves the request as a teaching example.
-- **"forget that"** undoes the last thing it learned (it asks first).
-- Laya relearns every **20 new examples**, and only keeps the new version if it scores at least as well on the test.
-- Faster teaching, without doing anything: `.\tool.cmd try_laya` (like the Phase 0 tool, now using Otto's real data).
-- `.\tool.cmd score` shows the test score, the confidence zones and Laya's mistakes.
+## 8. The Otto brief
 
-## 7. Voice
+Every time Otto asks a brain anything, it starts with `otto-data\brief.md`: who Otto is, how to answer,
+the rules, your apps, the time, the window you're using and the last few exchanges. **Edit it** to change
+Otto's personality or add things it should know (keep the `{curly}` words: Otto fills them in).
 
-- `.\tool.cmd voice_test` plays **Bella** and **Michael**. To switch, open `otto-data\settings.json` and set
-  `"voice": "am_michael"` (or `"af_bella"`), then restart Otto.
-- In `--voice` mode Otto ignores the mic while it's speaking, so it doesn't hear itself. Headphones help.
-- If Whisper isn't sure what it heard, Otto asks *"did you say …?"*.
-
-## 8. Safety
+## 9. Safety
 
 | Kind | Examples | What Otto does |
 |---|---|---|
-| read | find files, read the screen, the time | just does it |
-| undoable | open/switch apps, media, websites, notes, timers | does it and tells you |
-| ask first | close apps, open programs (.exe etc.), click Send/Buy/Pay/Delete-type buttons | asks, waits for yes |
+| read | find files, read the screen, what's playing | just does it |
+| undoable | apps, music, websites, notes, timers | does it and tells you |
+| ask first | close apps, open programs (.exe etc.), Send/Buy/Pay/Delete-type buttons | asks, waits for yes |
 
-The check happens in Otto's core, so nothing can skip it. Otto never types into password boxes. Text it
-reads on screen is treated as information, never as instructions. **Ctrl+C** stops Otto at any time.
+Otto now **checks results** where it can: that an app's window appeared, that music is really playing,
+the volume it ended up at. If something didn't happen, it says so instead of "Done.".
+It never types into password boxes, treats screen text as information only, and Ctrl+C stops it.
 
-## 9. What to send Claude after a few days
+## 10. What to send Claude
 
-1. The output of `.\tool.cmd score`.
-2. Your log files from `otto-data\logs\` (one per day; they contain your requests and Otto's decisions, but no keys).
-3. Anything that felt wrong, slow or annoying.
-
-**Phase 1 pass marks:**
-- when Otto acts without asking, it's right **≥ 95%** of the time
-- **≥ 90%** of requests end up handled correctly
-- recipes work **≥ 95%** of the time
-- a simple typed command finishes in **< 1 s**, spoken in **< 2.5 s**
-
-## 10. Settings (`otto-data\settings.json`)
-
-| Setting | What it does |
-|---|---|
-| `brains` | Which models do which job, in fallback order |
-| `zones.act_bar` / `guess_bar` | Starting confidence bars. Replaced by ones measured on the test set (`use_measured`), but never below `act_bar_floor` (0.70), and the "ask you" zone is always at least `ask_zone_min` (0.20) wide |
-| `whisper.misheard_below` | How unsure Whisper must be before Otto asks "did you say…?" (more negative = asks less) |
-| `whisper.mic_device` | Microphone number, if the default is wrong (`otto-phase0` `check_live.py --list-devices` lists them) |
-| `voice_out.voice` | `af_bella` or `am_michael` |
-| `everything_es_path` | Where es.exe is, if it's somewhere unusual |
-| `show_details` | The grey line under each reply |
-
-Pasting a newer Otto never overwrites `otto-data\`. New settings appear automatically.
+After a few days: the output of `otto score`, your `otto-data\logs\` files, and anything that felt off.
+Phase 1 pass marks: acting alone ≥ 95% right · ≥ 90% of requests handled · recipes ≥ 95% · < 1 s typed, < 2.5 s spoken.
 
 ## 11. Troubleshooting
 
 | You see | What to do |
 |---|---|
-| `py -3.12` not found | `winget install -e --id Python.Python.3.12`, then open a new PowerShell window |
-| `GPU visible: False` | Update the NVIDIA driver, restart, run setup again |
-| "isn't installed, as far as I can see" for an app you have | Wait a minute after starting (the app list refreshes in the background), or type `:reload` |
-| File search says it needs es.exe | Step 3 |
-| "Everything isn't running" | Start the Everything app (it can start with Windows) |
-| `invalid_key` / can't reach a brain | Step 2; check C0RE is running at http://127.0.0.1:7080/admin |
-| Otto asks about everything | Normal at first, until the test set is checked and Laya has more examples. Run `.\tool.cmd score` |
-| Voice: nothing happens when you talk | Check the mic in `otto-phase0`: `check_live.py --list-devices`, then set `whisper.mic_device` |
+| `otto` isn't recognised | Open a **new** terminal after setup. Or run `.\otto.cmd` inside the Otto folder |
+| Voice mode hears nothing | `otto mic`, then `otto mic N`, then `otto mic test` |
+| It never reacts to "Hey Otto" | Check the grey `(not for me: ...)` lines to see what it heard; try `otto mode always` or hold F8 |
+| F8/F9 do nothing | Some games block global keys; try other keys with `otto set listen.mute_key f10` |
+| Spotify: "didn't show up as a player" | Open the Spotify app and make sure it's signed in, then try again |
+| Spotify: "needs Premium" / 403 | In the Spotify developer dashboard, add your Spotify email under **User Management** |
+| "isn't installed, as far as I can see" | Wait a minute after start (the app list refreshes), or `:reload` |
+| File search needs es.exe / "Everything isn't running" | Section 3 / start the Everything app |
+| Otto asks about everything | Normal at first; `otto label` then `otto score` |
+| Anything else | `otto check`, and send Claude the red text |
 
-## 12. Known limits in Phase 1
+## 12. Known limits
 
-- Laya chooses the **area**. The **action** inside it (open vs close, etc.) comes from rules, then Qwen. Your
-  confirmations are logged with the action, so Laya can learn actions later.
-- Timers only run while Otto is open.
-- Clicking buttons by name works in most normal Windows apps, but often not inside Chromium-based apps
-  (Spotify, Discord). For those, Otto uses links and shortcuts instead.
-- No talking over Otto to interrupt it yet (Ctrl+C works).
-- Windows only. The floating overlay is Phase 2.
+- Laya chooses the **area**; the action inside it comes from rules, then Qwen.
+- Timers only run while Otto is open. No talking over Otto to interrupt it yet (Ctrl+C, or F9).
+- Clicking buttons by name often doesn't work inside Spotify/Discord (Chromium apps); Otto uses the
+  Spotify API, links and shortcuts instead.
+- The floating overlay is Phase 2. Training mode with an AI judge is next.

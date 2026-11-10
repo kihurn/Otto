@@ -1,6 +1,11 @@
 # Otto: Architecture
 
-*Version 2, 10 November 2026. Written after Phase 0; updated with the decisions made since (three confidence zones, misheard-word checks, Kokoro voice replies, Chrome, Python 3.12). Nothing in Phase 1 onward is built yet.*
+1.2 implementation is tracked in [V1_2_TECHNICAL_DESIGN.md](V1_2_TECHNICAL_DESIGN.md).
+Batch A adds exact installed-game/alias resolution for music shortcuts (`routing.play_game_apps`),
+explicit full-command corrections and quote-aware compound detection before music extraction.
+The sequential verified task runner remains proposed; the execution sections below still describe 1.1.
+
+*Version 3, 10 November 2026 (Otto 1.1). Adds Spotify through its API, conversation memory and follow-ups, multi-step requests, the Otto brief, result checks, listening modes ("Hey Otto" / always / push-to-talk) and the single `otto` command. Phase 1 is built; Phase 2 onward isn't.*
 
 Otto is a private desktop assistant that lives on Ki Hurn's Windows PC (later the Mac and iPhone too). You talk or type to it. It decides what you want in a fraction of a second, does it with reliable code, and only calls a large language model when something has to be understood, written or looked at. It learns your way of doing things when you say **"Otto, save that"**.
 
@@ -81,12 +86,17 @@ you speak/type
 
 | Part | Job | Built with | Phase |
 |---|---|---|---|
-| **Ears** | Turn speech into text, with a confidence score per sentence | faster-whisper large-v3-turbo, GPU, int8 (~0.5 s per sentence), hotword "Otto" | 1 (`--voice`) |
+| **Ears** | Turn speech into text, with a confidence score per sentence | faster-whisper large-v3-turbo, GPU, int8 (~0.5 s per sentence), hotwords "Hey Otto, Otto" | 1 (`otto voice`) |
 | **Guards** | Catch gibberish, possible mishearing, "cancel / stop"; strip the wake word ("Otto" / "auto") | wordfreq, Whisper confidence, fuzzy app-name match, simple rules | 1 |
 | **Router** | Decide area and action | Laya trainable engine (`laya.load(vegaml=True)`), GPU | 1 |
 | **Confidence zones** | High: act. Middle: ask you to confirm. Low: brain's best guess, then ask | Two bars, set on the test set | 1 |
 | **Clarifier** | Asks one short question, understands short replies ("yeah", "nah", "Lo-fi beats"), remembers it for ~30 s | Conversation state in the core | 1 |
-| **Voice out** | Speaks Otto's replies, sentence by sentence; ignores the mic while speaking | Kokoro (82M, Apache 2.0); VoiceStudio optional later for a custom voice | 1 (`--voice`) |
+| **Voice out** | Speaks Otto's replies, sentence by sentence; ignores the mic while speaking | Kokoro (82M, Apache 2.0), Bella or Michael, speed 1.15; VoiceStudio optional later | 1 |
+| **Listening modes** | "Hey Otto" wake phrase with an 8 s follow-up window (default), always listening, or push-to-talk (hold F8); F9 mutes | Whisper on every sentence + wake-phrase check; pynput global hotkeys | 1.1 |
+| **Conversation memory** | Last few exchanges: follow-ups ("its called…", "more") are rewritten into full requests; "do that again"; multi-step requests are split and run in order | Pipeline history + Qwen rewrite + Gemma split | 1.1 |
+| **Otto brief** | One editable set of instructions (`otto-data/brief.md`) that starts every brain call: who Otto is, rules, your apps, time, current window, recent conversation | Template filled at call time | 1.1 |
+| **Result checks** | After acting, check it worked (window appeared, music actually playing, volume read back) and say so honestly | Code checks; Windows media sessions; Spotify API | 1.1 |
+| **Spotify** | Play songs/artists/albums/playlists/Liked Songs, what's playing, play/pause/skip | Spotify Web API with PKCE sign-in (Premium); token in `C:\Users\<you>\.otto` | 1.1 |
 | **Details** | Pull out the app, search words, times, numbers, note text | Rules and lookups first; Qwen 8B returning JSON | 1 |
 | **Brain** | Understand hard requests, plan new tasks, write, answer, read the screen | C0RE → Gemma 4 cloud → Qwen 3-VL 8B → 4B | 1 |
 | **Recipes** | Remembered ways of doing tasks, replayed without any model | JSON file | 1 |
@@ -331,6 +341,7 @@ otto-data/
 ├── recipes.json         saved ways of doing things
 ├── examples.csv         teaching examples (starter + yours + confirmed brain decisions)
 ├── test_set.csv         ~100 requests you labelled, never taught
+├── brief.md             the Otto brief: instructions every brain call starts with (edit freely)
 ├── sites.json           website names -> addresses ("gmail" -> mail.google.com); add your own
 ├── app_aliases.json     app nicknames ("vs code" -> Visual Studio Code); add your own
 ├── apps_cache.json      installed apps, refreshed hourly
@@ -342,41 +353,87 @@ otto-data/
 └── notes/               notes Otto writes
 ```
 
-`settings.json` (the defaults; yours is merged on top, so new options appear automatically):
+`settings.json` holds only what you've changed (via `otto set`, `otto speed`, etc.); everything else comes from these defaults, so improvements reach you automatically:
 
 ```json
 {
+  "_version": 2,
   "c0re_url": "http://127.0.0.1:7080",
   "brains": {
-    "extract": ["qwen3-vl:8b-instruct", "gemma4:31b-cloud", "qwen3-vl:4b-instruct"],
-    "decide":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
-    "screen":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
-    "answer":  ["gemma4:31b-cloud", "qwen3-vl:8b-instruct", "qwen3-vl:4b-instruct"],
-    "chat":    ["qwen3-vl:8b-instruct", "gemma4:31b-cloud", "qwen3-vl:4b-instruct"]
+    "extract": [
+      "qwen3-vl:8b-instruct",
+      "gemma4:31b-cloud",
+      "qwen3-vl:4b-instruct"
+    ],
+    "decide": [
+      "gemma4:31b-cloud",
+      "qwen3-vl:8b-instruct",
+      "qwen3-vl:4b-instruct"
+    ],
+    "screen": [
+      "gemma4:31b-cloud",
+      "qwen3-vl:8b-instruct",
+      "qwen3-vl:4b-instruct"
+    ],
+    "answer": [
+      "gemma4:31b-cloud",
+      "qwen3-vl:8b-instruct",
+      "qwen3-vl:4b-instruct"
+    ],
+    "chat": [
+      "qwen3-vl:8b-instruct",
+      "gemma4:31b-cloud",
+      "qwen3-vl:4b-instruct"
+    ]
   },
   "brain_timeout_s": 12,
-
-  "laya": {"device": "cuda", "retrain_every": 20},
+  "laya": {
+    "device": "cuda",
+    "retrain_every": 20
+  },
   "zones": {
     "act_bar": 0.85,
-    "guess_bar": 0.40,
+    "guess_bar": 0.4,
     "use_measured": true,
-    "act_bar_floor": 0.70,
-    "ask_zone_min": 0.20,
+    "act_bar_floor": 0.7,
+    "ask_zone_min": 0.2,
     "clarify_timeout_s": 30
   },
-
+  "listen": {
+    "mode": "wake",
+    "wake_words": [
+      "hey otto",
+      "hi otto",
+      "ok otto",
+      "okay otto",
+      "yo otto",
+      "hey auto",
+      "hey otter",
+      "otto"
+    ],
+    "follow_up_s": 8,
+    "push_to_talk_key": "f8",
+    "mute_key": "f9",
+    "beep": true
+  },
   "whisper": {
     "model": "large-v3-turbo",
     "device": "cuda",
     "precision": "int8_float16",
-    "hotwords": "Otto",
+    "hotwords": "Hey Otto, Otto",
     "end_silence_s": 0.8,
     "misheard_below": -0.9,
     "mic_device": null
   },
-  "voice_out": {"engine": "kokoro", "voice": "af_bella", "device": "cuda", "speed": 1.0},
-
+  "voice_out": {
+    "engine": "kokoro",
+    "voice": "af_bella",
+    "device": "cuda",
+    "speed": 1.15
+  },
+  "spotify": {
+    "enabled": true
+  },
   "browser": "chrome",
   "everything_es_path": null,
   "show_details": true
@@ -391,9 +448,9 @@ otto-data/
 
 ```text
 otto/
-├── otto.py                  start here: the otto> prompt; --voice, --speak, --dry-run
-├── otto.cmd / tool.cmd      launchers that use Otto's private Python (.\otto.cmd, .\tool.cmd score)
-├── setup.ps1, requirements.txt, README.md, .gitignore
+├── otto.py                  the one `otto` command: running Otto, settings, mic, voices, models, check, tools
+├── otto.cmd                 launcher (on your PATH after setup) using Otto's private Python
+├── setup.ps1, requirements.txt, README.md, CHANGELOG.md, .gitignore, .env.example
 ├── docs/                    ARCHITECTURE.md (this file), architecture.svg / .png
 ├── defaults/                starting settings, examples, test set, sites, app nicknames (copied into otto-data once)
 ├── core/
@@ -420,17 +477,19 @@ otto/
 │   ├── notes.py             notes in otto-data/notes, opened in Notepad
 │   └── timers.py            timers, alarms, reminders, notifications
 ├── senses/
-│   ├── ears.py              microphone + faster-whisper, with Whisper's confidence for "did you say...?"
+│   ├── ears.py              microphone + faster-whisper; wake / always / push-to-talk; Whisper's confidence
+│   ├── keys.py              global hotkeys: push-to-talk and mute
 │   ├── mouth.py             Kokoro voice (Bella / Michael), sentence by sentence; mutes the ears while speaking
 │   ├── eyes.py              the window you were using, screenshots, clipboard
 │   └── cuda_libs.py         makes the NVIDIA libraries findable for Whisper on Windows
 ├── tools/
 │   ├── label_tests.py       check the test set's labels
 │   ├── score.py             test score, zones, mistakes
-│   ├── try_laya.py          teach Laya by typing, without doing anything
-│   └── voice_test.py        hear Bella and Michael
+│   └── try_laya.py          teach Laya by typing, without doing anything
 ├── api/, overlay/           (Phase 2) local API and the floating Otto
-├── connectors/              (Phase 4) calendar, email, CRM, Docs; MCP server
+├── connectors/
+│   └── spotify.py           Spotify Web API: sign-in, search, play, Liked Songs, what's playing
+│                            (Phase 4 adds calendar, email, CRM, Docs; MCP server)
 └── otto-data/               section 11 (backed up by OneDrive, not committed to git)
 ```
 
@@ -466,7 +525,7 @@ Gemma 4 runs in the cloud and uses no graphics memory. Qwen 4B (~3.5 GB) should 
 
 | Phase | How you use Otto |
 |---|---|
-| 1 | PowerShell `otto>` prompt. `--voice`: talk to Otto and it answers out loud (Kokoro) |
+| 1 | One `otto` command: type (`otto`), talk (`otto voice`: "Hey Otto", always, or push-to-talk), and manage everything (`otto mic`, `otto speed`, `otto voices`, `otto model`, `otto set`, `otto check`, `otto spotify`, `otto label`, `otto score`, `otto teach`) |
 | 2 | The floating **Otto** overlay (Tauri): hold-a-key to talk, text box, confirm buttons, status. The core becomes a local API. |
 | 3 | The overlay can **point** at buttons and walk you through steps (Nūs-style), and understands the screen better |
 | 4 | Calendar, email and CRM in the same conversation. The same tools are also offered as an MCP server for other apps. |
@@ -479,7 +538,7 @@ Gemma 4 runs in the cloud and uses no graphics memory. Qwen 4B (~3.5 GB) should 
 | Phase | Builds | Pass marks |
 |---|---|---|
 | **0 ✅** | Checks: C0RE models, Laya, Whisper, memory, web search | Done |
-| **1: Brain + Hands** | Sections 4–12: guards (incl. misheard checks), Laya area + action, three confidence zones + clarifier, brain chains, details, recipes, safety, Hands, basic Eyes, learning loop, logs, test set, `otto>` prompt, `--voice` with Kokoro replies | When Laya acts alone it's right ≥ 95% of the time; ≥ 90% of all requests handled correctly; recipes work ≥ 95% of the time; < 1 s typed / < 2.5 s spoken |
+| **1: Brain + Hands** | Sections 4–12: guards (incl. misheard checks), Laya area + action, three confidence zones + clarifier, brain chains, details, recipes, safety, Hands, basic Eyes, learning loop, logs, test set, the `otto` command, `otto voice` with Kokoro replies; 1.1 adds Spotify, follow-ups, multi-step requests, the brief, result checks and listening modes | When Laya acts alone it's right ≥ 95% of the time; ≥ 90% of all requests handled correctly; recipes work ≥ 95% of the time; < 1 s typed / < 2.5 s spoken |
 | **2: Body** | Local API, Tauri overlay with the Otto mascot, hotkeys, hold-to-talk, panic key | Overlay round trip feels instant; confirmations work from the overlay |
 | **3: Eyes** | Pointing at buttons, step-by-step guidance, better screen understanding (replaces Lenz) | Points at the right button ≥ 90% of the time on common apps |
 | **4: Workspace** | Calendar, email, CRM (Google Sheets), proposals (Google Docs), MCP server | Client changes always previewed; nothing sent without a yes |
@@ -493,14 +552,14 @@ If Phase 1 misses its pass marks after a fair amount of teaching, Otto narrows i
 
 | Question | Suggested answer |
 |---|---|
-| Voice in Phase 1? | **Decided:** yes, `--voice`, with spoken replies (Kokoro) |
+| Voice in Phase 1? | **Decided:** yes, `otto voice`, with spoken replies (Kokoro) |
 | Who writes the test set? | **Decided:** Claude drafts ~100 requests in your style; you correct the labels |
 | Brains per job | **Decided:** as in section 6 |
 | Apps and browser | **Decided:** Spotify desktop app is installed; Chrome for all web; uninstalled apps get "X isn't installed" |
 | Local model size | **Decided:** keep Qwen 8B; revisit only if the logs show it struggling |
 | Python | **Decided:** 3.12 for Otto (Kokoro and others don't support 3.14 yet) |
-| Wake word | Open: hold-a-key first (Phase 2); an always-listening "Otto" wake word later, if wanted |
-| Kokoro voice | Open: pick one from Kokoro's list during Phase 1 |
+| Wake word | **Decided (1.1):** "Hey Otto" by default, plus always-listening and push-to-talk modes, and a mute key |
+| Kokoro voice | **Decided:** Bella by default, Michael available (`otto voices`) |
 | Mascot design | Open: Ki Hurn designs it; the overlay will accept an image or animation |
 
 ## 17. Known risks

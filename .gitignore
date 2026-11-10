@@ -22,9 +22,14 @@ env/
 # Phase 0 leftovers
 otto-phase0/.venv/
 phases/otto-phase0/.venv/
+otto-phase0/results/
 
 # Everything's command-line tool, if you put it here
 tools/es.exe
+
+# Isolated test runs
+.pytest_cache/
+.pytest-tmp*/
 
 # IDEs and Editors
 .idea/

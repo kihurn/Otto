@@ -1,3 +1,3 @@
 @echo off
-rem Start Otto with its private Python. Examples:  .\otto    .\otto --voice    .\otto --speak    .\otto --dry-run
+rem Otto's one command. Examples:  otto   otto voice   otto mic   otto speed 1.2   otto check   (see: otto help)
 "%USERPROFILE%\.otto\venv\Scripts\python.exe" "%~dp0otto.py" %*

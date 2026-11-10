@@ -90,6 +90,12 @@ class AppIndex:
     def get(self, name: str) -> dict | None:
         return next((a for a in self.apps if a["name"] == name), None)
 
+    def match_exact(self, spoken: str) -> dict | None:
+        """Resolve a complete installed name or explicit alias, without fuzzy matching."""
+        name = " ".join(spoken.lower().split())
+        target = self.aliases.get(name, name).lower()
+        return next((a for a in self.apps if a["name"].lower() == target), None)
+
     def match(self, spoken: str) -> tuple[dict | None, int, list[str]]:
         """Best app for a spoken name: (app, score 0-100, other close names)."""
         from rapidfuzz import fuzz, process
@@ -175,8 +181,19 @@ def open_app(app: str) -> Result:
     found, err = _resolve(app)
     if err:
         return err
+    name = found["name"]
+    already = win.find_window(name) if win.IS_WINDOWS else None
+    if already:
+        win.focus(already["hwnd"])
+        return Result(True, f"{name} is already open, so I brought it to the front.", {"app": name})
     _launch(found)
-    return Result(True, f"Opening {found['name']}.", {"app": found["name"]})
+    if not win.IS_WINDOWS:
+        return Result(True, f"Opening {name}.", {"app": name})
+    for _ in range(24):                      # check for its window for up to ~6 seconds
+        time.sleep(0.25)
+        if win.find_window(name):
+            return Result(True, f"Opened {name}.", {"app": name})
+    return Result(True, f"I asked Windows to open {name}; it's still loading.", {"app": name})
 
 
 @action("switch_to", UNDOABLE, {"app": "app name"}, lambda app: f"switch to {app}", for_brain=True)
@@ -217,7 +234,9 @@ def builtin_search_link(app: str, query: str) -> str | None:
         key = found["name"].lower()
     for name, link in SEARCH_LINKS.items():
         if name in key:
-            return link.format(q=urllib.parse.quote(query))
+            # Spotify shows %20 literally as "+", so its links keep plain spaces; websites need encoding
+            q = query.replace(":", " ") if link.startswith("spotify:") else urllib.parse.quote(query)
+            return link.format(q=q)
     return None
 
 

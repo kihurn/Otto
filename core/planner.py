@@ -47,9 +47,16 @@ def builtin_steps(i: Intent) -> list[dict] | None:
                 return [_step("search_in_app", app=app, query=p["query"])]
             return None  # needs a recipe or a brain plan
     if i.area == "media":
-        keys = {"play_pause": "play_pause", "next": "next", "previous": "previous", "mute": "mute"}
+        keys = {"play_pause": "play_pause", "play": "play", "pause": "pause", "next": "next",
+                "previous": "previous", "mute": "mute"}
         if a[1] in keys:
             return [_step("media_key", key=keys[a[1]])]
+        if a[1] == "play_music" and p.get("query"):
+            return [_step("play_music", query=p["query"], kind=p.get("kind", "auto"), artist=p.get("artist", ""))]
+        if a[1] == "play_liked":
+            return [_step("play_liked")]
+        if a[1] == "now_playing":
+            return [_step("now_playing")]
         if a[1] == "volume_up":
             return [_step("change_volume", step=abs(int(p.get("step", 10))))]
         if a[1] == "volume_down":

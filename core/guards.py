@@ -35,6 +35,26 @@ def strip_wake(text: str) -> tuple[str, bool]:
     return (rest, True) if rest else (text, True)
 
 
+def wake_rest(text: str, wake_words: list[str]) -> str | None:
+    """If the sentence starts with a wake phrase ("Hey Otto, ..."), return what comes after it
+    (possibly ""). Otherwise None."""
+    s = re.sub(r"[^a-z0-9' ]", " ", text.lower())
+    s = " ".join(s.split())
+    for w in sorted(wake_words, key=len, reverse=True):
+        w = " ".join(re.sub(r"[^a-z0-9' ]", " ", w.lower()).split())
+        if s == w or s.startswith(w + " "):
+            # cut the same number of words from the original text, keeping its punctuation and case
+            n = len(w.split())
+            parts = re.split(r"(\s+)", text.strip())
+            words_seen, i = 0, 0
+            while i < len(parts) and words_seen < n:
+                if parts[i].strip():
+                    words_seen += 1
+                i += 1
+            return "".join(parts[i:]).strip(" ,.!?:-")
+    return None
+
+
 def _simple(text: str) -> str:
     return re.sub(r"[^a-z' ]", "", text.lower()).strip()
 

@@ -36,8 +36,9 @@ APPS_CACHE = DATA / "apps_cache.json"
 
 # Files copied from defaults/ into otto-data/ only if they don't exist yet,
 # so pasting a newer version of Otto never overwrites your data.
-SEED_FILES = ["settings.json", "examples.csv", "test_set.csv", "recipes.json",
-              "sites.json", "app_aliases.json"]
+SEED_FILES = ["examples.csv", "test_set.csv", "recipes.json",
+              "sites.json", "app_aliases.json", "brief.md"]
+BRIEF_FILE = DATA / "brief.md"
 
 
 def ensure_data() -> None:
@@ -47,6 +48,10 @@ def ensure_data() -> None:
         target = DATA / name
         if not target.exists() and (DEFAULTS / name).exists():
             shutil.copy(DEFAULTS / name, target)
+    if not SETTINGS_FILE.exists():
+        # Only your own changes are stored here; everything else comes from defaults/settings.json,
+        # so improvements to the defaults reach you automatically.
+        save_json(SETTINGS_FILE, {"_version": SETTINGS_VERSION})
 
 
 def _merge(base: dict, override: dict) -> dict:
@@ -59,16 +64,60 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
+SETTINGS_VERSION = 2
+
+
+def _migrate(mine: dict) -> dict:
+    """Small one-off updates to your settings file when Otto changes a default you never touched."""
+    if mine.get("_version", 1) < 2:
+        vo = mine.get("voice_out", {})
+        if vo.get("speed") == 1.0:          # 1.1: slightly faster speech by default
+            vo["speed"] = 1.15
+        mine["_version"] = 2
+        save_json(SETTINGS_FILE, mine)
+    return mine
+
+
 def load_settings() -> dict:
     """Your settings on top of the defaults, so new options appear automatically."""
     base = json.loads((DEFAULTS / "settings.json").read_text(encoding="utf-8"))
     if SETTINGS_FILE.exists():
         try:
-            mine = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            mine = _migrate(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
             return _merge(base, mine)
         except json.JSONDecodeError as e:
             print(f"  ! otto-data/settings.json has a mistake ({e}); using the defaults for now.")
     return base
+
+
+def get_setting(settings: dict, path: str):
+    node = settings
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+def set_setting(path: str, value, settings: dict | None = None) -> None:
+    """Change one setting (e.g. 'voice_out.speed') in otto-data/settings.json, and in the live settings."""
+    mine = load_json(SETTINGS_FILE, {})
+    for target in (mine, settings) if settings is not None else (mine,):
+        node = target
+        parts = path.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+    mine.setdefault("_version", SETTINGS_VERSION)
+    save_json(SETTINGS_FILE, mine)
+
+
+def parse_value(text: str):
+    """'1.2' -> 1.2, 'true' -> True, 'null' -> None, '[...]' -> list, anything else -> string."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
 
 
 def load_json(path: Path, default):

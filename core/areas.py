@@ -36,7 +36,12 @@ ACTIONS = {
         "click_button": "click a named button in an app",
     },
     "media": {
-        "play_pause": "play, pause, resume or stop",
+        "play_music": "play a specific song, artist, album or playlist",
+        "play_liked": "play my music / my liked songs",
+        "now_playing": "what song is playing",
+        "play": "play / resume",
+        "pause": "pause / stop",
+        "play_pause": "play or pause",
         "next": "next track",
         "previous": "previous track / replay",
         "volume_up": "louder",

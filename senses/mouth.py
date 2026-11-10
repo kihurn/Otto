@@ -14,6 +14,7 @@ import numpy as np
 
 SAMPLE_RATE = 24000
 VOICES = {"af_bella": "Bella (American female)", "am_michael": "Michael (American male)"}
+VOICE_NAMES = {"bella": "af_bella", "michael": "am_michael"}
 
 
 def speakable(text: str) -> str:
@@ -51,6 +52,11 @@ class Mouth:
         self.ears = None
         self._lock = threading.Lock()
 
+    def set_voice(self, voice: str) -> str:
+        voice = VOICE_NAMES.get(voice.lower(), voice)
+        self.voice = voice
+        return VOICES.get(voice, voice)
+
     def _audio(self, sentence: str) -> np.ndarray:
         chunks = [a.numpy() if hasattr(a, "numpy") else np.asarray(a)
                   for _, _, a in self.pipe(sentence, voice=self.voice, speed=self.speed)]
@@ -64,7 +70,7 @@ class Mouth:
             return
         with self._lock:
             if self.ears:
-                self.ears.muted.set()
+                self.ears.speaking.set()
             q: queue.Queue = queue.Queue(maxsize=2)
 
             def make():
@@ -87,4 +93,4 @@ class Mouth:
                 if self.ears:
                     time.sleep(0.25)       # let the room go quiet
                     self.ears.flush()
-                    self.ears.muted.clear()
+                    self.ears.speaking.clear()
