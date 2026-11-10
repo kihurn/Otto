@@ -1,0 +1,133 @@
+state,domain
+open spotify,apps
+launch discord for me,apps
+can you open vs code,apps
+open spotify and search lofi beats,apps
+switch to chrome,apps
+minimise this window,apps
+close notepad,apps
+search for taylor swift in spotify,apps
+click the new tab button in chrome,apps
+bring up the calculator,apps
+open settings and go to bluetooth,apps
+start steam,apps
+pause the music,media
+play,media
+skip this song,media
+next track,media
+go back to the previous song,media
+turn the volume up,media
+volume down a bit,media
+mute,media
+set volume to 30 percent,media
+resume playback,media
+stop the video,media
+louder please,media
+open youtube,web
+go to github.com,web
+search the web for best budget mechanical keyboards,web
+google how to cook rice in a rice cooker,web
+open my gmail,web
+look up reviews for the rtx 5070,web
+open reddit in a new tab,web
+search online for the semester calendar,web
+take me to netflix,web
+open the canvas website,web
+find cheap flights to tokyo online,web
+browse to wikipedia,web
+find my resume,files
+where is the pdf for my econ assignment,files
+open the downloads folder,files
+find files named budget,files
+search my pc for photos from last week,files
+locate the otto project folder,files
+open my latest screenshot,files
+find the excel file with my grades,files
+where did i save the lab report,files
+show me the documents folder,files
+find mp4 files on my desktop,files
+open the file called notes.txt,files
+write a note saying buy milk,notes
+open notepad and type hello world,notes
+jot this down: meeting with prof at 3pm,notes
+create a new note for my shopping list,notes
+type out a quick todo list in notepad,notes
+take a note: call mom tonight,notes
+write remember to submit the form in notepad,notes
+start a new text file called ideas,notes
+add eggs to my note,notes
+save this as a note: the wifi password is on the router,notes
+draft a short paragraph about my weekend in notepad,notes
+note down that the exam is on friday,notes
+set a timer for 10 minutes,timer
+timer 25 minutes for study,timer
+remind me in an hour to stretch,timer
+start a 5 minute countdown,timer
+set an alarm for 7am,timer
+wake me up at 6:30 tomorrow,timer
+pomodoro timer please,timer
+remind me to take out the trash at 8pm,timer
+how long is left on my timer,timer
+cancel the timer,timer
+set a 90 second timer for the eggs,timer
+ping me in 20 minutes,timer
+what time is it,question
+who is the president of the united states,question
+what's the date today,question
+how many days until christmas,question
+what is the capital of australia,question
+what's 15 percent of 80,question
+how's the weather today,question
+convert 50 usd to myr,question
+who won the last world cup,question
+what does photosynthesis mean,question
+how tall is mount everest,question
+what day is it,question
+what's on my screen,screen
+explain this error message,screen
+summarise this page for me,screen
+what does this window say,screen
+read what i copied,screen
+what am i looking at,screen
+translate the text on my screen,screen
+is there anything important in this email i have open,screen
+what button should i click here,screen
+help me understand this chart,screen
+summarize the article i have open,screen
+what's in my clipboard,screen
+otto save that,memory
+remember how you did that,memory
+save this method for next time,memory
+forget that,memory
+that worked remember it,memory
+don't do it that way again,memory
+remember that this is how spotify search works,memory
+delete that saved method,memory
+that was wrong forget it,memory
+keep that for next time,memory
+save that recipe,memory
+undo what you just learned,memory
+hey otto,chitchat
+good morning,chitchat
+thanks,chitchat
+you're awesome,chitchat
+how are you doing,chitchat
+what can you do,chitchat
+lol nice,chitchat
+who made you,chitchat
+goodnight otto,chitchat
+tell me a joke,chitchat
+i'm bored,chitchat
+nevermind,chitchat
+the thing,unsure
+uhh,unsure
+do it,unsure
+asdfgh,unsure
+order me a pizza,unsure
+book a flight for me,unsure
+hmm wait,unsure
+what about the other one,unsure
+make it better,unsure
+send it,unsure
+fix my computer,unsure
+the blue one,unsure

@@ -1,0 +1,23 @@
+{
+  "check": "websearch",
+  "seconds": 1.4,
+  "python": "3.14.6",
+  "checks": [
+    {
+      "check": "Web search works",
+      "result": "PASS",
+      "detail": "3 results in 0.8s"
+    },
+    {
+      "check": "gemma4:31b-cloud answers from the results",
+      "result": "PASS",
+      "detail": "0.6s"
+    }
+  ],
+  "numbers": {
+    "answer": {
+      "question": "Who is the current president of the United States?",
+      "answer": "The current president of the United States is Donald John Trump, who was sworn into office on January 20, 2025."
+    }
+  }
+}

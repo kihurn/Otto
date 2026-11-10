@@ -1,0 +1,715 @@
+OTTO PHASE 0 SUMMARY
+Python 3.14.6
+GPU NVIDIA GeForce RTX 4070 SUPER, driver 617.14, 12282 MB
+
+[c0re] (18.7s)
+  PASS  C0RE reachable and key accepted: 7 models listed
+  PASS  gemma4:31b-cloud answers: 1.2s
+  NOTE  gemma4:31b-cloud pulls out details: reply wasn't clean JSON: '```json\n{"app": "spotify", "query": "lofi beats"}\n```'
+  PASS  gemma4:31b-cloud reads images: 1.3s
+  FAIL  deepseek-v4.1-flash:cloud answers: http_402: this model is not included in your free usage, add usage credits to pay as you go: https://ollama.com/settings or upgrade for included usage: https://ollama.com
+  FAIL  glm-5.3-flash:cloud answers: http_402: this model is not included in your free usage, add usage credits to pay as you go: https://ollama.com/settings or upgrade for included usage: https://ollama.com
+  FAIL  kimi-k3.1-pro:cloud answers: http_402: this model is not included in your free usage, add usage credits to pay as you go: https://ollama.com/settings or upgrade for included usage: https://ollama.com
+  PASS  qwen3-vl:8b-instruct answers: 0.7s
+  PASS  qwen3-vl:8b-instruct pulls out details: {'app': 'spotify', 'query': 'lofi beats'} in 0.2s
+  PASS  qwen3-vl:8b-instruct reads images: 0.9s
+  PASS  qwen3-vl:4b-instruct answers: 10.1s
+  PASS  qwen3-vl:4b-instruct pulls out details: {'app': 'spotify', 'query': 'lofi beats'} in 0.1s
+  PASS  qwen3-vl:4b-instruct reads images: 0.7s
+
+[laya] (120.3s)
+  PASS  PyTorch sees the GPU: NVIDIA GeForce RTX 4070 SUPER, torch 2.15.0+cu132
+  PASS  Laya installed: version 0.4.30
+  PASS  Laya loads on the GPU: 32.2s
+  PASS  Laya is fast on the GPU: 31 ms per decision
+  NOTE  Untrained accuracy (just a first look): 15/44 = 34%
+  PASS  Laya runs on the processor: 429 ms per decision
+  PASS  Trainable engine loads: 53.7s on cuda
+  PASS  Teaching works: 11.2s, using the new knowledge for: ['domain']
+  PASS  Teaching made it better: 32% -> 75%
+
+[whisper] (78.4s)
+  PASS  NVIDIA libraries found: 4 folders
+  PASS  faster-whisper installed: CTranslate2 4.8.5, sees 1 GPU(s)
+  PASS  Test recording made: 6.2s: "Otto, open Spotify and search for lo-fi beats, then set a timer for ten minutes."
+  FAIL  small on GPU (float16): TypeError: open() got an unexpected keyword argument 'metadata_errors'
+  FAIL  large-v3-turbo on GPU (int8_float16): TypeError: open() got an unexpected keyword argument 'metadata_errors'
+  FAIL  large-v3-turbo on GPU (float16): TypeError: open() got an unexpected keyword argument 'metadata_errors'
+  FAIL  small on processor (int8): TypeError: open() got an unexpected keyword argument 'metadata_errors'
+  FAIL  large-v3-turbo on processor (int8): TypeError: open() got an unexpected keyword argument 'metadata_errors'
+
+[websearch] (1.4s)
+  PASS  Web search works: 3 results in 0.8s
+  PASS  gemma4:31b-cloud answers from the results: 0.6s
+
+[memory] (23.1s)
+  PASS  Graphics card: NVIDIA GeForce RTX 4070 SUPER, driver 617.14
+  NOTE  Something is already using the GPU: 8.62 GB in use. Close games/heavy apps, or Ollama may already have a model loaded.
+  PASS  Qwen is fully on the GPU: 5.66 GB
+  PASS  Qwen is fully on the GPU: 3.50 GB
+  PASS  Everything fits: 11.19 GB used, 0.80 GB free
+
+---- numbers ----
+{
+ "c0re": {
+  "models": [
+   {
+    "model": "gemma4:31b-cloud",
+    "answers": true,
+    "first_s": 1.17,
+    "warm_s": 0.5,
+    "json": false,
+    "vision": true
+   },
+   {
+    "model": "deepseek-v4.1-flash:cloud",
+    "answers": false,
+    "first_s": null,
+    "warm_s": null,
+    "json": false,
+    "vision": null
+   },
+   {
+    "model": "glm-5.3-flash:cloud",
+    "answers": false,
+    "first_s": null,
+    "warm_s": null,
+    "json": false,
+    "vision": null
+   },
+   {
+    "model": "kimi-k3.1-pro:cloud",
+    "answers": false,
+    "first_s": null,
+    "warm_s": null,
+    "json": false,
+    "vision": null
+   },
+   {
+    "model": "qwen3-vl:8b-instruct",
+    "answers": true,
+    "first_s": 0.66,
+    "warm_s": 0.08,
+    "json": true,
+    "vision": true
+   },
+   {
+    "model": "qwen3-vl:4b-instruct",
+    "answers": true,
+    "first_s": 10.06,
+    "warm_s": 0.06,
+    "json": true,
+    "vision": true
+   }
+  ],
+  "suggested_text_chain": [
+   "qwen3-vl:8b-instruct",
+   "qwen3-vl:4b-instruct"
+  ],
+  "suggested_vision_chain": [
+   "gemma4:31b-cloud",
+   "qwen3-vl:8b-instruct",
+   "qwen3-vl:4b-instruct"
+  ]
+ },
+ "laya": {
+  "torch": {
+   "version": "2.15.0+cu132",
+   "cuda": "13.2",
+   "gpu": true
+  },
+  "fast_gpu": {
+   "accuracy": 0.341,
+   "correct": 15,
+   "total": 44,
+   "median_ms": 30.7,
+   "p95_ms": 41.3,
+   "routes": {},
+   "misses": [
+    {
+     "request": "click the new tab button in chrome",
+     "expected": "apps",
+     "got": "web",
+     "confidence": 0.64
+    },
+    {
+     "request": "skip this song",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.46
+    },
+    {
+     "request": "turn the volume up",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.42
+    },
+    {
+     "request": "set volume to 30 percent",
+     "expected": "media",
+     "got": "screen",
+     "confidence": 0.33
+    },
+    {
+     "request": "louder please",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.46
+    },
+    {
+     "request": "search the web for best budget mechanical keyboards",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.63
+    },
+    {
+     "request": "look up reviews for the rtx 5070",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.83
+    },
+    {
+     "request": "take me to netflix",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.6
+    },
+    {
+     "request": "browse to wikipedia",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.61
+    },
+    {
+     "request": "where did i save the lab report",
+     "expected": "files",
+     "got": "memory",
+     "confidence": 0.51
+    },
+    {
+     "request": "open the file called notes.txt",
+     "expected": "files",
+     "got": "notes",
+     "confidence": 1.0
+    },
+    {
+     "request": "jot this down: meeting with prof at 3pm",
+     "expected": "notes",
+     "got": "question",
+     "confidence": 0.3
+    },
+    {
+     "request": "remind me in an hour to stretch",
+     "expected": "timer",
+     "got": "apps",
+     "confidence": 0.43
+    },
+    {
+     "request": "ping me in 20 minutes",
+     "expected": "timer",
+     "got": "apps",
+     "confidence": 0.37
+    },
+    {
+     "request": "what's the date today",
+     "expected": "question",
+     "got": "apps",
+     "confidence": 0.58
+    },
+    {
+     "request": "what's 15 percent of 80",
+     "expected": "question",
+     "got": "apps",
+     "confidence": 0.69
+    },
+    {
+     "request": "who won the last world cup",
+     "expected": "question",
+     "got": "apps",
+     "confidence": 0.46
+    },
+    {
+     "request": "what day is it",
+     "expected": "question",
+     "got": "apps",
+     "confidence": 0.5
+    },
+    {
+     "request": "summarise this page for me",
+     "expected": "screen",
+     "got": "apps",
+     "confidence": 0.34
+    },
+    {
+     "request": "what button should i click here",
+     "expected": "screen",
+     "got": "apps",
+     "confidence": 0.62
+    },
+    {
+     "request": "don't do it that way again",
+     "expected": "memory",
+     "got": "apps",
+     "confidence": 0.46
+    },
+    {
+     "request": "thanks",
+     "expected": "chitchat",
+     "got": "apps",
+     "confidence": 0.56
+    },
+    {
+     "request": "what can you do",
+     "expected": "chitchat",
+     "got": "apps",
+     "confidence": 0.51
+    },
+    {
+     "request": "goodnight otto",
+     "expected": "chitchat",
+     "got": "apps",
+     "confidence": 0.45
+    },
+    {
+     "request": "nevermind",
+     "expected": "chitchat",
+     "got": "apps",
+     "confidence": 0.52
+    },
+    {
+     "request": "do it",
+     "expected": "unsure",
+     "got": "apps",
+     "confidence": 0.5
+    },
+    {
+     "request": "book a flight for me",
+     "expected": "unsure",
+     "got": "apps",
+     "confidence": 0.51
+    },
+    {
+     "request": "make it better",
+     "expected": "unsure",
+     "got": "apps",
+     "confidence": 0.47
+    },
+    {
+     "request": "the blue one",
+     "expected": "unsure",
+     "got": "apps",
+     "confidence": 0.49
+    }
+   ],
+   "torch_peak_mb": 2313,
+   "gpu_used_delta_mb": 11
+  },
+  "fast_cpu": {
+   "accuracy": 0.333,
+   "correct": 5,
+   "total": 15,
+   "median_ms": 428.9,
+   "p95_ms": 434.9,
+   "routes": {},
+   "misses": [
+    {
+     "request": "click the new tab button in chrome",
+     "expected": "apps",
+     "got": "web",
+     "confidence": 0.66
+    },
+    {
+     "request": "skip this song",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.46
+    },
+    {
+     "request": "turn the volume up",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.41
+    },
+    {
+     "request": "set volume to 30 percent",
+     "expected": "media",
+     "got": "screen",
+     "confidence": 0.34
+    },
+    {
+     "request": "louder please",
+     "expected": "media",
+     "got": "apps",
+     "confidence": 0.45
+    },
+    {
+     "request": "search the web for best budget mechanical keyboards",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.63
+    },
+    {
+     "request": "look up reviews for the rtx 5070",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.83
+    },
+    {
+     "request": "take me to netflix",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.59
+    },
+    {
+     "request": "browse to wikipedia",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.6
+    },
+    {
+     "request": "where did i save the lab report",
+     "expected": "files",
+     "got": "memory",
+     "confidence": 0.51
+    }
+   ]
+  },
+  "vega_before": {
+   "accuracy": 0.318,
+   "correct": 14,
+   "total": 44,
+   "median_ms": 68.0,
+   "p95_ms": 82.2,
+   "routes": {
+    "review": 44
+   },
+   "misses": [
+    {
+     "request": "can you open vs code",
+     "expected": "apps",
+     "got": "files",
+     "confidence": 0.18
+    },
+    {
+     "request": "minimise this window",
+     "expected": "apps",
+     "got": "files",
+     "confidence": 0.21
+    },
+    {
+     "request": "click the new tab button in chrome",
+     "expected": "apps",
+     "got": "screen",
+     "confidence": 0.18
+    },
+    {
+     "request": "start steam",
+     "expected": "apps",
+     "got": "files",
+     "confidence": 0.23
+    },
+    {
+     "request": "skip this song",
+     "expected": "media",
+     "got": "files",
+     "confidence": 0.22
+    },
+    {
+     "request": "turn the volume up",
+     "expected": "media",
+     "got": "timer",
+     "confidence": 0.19
+    },
+    {
+     "request": "set volume to 30 percent",
+     "expected": "media",
+     "got": "timer",
+     "confidence": 0.21
+    },
+    {
+     "request": "louder please",
+     "expected": "media",
+     "got": "files",
+     "confidence": 0.16
+    },
+    {
+     "request": "jot this down: meeting with prof at 3pm",
+     "expected": "notes",
+     "got": "files",
+     "confidence": 0.18
+    },
+    {
+     "request": "note down that the exam is on friday",
+     "expected": "notes",
+     "got": "screen",
+     "confidence": 0.13
+    },
+    {
+     "request": "remind me in an hour to stretch",
+     "expected": "timer",
+     "got": "notes",
+     "confidence": 0.15
+    },
+    {
+     "request": "wake me up at 6:30 tomorrow",
+     "expected": "timer",
+     "got": "screen",
+     "confidence": 0.21
+    },
+    {
+     "request": "ping me in 20 minutes",
+     "expected": "timer",
+     "got": "screen",
+     "confidence": 0.21
+    },
+    {
+     "request": "what's the date today",
+     "expected": "question",
+     "got": "web",
+     "confidence": 0.15
+    },
+    {
+     "request": "what's 15 percent of 80",
+     "expected": "question",
+     "got": "web",
+     "confidence": 0.22
+    },
+    {
+     "request": "who won the last world cup",
+     "expected": "question",
+     "got": "memory",
+     "confidence": 0.23
+    },
+    {
+     "request": "what day is it",
+     "expected": "question",
+     "got": "web",
+     "confidence": 0.13
+    },
+    {
+     "request": "summarise this page for me",
+     "expected": "screen",
+     "got": "memory",
+     "confidence": 0.16
+    },
+    {
+     "request": "what am i looking at",
+     "expected": "screen",
+     "got": "web",
+     "confidence": 0.16
+    },
+    {
+     "request": "what's in my clipboard",
+     "expected": "screen",
+     "got": "files",
+     "confidence": 0.23
+    },
+    {
+     "request": "save this method for next time",
+     "expected": "memory",
+     "got": "files",
+     "confidence": 0.18
+    },
+    {
+     "request": "don't do it that way again",
+     "expected": "memory",
+     "got": "notes",
+     "confidence": 0.15
+    },
+    {
+     "request": "that was wrong forget it",
+     "expected": "memory",
+     "got": "unsure",
+     "confidence": 0.15
+    },
+    {
+     "request": "undo what you just learned",
+     "expected": "memory",
+     "got": "files",
+     "confidence": 0.25
+    },
+    {
+     "request": "what can you do",
+     "expected": "chitchat",
+     "got": "screen",
+     "confidence": 0.14
+    },
+    {
+     "request": "nevermind",
+     "expected": "chitchat",
+     "got": "unsure",
+     "confidence": 0.17
+    },
+    {
+     "request": "do it",
+     "expected": "unsure",
+     "got": "notes",
+     "confidence": 0.17
+    },
+    {
+     "request": "book a flight for me",
+     "expected": "unsure",
+     "got": "notes",
+     "confidence": 0.17
+    },
+    {
+     "request": "make it better",
+     "expected": "unsure",
+     "got": "notes",
+     "confidence": 0.21
+    },
+    {
+     "request": "the blue one",
+     "expected": "unsure",
+     "got": "screen",
+     "confidence": 0.17
+    }
+   ]
+  },
+  "fit_report_keys": [
+   "calibration",
+   "heads",
+   "kept",
+   "n_calibrate",
+   "n_fit",
+   "n_rows",
+   "serving"
+  ],
+  "vega_after": {
+   "accuracy": 0.75,
+   "correct": 33,
+   "total": 44,
+   "median_ms": 57.3,
+   "p95_ms": 77.8,
+   "routes": {
+    "review": 21,
+    "auto": 23
+   },
+   "misses": [
+    {
+     "request": "minimise this window",
+     "expected": "apps",
+     "got": "media",
+     "confidence": 0.39
+    },
+    {
+     "request": "click the new tab button in chrome",
+     "expected": "apps",
+     "got": "web",
+     "confidence": 0.52
+    },
+    {
+     "request": "look up reviews for the rtx 5070",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.55
+    },
+    {
+     "request": "take me to netflix",
+     "expected": "web",
+     "got": "apps",
+     "confidence": 0.44
+    },
+    {
+     "request": "open the downloads folder",
+     "expected": "files",
+     "got": "web",
+     "confidence": 0.51
+    },
+    {
+     "request": "open the file called notes.txt",
+     "expected": "files",
+     "got": "notes",
+     "confidence": 0.92
+    },
+    {
+     "request": "jot this down: meeting with prof at 3pm",
+     "expected": "notes",
+     "got": "timer",
+     "confidence": 0.64
+    },
+    {
+     "request": "note down that the exam is on friday",
+     "expected": "notes",
+     "got": "memory",
+     "confidence": 0.2
+    },
+    {
+     "request": "what can you do",
+     "expected": "chitchat",
+     "got": "screen",
+     "confidence": 0.97
+    },
+    {
+     "request": "nevermind",
+     "expected": "chitchat",
+     "got": "memory",
+     "confidence": 0.43
+    },
+    {
+     "request": "book a flight for me",
+     "expected": "unsure",
+     "got": "media",
+     "confidence": 0.36
+    }
+   ],
+   "torch_peak_mb": 1561,
+   "gpu_used_delta_mb": 1608
+  }
+ },
+ "whisper": {
+  "runs": []
+ },
+ "websearch": {
+  "answer": {
+   "question": "Who is the current president of the United States?",
+   "answer": "The current president of the United States is Donald John Trump, who was sworn into office on January 20, 2025."
+  }
+ },
+ "memory": {
+  "steps": [
+   {
+    "step": "before loading anything",
+    "name": "NVIDIA GeForce RTX 4070 SUPER",
+    "used_mb": 8828,
+    "total_mb": 12282,
+    "free_mb": 3454,
+    "driver": "617.14"
+   },
+   {
+    "step": "+ Laya",
+    "name": "NVIDIA GeForce RTX 4070 SUPER",
+    "used_mb": 11462,
+    "total_mb": 12282,
+    "free_mb": 820,
+    "driver": "617.14"
+   },
+   {
+    "step": "+ Whisper large-v3-turbo",
+    "name": "NVIDIA GeForce RTX 4070 SUPER",
+    "used_mb": 11326,
+    "total_mb": 12282,
+    "free_mb": 956,
+    "driver": "617.14"
+   },
+   {
+    "step": "+ qwen3-vl:8b-instruct",
+    "name": "NVIDIA GeForce RTX 4070 SUPER",
+    "used_mb": 11467,
+    "total_mb": 12282,
+    "free_mb": 815,
+    "driver": "617.14"
+   }
+  ],
+  "qwen_on_gpu_share": 1.0,
+  "together": {
+   "laya_ms": 27.4,
+   "whisper_s": 0.14,
+   "qwen_s": 1.4,
+   "laya_alone_ms": 28.8,
+   "whisper_alone_s": 0.12,
+   "qwen_alone_s": 0.4,
+   "torch_peak_mb": 2312
+  }
+ }
+}

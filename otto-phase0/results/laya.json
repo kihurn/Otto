@@ -1,0 +1,597 @@
+{
+  "check": "laya",
+  "seconds": 120.3,
+  "python": "3.14.6",
+  "checks": [
+    {
+      "check": "PyTorch sees the GPU",
+      "result": "PASS",
+      "detail": "NVIDIA GeForce RTX 4070 SUPER, torch 2.15.0+cu132"
+    },
+    {
+      "check": "Laya installed",
+      "result": "PASS",
+      "detail": "version 0.4.30"
+    },
+    {
+      "check": "Laya loads on the GPU",
+      "result": "PASS",
+      "detail": "32.2s"
+    },
+    {
+      "check": "Laya is fast on the GPU",
+      "result": "PASS",
+      "detail": "31 ms per decision"
+    },
+    {
+      "check": "Untrained accuracy (just a first look)",
+      "result": "NOTE",
+      "detail": "15/44 = 34%"
+    },
+    {
+      "check": "Laya runs on the processor",
+      "result": "PASS",
+      "detail": "429 ms per decision"
+    },
+    {
+      "check": "Trainable engine loads",
+      "result": "PASS",
+      "detail": "53.7s on cuda"
+    },
+    {
+      "check": "Teaching works",
+      "result": "PASS",
+      "detail": "11.2s, using the new knowledge for: ['domain']"
+    },
+    {
+      "check": "Teaching made it better",
+      "result": "PASS",
+      "detail": "32% -> 75%"
+    }
+  ],
+  "numbers": {
+    "torch": {
+      "version": "2.15.0+cu132",
+      "cuda": "13.2",
+      "gpu": true
+    },
+    "fast_gpu": {
+      "accuracy": 0.341,
+      "correct": 15,
+      "total": 44,
+      "median_ms": 30.7,
+      "p95_ms": 41.3,
+      "routes": {},
+      "misses": [
+        {
+          "request": "click the new tab button in chrome",
+          "expected": "apps",
+          "got": "web",
+          "confidence": 0.64
+        },
+        {
+          "request": "skip this song",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.46
+        },
+        {
+          "request": "turn the volume up",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.42
+        },
+        {
+          "request": "set volume to 30 percent",
+          "expected": "media",
+          "got": "screen",
+          "confidence": 0.33
+        },
+        {
+          "request": "louder please",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.46
+        },
+        {
+          "request": "search the web for best budget mechanical keyboards",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.63
+        },
+        {
+          "request": "look up reviews for the rtx 5070",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.83
+        },
+        {
+          "request": "take me to netflix",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.6
+        },
+        {
+          "request": "browse to wikipedia",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.61
+        },
+        {
+          "request": "where did i save the lab report",
+          "expected": "files",
+          "got": "memory",
+          "confidence": 0.51
+        },
+        {
+          "request": "open the file called notes.txt",
+          "expected": "files",
+          "got": "notes",
+          "confidence": 1.0
+        },
+        {
+          "request": "jot this down: meeting with prof at 3pm",
+          "expected": "notes",
+          "got": "question",
+          "confidence": 0.3
+        },
+        {
+          "request": "remind me in an hour to stretch",
+          "expected": "timer",
+          "got": "apps",
+          "confidence": 0.43
+        },
+        {
+          "request": "ping me in 20 minutes",
+          "expected": "timer",
+          "got": "apps",
+          "confidence": 0.37
+        },
+        {
+          "request": "what's the date today",
+          "expected": "question",
+          "got": "apps",
+          "confidence": 0.58
+        },
+        {
+          "request": "what's 15 percent of 80",
+          "expected": "question",
+          "got": "apps",
+          "confidence": 0.69
+        },
+        {
+          "request": "who won the last world cup",
+          "expected": "question",
+          "got": "apps",
+          "confidence": 0.46
+        },
+        {
+          "request": "what day is it",
+          "expected": "question",
+          "got": "apps",
+          "confidence": 0.5
+        },
+        {
+          "request": "summarise this page for me",
+          "expected": "screen",
+          "got": "apps",
+          "confidence": 0.34
+        },
+        {
+          "request": "what button should i click here",
+          "expected": "screen",
+          "got": "apps",
+          "confidence": 0.62
+        },
+        {
+          "request": "don't do it that way again",
+          "expected": "memory",
+          "got": "apps",
+          "confidence": 0.46
+        },
+        {
+          "request": "thanks",
+          "expected": "chitchat",
+          "got": "apps",
+          "confidence": 0.56
+        },
+        {
+          "request": "what can you do",
+          "expected": "chitchat",
+          "got": "apps",
+          "confidence": 0.51
+        },
+        {
+          "request": "goodnight otto",
+          "expected": "chitchat",
+          "got": "apps",
+          "confidence": 0.45
+        },
+        {
+          "request": "nevermind",
+          "expected": "chitchat",
+          "got": "apps",
+          "confidence": 0.52
+        },
+        {
+          "request": "do it",
+          "expected": "unsure",
+          "got": "apps",
+          "confidence": 0.5
+        },
+        {
+          "request": "book a flight for me",
+          "expected": "unsure",
+          "got": "apps",
+          "confidence": 0.51
+        },
+        {
+          "request": "make it better",
+          "expected": "unsure",
+          "got": "apps",
+          "confidence": 0.47
+        },
+        {
+          "request": "the blue one",
+          "expected": "unsure",
+          "got": "apps",
+          "confidence": 0.49
+        }
+      ],
+      "torch_peak_mb": 2313,
+      "gpu_used_delta_mb": 11
+    },
+    "fast_cpu": {
+      "accuracy": 0.333,
+      "correct": 5,
+      "total": 15,
+      "median_ms": 428.9,
+      "p95_ms": 434.9,
+      "routes": {},
+      "misses": [
+        {
+          "request": "click the new tab button in chrome",
+          "expected": "apps",
+          "got": "web",
+          "confidence": 0.66
+        },
+        {
+          "request": "skip this song",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.46
+        },
+        {
+          "request": "turn the volume up",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.41
+        },
+        {
+          "request": "set volume to 30 percent",
+          "expected": "media",
+          "got": "screen",
+          "confidence": 0.34
+        },
+        {
+          "request": "louder please",
+          "expected": "media",
+          "got": "apps",
+          "confidence": 0.45
+        },
+        {
+          "request": "search the web for best budget mechanical keyboards",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.63
+        },
+        {
+          "request": "look up reviews for the rtx 5070",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.83
+        },
+        {
+          "request": "take me to netflix",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.59
+        },
+        {
+          "request": "browse to wikipedia",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.6
+        },
+        {
+          "request": "where did i save the lab report",
+          "expected": "files",
+          "got": "memory",
+          "confidence": 0.51
+        }
+      ]
+    },
+    "vega_before": {
+      "accuracy": 0.318,
+      "correct": 14,
+      "total": 44,
+      "median_ms": 68.0,
+      "p95_ms": 82.2,
+      "routes": {
+        "review": 44
+      },
+      "misses": [
+        {
+          "request": "can you open vs code",
+          "expected": "apps",
+          "got": "files",
+          "confidence": 0.18
+        },
+        {
+          "request": "minimise this window",
+          "expected": "apps",
+          "got": "files",
+          "confidence": 0.21
+        },
+        {
+          "request": "click the new tab button in chrome",
+          "expected": "apps",
+          "got": "screen",
+          "confidence": 0.18
+        },
+        {
+          "request": "start steam",
+          "expected": "apps",
+          "got": "files",
+          "confidence": 0.23
+        },
+        {
+          "request": "skip this song",
+          "expected": "media",
+          "got": "files",
+          "confidence": 0.22
+        },
+        {
+          "request": "turn the volume up",
+          "expected": "media",
+          "got": "timer",
+          "confidence": 0.19
+        },
+        {
+          "request": "set volume to 30 percent",
+          "expected": "media",
+          "got": "timer",
+          "confidence": 0.21
+        },
+        {
+          "request": "louder please",
+          "expected": "media",
+          "got": "files",
+          "confidence": 0.16
+        },
+        {
+          "request": "jot this down: meeting with prof at 3pm",
+          "expected": "notes",
+          "got": "files",
+          "confidence": 0.18
+        },
+        {
+          "request": "note down that the exam is on friday",
+          "expected": "notes",
+          "got": "screen",
+          "confidence": 0.13
+        },
+        {
+          "request": "remind me in an hour to stretch",
+          "expected": "timer",
+          "got": "notes",
+          "confidence": 0.15
+        },
+        {
+          "request": "wake me up at 6:30 tomorrow",
+          "expected": "timer",
+          "got": "screen",
+          "confidence": 0.21
+        },
+        {
+          "request": "ping me in 20 minutes",
+          "expected": "timer",
+          "got": "screen",
+          "confidence": 0.21
+        },
+        {
+          "request": "what's the date today",
+          "expected": "question",
+          "got": "web",
+          "confidence": 0.15
+        },
+        {
+          "request": "what's 15 percent of 80",
+          "expected": "question",
+          "got": "web",
+          "confidence": 0.22
+        },
+        {
+          "request": "who won the last world cup",
+          "expected": "question",
+          "got": "memory",
+          "confidence": 0.23
+        },
+        {
+          "request": "what day is it",
+          "expected": "question",
+          "got": "web",
+          "confidence": 0.13
+        },
+        {
+          "request": "summarise this page for me",
+          "expected": "screen",
+          "got": "memory",
+          "confidence": 0.16
+        },
+        {
+          "request": "what am i looking at",
+          "expected": "screen",
+          "got": "web",
+          "confidence": 0.16
+        },
+        {
+          "request": "what's in my clipboard",
+          "expected": "screen",
+          "got": "files",
+          "confidence": 0.23
+        },
+        {
+          "request": "save this method for next time",
+          "expected": "memory",
+          "got": "files",
+          "confidence": 0.18
+        },
+        {
+          "request": "don't do it that way again",
+          "expected": "memory",
+          "got": "notes",
+          "confidence": 0.15
+        },
+        {
+          "request": "that was wrong forget it",
+          "expected": "memory",
+          "got": "unsure",
+          "confidence": 0.15
+        },
+        {
+          "request": "undo what you just learned",
+          "expected": "memory",
+          "got": "files",
+          "confidence": 0.25
+        },
+        {
+          "request": "what can you do",
+          "expected": "chitchat",
+          "got": "screen",
+          "confidence": 0.14
+        },
+        {
+          "request": "nevermind",
+          "expected": "chitchat",
+          "got": "unsure",
+          "confidence": 0.17
+        },
+        {
+          "request": "do it",
+          "expected": "unsure",
+          "got": "notes",
+          "confidence": 0.17
+        },
+        {
+          "request": "book a flight for me",
+          "expected": "unsure",
+          "got": "notes",
+          "confidence": 0.17
+        },
+        {
+          "request": "make it better",
+          "expected": "unsure",
+          "got": "notes",
+          "confidence": 0.21
+        },
+        {
+          "request": "the blue one",
+          "expected": "unsure",
+          "got": "screen",
+          "confidence": 0.17
+        }
+      ]
+    },
+    "fit_report_keys": [
+      "calibration",
+      "heads",
+      "kept",
+      "n_calibrate",
+      "n_fit",
+      "n_rows",
+      "serving"
+    ],
+    "vega_after": {
+      "accuracy": 0.75,
+      "correct": 33,
+      "total": 44,
+      "median_ms": 57.3,
+      "p95_ms": 77.8,
+      "routes": {
+        "review": 21,
+        "auto": 23
+      },
+      "misses": [
+        {
+          "request": "minimise this window",
+          "expected": "apps",
+          "got": "media",
+          "confidence": 0.39
+        },
+        {
+          "request": "click the new tab button in chrome",
+          "expected": "apps",
+          "got": "web",
+          "confidence": 0.52
+        },
+        {
+          "request": "look up reviews for the rtx 5070",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.55
+        },
+        {
+          "request": "take me to netflix",
+          "expected": "web",
+          "got": "apps",
+          "confidence": 0.44
+        },
+        {
+          "request": "open the downloads folder",
+          "expected": "files",
+          "got": "web",
+          "confidence": 0.51
+        },
+        {
+          "request": "open the file called notes.txt",
+          "expected": "files",
+          "got": "notes",
+          "confidence": 0.92
+        },
+        {
+          "request": "jot this down: meeting with prof at 3pm",
+          "expected": "notes",
+          "got": "timer",
+          "confidence": 0.64
+        },
+        {
+          "request": "note down that the exam is on friday",
+          "expected": "notes",
+          "got": "memory",
+          "confidence": 0.2
+        },
+        {
+          "request": "what can you do",
+          "expected": "chitchat",
+          "got": "screen",
+          "confidence": 0.97
+        },
+        {
+          "request": "nevermind",
+          "expected": "chitchat",
+          "got": "memory",
+          "confidence": 0.43
+        },
+        {
+          "request": "book a flight for me",
+          "expected": "unsure",
+          "got": "media",
+          "confidence": 0.36
+        }
+      ],
+      "torch_peak_mb": 1561,
+      "gpu_used_delta_mb": 1608
+    }
+  }
+}

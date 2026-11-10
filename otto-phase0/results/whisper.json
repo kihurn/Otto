@@ -1,0 +1,130 @@
+{
+  "check": "whisper",
+  "seconds": 51.8,
+  "python": "3.14.6",
+  "checks": [
+    {
+      "check": "NVIDIA libraries found",
+      "result": "PASS",
+      "detail": "4 folders"
+    },
+    {
+      "check": "faster-whisper installed",
+      "result": "PASS",
+      "detail": "CTranslate2 4.8.5, sees 1 GPU(s)"
+    },
+    {
+      "check": "Test recording made",
+      "result": "PASS",
+      "detail": "6.2s: \"Otto, open Spotify and search for lo-fi beats, then set a timer for ten minutes.\""
+    },
+    {
+      "check": "small on GPU (float16)",
+      "result": "PASS",
+      "detail": "0.15s for a 6.2s clip, 5/6 key words, ~0.81 GB graphics memory"
+    },
+    {
+      "check": "large-v3-turbo on GPU (int8_float16)",
+      "result": "PASS",
+      "detail": "0.16s for a 6.2s clip, 5/6 key words, ~1.07 GB graphics memory"
+    },
+    {
+      "check": "large-v3-turbo on GPU (float16)",
+      "result": "PASS",
+      "detail": "0.16s for a 6.2s clip, 5/6 key words, ~2.11 GB graphics memory"
+    },
+    {
+      "check": "small on processor (int8)",
+      "result": "PASS",
+      "detail": "1.37s for a 6.2s clip, 5/6 key words"
+    },
+    {
+      "check": "large-v3-turbo on processor (int8)",
+      "result": "PASS",
+      "detail": "5.76s for a 6.2s clip, 5/6 key words"
+    },
+    {
+      "check": "Your voice",
+      "result": "NOTE",
+      "detail": "0.34s, heard: ''"
+    }
+  ],
+  "numbers": {
+    "runs": [
+      {
+        "model": "small",
+        "device": "cuda",
+        "precision": "float16",
+        "load_s": 1.8,
+        "transcribe_s": 0.15,
+        "keywords": "5/6",
+        "gpu_mb": 831,
+        "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+      },
+      {
+        "model": "large-v3-turbo",
+        "device": "cuda",
+        "precision": "int8_float16",
+        "load_s": 3.4,
+        "transcribe_s": 0.16,
+        "keywords": "5/6",
+        "gpu_mb": 1092,
+        "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+      },
+      {
+        "model": "large-v3-turbo",
+        "device": "cuda",
+        "precision": "float16",
+        "load_s": 2.5,
+        "transcribe_s": 0.16,
+        "keywords": "5/6",
+        "gpu_mb": 2159,
+        "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+      },
+      {
+        "model": "small",
+        "device": "cpu",
+        "precision": "int8",
+        "load_s": 1.1,
+        "transcribe_s": 1.37,
+        "keywords": "5/6",
+        "gpu_mb": null,
+        "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+      },
+      {
+        "model": "large-v3-turbo",
+        "device": "cpu",
+        "precision": "int8",
+        "load_s": 2.6,
+        "transcribe_s": 5.76,
+        "keywords": "5/6",
+        "gpu_mb": null,
+        "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+      }
+    ],
+    "recommended_gpu": {
+      "model": "small",
+      "device": "cuda",
+      "precision": "float16",
+      "load_s": 1.8,
+      "transcribe_s": 0.15,
+      "keywords": "5/6",
+      "gpu_mb": 831,
+      "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+    },
+    "recommended_cpu": {
+      "model": "small",
+      "device": "cpu",
+      "precision": "int8",
+      "load_s": 1.1,
+      "transcribe_s": 1.37,
+      "keywords": "5/6",
+      "gpu_mb": null,
+      "text": "Auto, open Spotify and search for lo-fi beats, then set a timer for 10 minutes."
+    },
+    "mic": {
+      "text": "",
+      "transcribe_s": 0.34
+    }
+  }
+}

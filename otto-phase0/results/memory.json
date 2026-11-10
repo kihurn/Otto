@@ -1,0 +1,78 @@
+{
+  "check": "memory",
+  "seconds": 23.1,
+  "python": "3.14.6",
+  "checks": [
+    {
+      "check": "Graphics card",
+      "result": "PASS",
+      "detail": "NVIDIA GeForce RTX 4070 SUPER, driver 617.14"
+    },
+    {
+      "check": "Something is already using the GPU",
+      "result": "NOTE",
+      "detail": "8.62 GB in use. Close games/heavy apps, or Ollama may already have a model loaded."
+    },
+    {
+      "check": "Qwen is fully on the GPU",
+      "result": "PASS",
+      "detail": "5.66 GB"
+    },
+    {
+      "check": "Qwen is fully on the GPU",
+      "result": "PASS",
+      "detail": "3.50 GB"
+    },
+    {
+      "check": "Everything fits",
+      "result": "PASS",
+      "detail": "11.19 GB used, 0.80 GB free"
+    }
+  ],
+  "numbers": {
+    "steps": [
+      {
+        "step": "before loading anything",
+        "name": "NVIDIA GeForce RTX 4070 SUPER",
+        "used_mb": 8828,
+        "total_mb": 12282,
+        "free_mb": 3454,
+        "driver": "617.14"
+      },
+      {
+        "step": "+ Laya",
+        "name": "NVIDIA GeForce RTX 4070 SUPER",
+        "used_mb": 11462,
+        "total_mb": 12282,
+        "free_mb": 820,
+        "driver": "617.14"
+      },
+      {
+        "step": "+ Whisper large-v3-turbo",
+        "name": "NVIDIA GeForce RTX 4070 SUPER",
+        "used_mb": 11326,
+        "total_mb": 12282,
+        "free_mb": 956,
+        "driver": "617.14"
+      },
+      {
+        "step": "+ qwen3-vl:8b-instruct",
+        "name": "NVIDIA GeForce RTX 4070 SUPER",
+        "used_mb": 11467,
+        "total_mb": 12282,
+        "free_mb": 815,
+        "driver": "617.14"
+      }
+    ],
+    "qwen_on_gpu_share": 1.0,
+    "together": {
+      "laya_ms": 27.4,
+      "whisper_s": 0.14,
+      "qwen_s": 1.4,
+      "laya_alone_ms": 28.8,
+      "whisper_alone_s": 0.12,
+      "qwen_alone_s": 0.4,
+      "torch_peak_mb": 2312
+    }
+  }
+}
