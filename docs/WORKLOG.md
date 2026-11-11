@@ -17,6 +17,16 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 3: the tool menu (11 Nov 2026, Claude Code, main)
+- PC results: native Ollama tool calling works through C0RE with qwen3-vl:8b (0.8 s, `open("youtube")`); graphics
+  memory 9.7/12 GB at 32k with Laya + Qwen (no Whisper; re-check when voice is used); `otto eval` baseline for the
+  current core: 16/25 (misses: YouTube first video, type/click in Notepad, swap audio output, all five must-ask cases).
+- `core/tools.py`: 15 tools (open, close, find_files, media, audio_output, timer, note, web_search, read_window, click,
+  type, keys, ask_user, done) over the existing actions through `safety.run_plan`; `menu()` for our JSON format and
+  `schemas()` for Ollama's native tools; `validate()`/`call()`; outside text returned as `information`. read_window's
+  numbers are exactly the listed controls (goal_mode.shortlist renumbers, so the full list is not kept). The Windows
+  key is never allowed in `keys`. `hands/mouse.py` started (click_at). Added `close` (missing from the spec's list).
+
 ### Agent core, task 2: `otto eval` (11 Nov 2026, Claude Code, main)
 - `core/evaluate.py` + `defaults/eval.csv` (25 seed sentences from recorded failures and the acceptance lists, seeded
   into otto-data/eval.csv): runs Otto in dry-run with the real Laya and Qwen and judges route (fast/loop/reply), first
