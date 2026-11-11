@@ -61,12 +61,13 @@ def compile_request(text, apps, brain):
             built = planner.builtin_steps(intent)
             if not built:
                 return planner.brain_plan(text, None, brain)
-            # "open Word and write hello": Otto can't type into other apps yet (that is the any-app control
-            # work). Say so instead of quietly writing a Notepad note the user didn't ask for.
+            # "open Word and write hello" means type it into Word, not make a separate Notepad note.
             if (typing_into and any(s['do'] == 'new_note' for s in built)
                     and not re.search(r'\bnote', part, re.I)):
-                return planner.Plan([], 'none', error=f"I can't type into {typing_into} yet, so nothing was run. "
-                                    "Say \"write a note saying ...\" if you want it as a note.")
+                words = next(s['with'].get('text', '') for s in built if s['do'] == 'new_note')
+                if not words:
+                    return planner.Plan([], 'none', error=f'What should I type in {typing_into}? Nothing was run.')
+                built = [planner._step('type_in_app', app=typing_into, text=words)]
             opened = [s['with'].get('app', '') for s in built if s['do'] in {'open_app', 'switch_to'}]
             typing_into = opened[-1] if opened and 'notepad' not in opened[-1].casefold() else None
             volume_seen = volume_seen or any(s['do'] in {'set_volume', 'change_volume', 'get_volume'} for s in built)

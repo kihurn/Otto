@@ -86,6 +86,8 @@ def builtin_steps(i: Intent) -> list[dict] | None:
             return [_step("minimise", app=app)]
         if a[1] == "close" and app:
             return [_step("close_app", app=app)]
+        if a[1] == "type_in_app" and app and p.get("text"):
+            return [_step("type_in_app", app=app, text=p["text"])]
         if a[1] == "click_button" and app and p.get("button"):
             return [_step("click_button", app=app, button=p["button"])]
         if a[1] == "search_in_app" and app and p.get("query"):

@@ -80,6 +80,8 @@ core/learning.py     examples.csv and test_set.csv
 core/recipes.py      saved step lists keyed area.action.target
 hands/registry.py    @action decorator: the only things that can touch the PC
 hands/*.py           apps, media (Spotify + Windows media sessions + volume), web, files, notes, timers, win helpers
+hands/ui_probe.py    reads any window's buttons/boxes/tabs from Windows (no screenshot);  hands/app_control.py  type_in_app
+core/sensitive.py    refuses password/card/ID fields in code
 senses/ears.py       mic + Whisper; wake / always / push-to-talk;  senses/keys.py  hotkeys (pynput)
 senses/mouth.py      Kokoro, sentence by sentence, mutes ears while speaking;  senses/eyes.py  screenshots, clipboard
 connectors/spotify.py  Spotify Web API (PKCE)
@@ -119,7 +121,9 @@ python -m pytest -q tests
 
 ## 7. Status (as of 11 November 2026)
 
-**1.2 is in development, waiting for Windows acceptance.** The D–F review findings R1–R6 in
+**1.2 is in development, waiting for Windows acceptance.** Branches `claude/live-check-fixes` (fixes from
+the first live checks) and `claude/any-app-control` (Phase 1 slice 1, built on top of it) are pushed and
+waiting for the user's PRs; 331 tests. The D–F review findings R1–R6 in
 `docs/V1_2_FINAL_REVIEW.md` are fixed with regression tests and merged into `main` (PR #2, 279 tests).
 R7 (learning reusable screen-control methods) is **postponed** to the any-app control work in Phase 1 below.
 Open before release: the live checks in `docs/V1_2_VOICE_TESTS.md` (fresh-start Spotify and Chrome visual
@@ -151,7 +155,8 @@ hashing, click hit checks), `sensitive.js` (refuses password-type fields), `sess
 2. **Phase 1, "Jarvis": control any app by voice.**
    - **Act while talking:** stream Whisper partial transcripts (~0.5 s) through guards, Laya and rules; start an
      *undoable/read* action as soon as the same intent is stable across two partials. Risky actions still wait.
-   - **Any-app control:** extend the observe → propose one action → act → verify controller from Spotify/Chrome
+   - **Any-app control:** plan and progress in `docs/PHASE1_ANY_APP_PLAN.md` (slice 1 built: read any window,
+     type into any app; waiting for Windows acceptance; slices 2-5 not started). The aim: extend the observe → propose one action → act → verify controller from Spotify/Chrome
      to any app. UI Automation tree first (names, roles, positions), screenshots + vision as fallback; step and
      time limits; every action through the safety gate; never type in password fields. Gemma 4 (cloud) for
      long unfamiliar tasks, Qwen locally for short ones.

@@ -109,8 +109,26 @@ def parse_clock(text: str) -> str | None:
 # Per-area rules
 # ---------------------------------------------------------------------------------------------
 
+def type_in_app_intent(text: str, apps) -> Intent | None:
+    """"type hello world in Word" -> type those exact words into that app. Only for an app that is really
+    installed under that name; Notepad and notes keep going to Otto's own notes."""
+    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I)
+    m = re.fullmatch(r"(?:type|write|enter|put)\s+(?P<x>.+?)\s+(?:in|into|on)\s+(?:the\s+|my\s+)?(?P<app>[\w .]+?)\s*[.!?]*",
+                     raw, re.I)
+    if not m or apps is None:
+        return None
+    app = " ".join(m.group("app").lower().split())
+    if re.search(r"\bnotes?\b|note\s?pad", app) or not apps.match_exact(app):
+        return None
+    words = m.group("x").strip(" \"'“”")
+    return Intent("apps", "type_in_app", {"app": app, "text": words}) if words else None
+
+
 def _apps(text: str, apps) -> Intent | None:
     t = _t(text)
+    typed = type_in_app_intent(text, apps)
+    if typed:
+        return typed
     if re.search(r"\bplay\b|\blisten to\b|\bput on\b", t) and not re.search(r"\b(?:youtube|netflix|steam)\b", t):
         music = music_intent(text)
         if music:

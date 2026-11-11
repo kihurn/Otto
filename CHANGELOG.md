@@ -1,11 +1,17 @@
 # Changelog
 
 ## 1.2 (in development)
+- Any-app control, slice 1 (331 tests pass; live typing not yet confirmed on Windows):
+  - "open Word and write …" and "type … in Word" type the words into that app and read them back to confirm,
+    instead of making a Notepad note. Otto refuses password and private fields and says so when it can't see
+    where to type.
+  - New reader for any app's buttons, boxes and tabs (no screenshot; 30–330 ms on the user's PC).
+  - Plan for the remaining slices: docs/PHASE1_ANY_APP_PLAN.md. Credits: THIRD_PARTY_NOTICES.md.
+- "set volume to 70, then lower it by thirty two" now lowers by 32, not 10.
 - Fixes from the second live run (302 tests pass):
   - Spotify: the same song listed twice (Top result and again under Songs) no longer stops with "More than one
     matching Play button"; Otto presses the top one and still checks what Windows says is playing.
   - "type hello world in note pad?" writes just "hello world".
-  - "open Word and write …" no longer quietly makes a Notepad note; Otto says it can't type into Word yet.
 - Fixes from the first live Windows check:
   - Spotify: "Spotify search value did not match." Spotify reports its search text 80–400 ms after it is set;
     Otto now re-reads for up to ~2 seconds before giving up.

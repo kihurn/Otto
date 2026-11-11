@@ -34,6 +34,7 @@ ACTIONS = {
         "close": "close/quit an app",
         "search_in_app": "search for something inside an app",
         "click_button": "click a named button in an app",
+        "type_in_app": "type the user's words into a named app",
     },
     "media": {
         "play_music": "play a specific song, artist, album or playlist",

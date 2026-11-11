@@ -9,9 +9,26 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 - Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
   Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
   volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
-- Then the realigned roadmap in AGENTS.md section 8 (Phase 1 Jarvis: act while talking, any-app control, R7).
+- Any-app control: slice 1 acceptance on Windows, then slices 2-5 in docs/PHASE1_ANY_APP_PLAN.md.
+- Then the rest of AGENTS.md section 8 (act while talking, the companion).
 
 ## Done
+
+### Any-app control, slice 1 (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- User asked for the Phase 1 plan and to start straight away, reviewing later. Plan: docs/PHASE1_ANY_APP_PLAN.md
+  (five slices; only slice 1 is built). Nus Companion studied read-only at 592e30f; ideas ported, credited in
+  THIRD_PARTY_NOTICES.md.
+- Built: `hands/ui_probe.py` (one cached UIA FindAll per window: Notepad 26 controls/30 ms, Spotify 104/70 ms,
+  Chrome 93/330 ms, measured live), `core/sensitive.py`, `hands/app_control.py` with `type_in_app`
+  (for_brain=False). Rules: "open <app> and write X" and "type X in <app>" (exact installed app names only;
+  Notepad/"note" still make an Otto note). This replaces the earlier interim "I can't type into Word yet" refusal.
+- Decisions: a web page is a read-only "Document" and is never a typing target; without keyboard focus only a
+  lone editor (Document) is chosen, never a lone small box such as Chrome's address bar; success needs the text
+  to appear on read-back (count rises or length grows by 80% of the typed length, to allow auto-correct).
+- Compound volume fix (on claude/live-check-fixes): "then lower it by thirty two" resolves "it" to the volume.
+- Not run live: any real typing (it would have typed into the user's open notes). Word was minimised during
+  the probe, so its document control is unconfirmed. Acceptance list is at the end of the plan. 331 tests pass.
+- Next: user's slice 1 acceptance, then slice 2 (click/set/toggle by name with before/after proof).
 
 ### 1.2 live-check fixes (11 Nov 2026, Claude Code, branch claude/live-check-fixes)
 - User's first live typed check: "play The Hills by The Weeknd" stopped with "Spotify search value did not match"

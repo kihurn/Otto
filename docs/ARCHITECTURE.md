@@ -11,6 +11,12 @@ and task-saving errors. Recovery-recipe candidate learning is not implemented. S
 measured results and live acceptance gaps. The historical 1.1 design below is superseded by this
 checkpoint and the review where behavior differs.
 
+Any-app control (Phase 1, slice 1): `hands/ui_probe.py` reads any window's buttons, boxes and tabs from
+Windows UI Automation (no screenshot); `core/sensitive.py` refuses password and private fields in code;
+`hands/app_control.py` adds the rule-only `type_in_app` action (observe, type, read back). The plan for
+clicking by name, brain-chosen steps, screenshot fallback and learned methods is in
+`docs/PHASE1_ANY_APP_PLAN.md`.
+
 Approved window-controller prototype: `core/computer_use.py` runs the local-Qwen observation/action
 loop; `hands/window_control.py` provides guarded native effects and domain observations. Registry
 action `visual_task` is available only through explicit “use Qwen to…” commands and the opt-in

@@ -144,16 +144,6 @@ def test_note_text_drops_the_notepad_part(text):
     assert _notes(text).params == {'text': 'hello world'}
 
 
-def test_open_app_then_write_does_not_silently_make_a_note(monkeypatch):
-    monkeypatch.setattr(apps.INDEX, 'match_exact', lambda name: name in {'word', 'notepad'}, raising=False)
-    plan = compiler.compile_request('open word and write "whats up dawg"', apps.INDEX, None)
-    assert not plan.steps and "can't type into" in plan.error
-    # Notepad is where Otto's notes open anyway, and an explicit note request is still a note.
-    for text in ('open notepad and write "whats up dawg"', 'open word and write a note saying whats up dawg'):
-        plan = compiler.compile_request(text, apps.INDEX, None)
-        assert [s['do'] for s in plan.steps] == ['open_app', 'new_note'], text
-
-
 def test_compound_volume_pronoun_keeps_the_amount():
     plan = compiler.compile_request('set volume to 70, then lower it by thirty two', apps.INDEX, None)
     assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('change_volume', {'step': -32})]

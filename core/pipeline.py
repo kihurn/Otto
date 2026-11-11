@@ -281,6 +281,10 @@ class Otto:
         if new_tab(t):
             self.trace['rule'] = 'new_tab'
             return self._do_area(t, 'web', intent=Intent('web', 'open_site', {'site': 'new tab'}), via='rules')
+        typed = details.type_in_app_intent(t, self.apps)
+        if typed:
+            self.trace['rule'] = 'type_in_app'
+            return self._do_area(t, 'apps', intent=typed, via='rules')
         if re.search(r'\b(?:weather|forecast|temperature)\b', t, re.I) and re.match(r"(?:what|how|will|is it|does it)", details._t(t)):
             self.rephrase_of = None
             return self._do_area(t, 'question', via='rules')

@@ -122,4 +122,4 @@ def brain_menu() -> str:
 
 def load_all() -> None:
     """Import every hands module so their actions register themselves."""
-    from hands import apps, audio_devices, files, media, notes, timers, web, window_control  # noqa: F401
+    from hands import app_control, apps, audio_devices, files, media, notes, timers, web, window_control  # noqa: F401
