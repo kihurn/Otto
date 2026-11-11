@@ -149,8 +149,15 @@ def _read_since_moved(ctx) -> bool:
 def _send_question(ctx, w: dict, typed: str) -> str:
     """The question before sending, built from what is really there: the box's own text (it may hold more than
     Otto typed, e.g. text left over from an earlier try) and the window's title (which names the chat in most apps)."""
-    box = None if ctx.dry_run else focused_text()
-    shown = (box or "").strip() or typed
+    box = (None if ctx.dry_run else focused_text()) or ""
+    box = " ".join(box.split())
+    # The box's own text only when it holds what was typed (focus may be on a pane full of other text).
+    if typed and typed.strip() and " ".join(typed.split()) in box:
+        shown = box
+    elif typed:
+        shown = typed.strip()
+    else:
+        shown = box if len(box) <= 300 else ""
     place = re.sub(r"\(\d+\+?\)\s*", "", w.get("title", "")).strip() or _app_name(w)   # no unread counts
     if len(shown) > 200:
         shown = shown[:200] + "..."

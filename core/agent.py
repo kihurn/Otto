@@ -22,7 +22,8 @@ from core import agent_safety, examples, tools
 MAX_STEPS = 16                    # reads count too, and the window must be read again after each action
 MAX_SECONDS = 90
 MAX_FAILURES = 4                  # failed steps in one request, even with successful reads in between
-REHEARSAL = ("This is a rehearsal (dry run): nothing is really done and windows cannot really be read or looked at. "
+REHEARSAL = ("This is a rehearsal (dry run): nothing is really done, and read_window and look show nothing real "
+             "(still use them where a real task would, e.g. reading a chat before sending). "
              'Treat every "[dry run] would ..." result as done and carry on with the next real step of the request. '
              "There are no control numbers or screen positions in a rehearsal: type without a control number and "
              "use keys (for example enter) where the real task would. Never repeat a step or invent options.")
@@ -216,6 +217,8 @@ def _loop(state: dict, brain) -> AgentResult:
             continue
         state["steps"] += 1
         ctx.why = why
+        if _is_save(name, args, ctx) and not ctx.dry_run and "title_before_save" not in state:
+            state["title_before_save"] = agent_safety.front(ctx).get("title", "")
         result = tools.call(name, args, ctx)
         after = _after_call(state, call, result)
         if after is not None:
@@ -233,7 +236,7 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         worked = result.ok and (not acted or acted[-1]["ok"])
         say = result.say
         if worked:
-            problem = _not_saved(state)
+            problem = _not_saved(state, say)
             if problem:
                 worked, say = False, problem
                 calls[-1].update(ok=False, say=say)
@@ -257,23 +260,36 @@ UNSAVED = re.compile(r"^\s*\*|\*\s+-\s|[●•]|\bunsaved\b|\bnot saved\b", re.I
 SAVE_AS = re.compile(r"^\s*save (?:as|file)\b", re.I)
 
 
-def _not_saved(state: dict) -> str:
-    """A request to save is only done when the window no longer shows unsaved changes. Qwen's own "Saved." is not
-    proof (11 Nov live log: it clicked some control and said "Saved the file."). Returns the problem, or ""."""
+def _is_save(name: str, args: dict, ctx) -> bool:
+    if name == "keys":
+        return agent_safety._keys(args.get("keys", "")) == "ctrl+s"
+    if name == "click" and args.get("control") is not None:
+        target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None)
+        return bool(re.search(r"\bsave\b", str((target or {}).get("name", "")), re.I))
+    return False
+
+
+def _not_saved(state: dict, say: str) -> str:
+    """Qwen's own "Saved." is not proof (11 Nov live log: it clicked some control and said "Saved the file.").
+    A save counts as confirmed only when the window showed unsaved changes before Save and doesn't any more.
+    Returns the reply to use instead, or "" to keep Qwen's."""
     ctx, calls = state["ctx"], state["calls"]
-    asked = re.search(r"\bsav(?:e|ed|ing)\b", state.get("request", ""), re.I)
-    tried = any((c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) == "ctrl+s")
-                or (c["tool"] == "click" and re.search(r"\bsave\b", str(c.get("say", "")), re.I)) for c in calls)
-    if ctx.dry_run or not (asked or tried):
+    pressed = any(c.get("ok") and (c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) == "ctrl+s"
+                                   or c["tool"] == "click" and re.search(r"\bsave\b", str(c.get("say", "")), re.I))
+                  for c in calls)
+    claims = re.search(r"\bsaved\b", say, re.I)
+    if ctx.dry_run or not (pressed or claims):
         return ""
+    if not pressed:
+        return "I didn't actually press Save, so I can't say it's saved."
     title = agent_safety.front(ctx).get("title", "")
     if SAVE_AS.search(title):
         return "The Save As window is open. Tell me the file name (and folder) to use."
     if UNSAVED.search(title):
         return "It doesn't look saved yet: the window still shows unsaved changes."
-    if not tried:
-        return "I couldn't confirm it saved, because I never pressed Save (try ctrl+s)."
-    return ""
+    if UNSAVED.search(state.get("title_before_save", "")):
+        return ""
+    return "I pressed Save, but couldn't confirm it saved."
 
 
 def left_over(calls: list[dict]) -> str:

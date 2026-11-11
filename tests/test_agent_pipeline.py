@@ -472,6 +472,9 @@ def test_a_pause_starts_a_new_conversation(new):
     ("i meant reply this convo \"ok sure\"", False),
     ("can you reply to yusri, AI is awesome", False),
     ("what's the word for happy", False),
+    ("open it in chrome", False),
+    ("type that in notepad", False),
+    ("send it on discord", False),
 ])
 def test_which_requests_start_fresh(new, text, fresh):
     new.history.append({"you": "reply to this group ok sure", "otto": "Okay, I won't.", "time": time.time() - 20})
@@ -485,6 +488,13 @@ def test_a_dropped_question_is_marked_not_done(new):
     s = script(new, call("done", say="Okay."))
     new.handle("and what time is my next class")
     assert "it was NOT done" in s.seen[-1][1]["content"]
+
+
+def test_new_topic_while_otto_waits_for_an_answer(new):
+    _reply_flow(new)
+    new.handle("reply see you soon to john on discord")
+    assert new.pending.kind == "agent_confirm"
+    assert new.handle("new topic").text == "Okay, fresh start." and new.pending is None
 
 
 def test_new_topic_clears_the_conversation(new):

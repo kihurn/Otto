@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.2 (in development)
-- New core, fixes from the first live run (596 tests pass; not yet re-run live):
+- New core, fixes from the first live run (603 tests pass; not yet re-run live):
   - Sending: Otto only offers to send after reading the chat again since the last click, and its question shows
     the message box's real text and the chat's title (left-over text from an earlier try shows up). After a "no",
     Otto says the typed text is still in the box.
@@ -9,7 +9,7 @@
     ("what is on my discord"), unless it refers back ("it", "no, ..."). Earlier turns reach Qwen as one note
     marked "already finished, never redo", a question you moved on from is marked "not done", and
     "new topic" / "start over" clears it.
-  - Honest replies: "Saved" only when the window stops showing unsaved changes; web search says nothing appeared
+  - Honest replies: "Saved" only when the window's unsaved mark goes away after Save; web search says nothing appeared
     on screen (to search where you can see it, Qwen opens a Google link in Chrome); clicks by position name what
     was really under them.
   - "Swap my audio output" switches to the output that isn't playing; picking the current one says nothing changed.

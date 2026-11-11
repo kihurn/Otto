@@ -32,8 +32,12 @@ Prompt; "clear" closing Discord. User decision: fix code and instructions first,
   an app/site after open/in/on/... and isn't a follow-up or correction. One note, "already finished: never redo";
   dropped confirms marked NOT done; no step lists. "new topic"/"start over" clear history. Bare "clear" is
   deliberately NOT a command (it may mean "clear the text"): Qwen is told to ask about one- or two-word requests.
-- Done checks (`agent._not_saved`): save requests need ctrl+s / a Save press and a title without unsaved marks
-  (`*`, ●, "unsaved"); a Save As window asks for a name. Title markers are from memory: PC check needed.
+- Done checks (`agent._not_saved`): triggered by a Save press or Qwen claiming "saved" (not by the user's words).
+  Confirmed only when the title had an unsaved mark (`*`, ●, "unsaved") before Save and not after; otherwise
+  "I pressed Save, but couldn't confirm it saved." A Save As window asks for a name. Title marks are from
+  memory: PC check needed. The send question uses the box's text only when it contains what was typed.
+- Gate keeps context for "open it in chrome" / "type that in notepad" (verb + it/that); "new topic" also cancels a
+  waiting question. Advisor review of this batch applied.
 - Tools: web_search says nothing was shown and points to a Google link; position clicks report the name under the
   point; `swap_audio_output`; `agent.named_apps` hint; `win.find_window` accepts chrome.exe for "Google Chrome".
 - Logging: each call's `say` (160 chars) is in `otto-data/logs`.

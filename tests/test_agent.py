@@ -221,43 +221,66 @@ def test_send_question_shows_what_is_really_in_the_box(monkeypatch):
     assert q == 'send "ok sureok sure" in #general | Friends - Discord'
 
 
-def _live_notepad(monkeypatch, title):
+def _live_notepad(monkeypatch, before, after=None):
+    """A real (not dry-run) context whose front window title is `before` until ctrl+s, then `after`."""
     from core import agent_safety, tools
     from hands import win
-    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "notepad.exe", "title": title,
+    title = {"now": before}
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "notepad.exe", "title": title["now"],
                                                           "focused": "Text editor"})
     monkeypatch.setattr(agent_safety, "otto_in_front", lambda c: False)
-    monkeypatch.setattr(win, "hotkey", lambda keys: None)
+    monkeypatch.setattr(win, "hotkey", lambda keys: title.update(now=after if after is not None else before))
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     return tools.ToolContext(dry_run=False)
 
 
-def test_saved_only_when_the_title_stops_showing_unsaved(monkeypatch):
+def _save(c, say="Saved the file.", request="save it"):
     from core import agent
-    c = _live_notepad(monkeypatch, "*notes.txt - Notepad")
-    r = agent.run("save it", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved the file.")), c)
+    return agent.run(request, [], Scripted(call("keys", keys="ctrl+s"), call("done", say=say)), c)
+
+
+def test_saved_only_when_the_title_stops_showing_unsaved(monkeypatch):
+    r = _save(_live_notepad(monkeypatch, "*notes.txt - Notepad"))
     assert r.status == "done" and not r.ok and "doesn't look saved" in r.say
 
 
-def test_saved_reply_kept_when_the_title_is_clean(monkeypatch):
-    from core import agent
-    c = _live_notepad(monkeypatch, "notes.txt - Notepad")
-    r = agent.run("save it", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved the file.")), c)
+def test_saved_when_the_unsaved_mark_goes_away(monkeypatch):
+    r = _save(_live_notepad(monkeypatch, "*notes.txt - Notepad", "notes.txt - Notepad"))
     assert r.ok and r.say == "Saved the file."
+
+
+def test_save_without_any_mark_is_not_claimed(monkeypatch):
+    r = _save(_live_notepad(monkeypatch, "notes.txt - Notepad"))
+    assert not r.ok and "couldn't confirm" in r.say
 
 
 def test_save_claim_without_pressing_save_is_not_believed(monkeypatch):
     from core import agent
     c = _live_notepad(monkeypatch, "notes.txt - Notepad")
     r = agent.run("you did not save", [], Scripted(call("done", say="Saved the file.")), c)
-    assert not r.ok and "couldn't confirm" in r.say
+    assert not r.ok and "didn't actually press Save" in r.say
+
+
+def test_the_word_save_in_a_request_is_not_a_save(monkeypatch):
+    from core import agent
+    c = _live_notepad(monkeypatch, "Discord")
+    r = agent.run("is my essay saved?", [], Scripted(call("done", say="Your essay is in Documents.")), c)
+    assert r.ok and r.say == "Your essay is in Documents."
 
 
 def test_save_as_window_asks_for_a_name(monkeypatch):
-    from core import agent
-    c = _live_notepad(monkeypatch, "Save as")
-    r = agent.run("save this", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved.")), c)
+    r = _save(_live_notepad(monkeypatch, "*Untitled - Notepad", "Save as"), say="Saved.", request="save this")
     assert not r.ok and "file name" in r.say
+
+
+def test_send_question_ignores_a_box_that_does_not_hold_the_typed_text(monkeypatch):
+    from core import agent_safety, tools
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "discord.exe", "title": "Discord",
+                                                          "focused": "Message"})
+    monkeypatch.setattr(agent_safety, "focused_text", lambda: "a whole page of other people's messages " * 20)
+    c = tools.ToolContext(dry_run=False)
+    c.history = [{"tool": "read_window", "args": {}, "ok": True}, {"tool": "type", "args": {"text": "ok sure"}, "ok": True}]
+    assert agent_safety.check("keys", {"keys": "enter"}, c) == 'send "ok sure" in Discord'
 
 
 def test_named_apps_are_spelled_out_for_qwen(monkeypatch):

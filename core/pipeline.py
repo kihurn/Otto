@@ -41,8 +41,8 @@ def _shared_words(a: str, b: str) -> bool:
     return bool(words(a) & words(b))
 
 
-EARLIER = ("Earlier in this conversation (all of it is already finished: never redo any of it. Use it only to "
-           "understand what words like it, that, there or the same mean in the new request):\n")
+EARLIER = ("Earlier in this conversation (all of it is already finished: never redo any of it unless the new request "
+           "asks. Use it to understand what words like it, that, there or the same mean in the new request):\n")
 
 
 @dataclass
@@ -470,6 +470,9 @@ class Otto:
         self.pending = Pending(kind, expires=time.time() + timeout, **kw)
 
     def _answer_pending(self, t: str) -> Reply | None:
+        if self._agent_on() and self._FRESH.match(t):
+            self.pending = None                  # "new topic" is never an answer to the question
+            return None
         p = self.pending
         kind = guards.reply_kind(t)
         self.trace["answering"] = p.kind
@@ -830,6 +833,8 @@ class Otto:
                         r"forget (?:this|the|our) conversation)[.!]*$", re.I)
     _CORRECTION = re.compile(r"^(?:no+\b|nope|wrong|wait\b|you (?:did ?n[o']?t|didn't|forgot|missed)|"
                              r"that'?s (?:wrong|not)|not (?:that|this|what)|try again|again\b)", re.I)
+    _POINTS_BACK = re.compile(r"\b(?:open|type|send|put|paste|play|close|save|move|copy|show|click|press|reply|"
+                              r"share|write|search|find|do)\s+(?:it|that|this|them|those)\b", re.I)
     _PLACE_WORD = re.compile(r"\b(?:open|launch|start|close|switch to|go to|in|on|into|from)\s+(?:my |the )?", re.I)
 
     def _conversation(self, t: str = "") -> list[dict]:
@@ -853,7 +858,7 @@ class Otto:
         return [{"role": "user", "content": EARLIER + "\n".join(lines)}]
 
     def _new_topic(self, t: str) -> bool:
-        if self._FOLLOW.match(t) or self._CORRECTION.match(t):
+        if self._FOLLOW.match(t) or self._CORRECTION.match(t) or self._POINTS_BACK.search(t):
             return False
         return self._names_place(t)
 

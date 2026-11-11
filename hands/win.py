@@ -72,6 +72,8 @@ def find_window(app_name: str) -> dict | None:
     from rapidfuzz import fuzz
 
     name = ' '.join(app_name.casefold().split())
+    if not name:
+        return None
     # Office's process name differs from its spoken name. A workspace or document title
     # mentioning Word is not proof of app ownership, even with a high fuzzy score.
     if name in {'word', 'microsoft word', 'winword'}:
