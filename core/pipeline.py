@@ -81,6 +81,8 @@ class Otto:
         self.playback_target = None
         self.playback_target_at = 0.0
         self.last_web_query = None
+        self.last_app = None          # (app name, time) of the last app Otto acted in
+        self.learned = None           # a multi-step method goal mode just worked out, if any
         self.turn_deadline = None
         from core.context import ActionContext
         self.action_context = ActionContext()
@@ -281,6 +283,21 @@ class Otto:
         if new_tab(t):
             self.trace['rule'] = 'new_tab'
             return self._do_area(t, 'web', intent=Intent('web', 'open_site', {'site': 'new tab'}), via='rules')
+        # "click status" right after "click view in notepad" means Notepad again (for two minutes).
+        if (self.last_app and time.time() - self.last_app[1] < 120
+                and re.match(r'(?:click|press|tap|tick|untick|turn on|turn off|type)\b', details._t(t))
+                and not re.search(r'\b(?:volume|timer|alarm|music|song|note)\b', t, re.I)
+                and not re.search(r'\s(?:in|on|into)\s+[\w .]+$', details._t(t))):
+            t = f'{t.rstrip(" .!?")} in {self.last_app[0]}'
+            self.trace['understood_as'] = t
+            intent = details.by_rules('apps', t, self.apps)
+            if intent:
+                self.trace['rule'] = 'last_app'
+                return self._do_area(t, 'apps', intent=intent, via='rules')
+        typed = details.type_in_app_intent(t, self.apps)
+        if typed:
+            self.trace['rule'] = 'type_in_app'
+            return self._do_area(t, 'apps', intent=typed, via='rules')
         if re.search(r'\b(?:weather|forecast|temperature)\b', t, re.I) and re.match(r"(?:what|how|will|is it|does it)", details._t(t)):
             self.rephrase_of = None
             return self._do_area(t, 'question', via='rules')
@@ -535,6 +552,12 @@ class Otto:
                               intent=Intent("media", "play_liked"))
             res.say = "Nothing is loaded in Spotify. Want me to play your Liked Songs?"
         text = res.say
+        used = [step.get('with', {}).get('app') for step in plan.steps if step.get('with', {}).get('app')]
+        if used and not self.dry_run:
+            self.last_app = (res.data.get('app') or used[-1], time.time())
+        self.learned = res.data.get('learned') if res.ok else None
+        if self.learned and len(self.learned.get('steps', [])) >= 1:
+            text += ' Say "save that" and I\'ll remember how.'
         if res.ok and plan.source.startswith("brain"):
             text += " If that worked, say \"save that\" and I'll do it the same way next time."
         self.last = {"text": t, "intent": intent, "plan": plan, "ok": res.ok, 'task_id': res.data.get('task_id')}
@@ -605,6 +628,12 @@ class Otto:
         if cmd == "save":
             if not last["ok"]:
                 return Reply("The last thing didn't work, so I won't save it. Want to try again?")
+            if getattr(self, 'learned', None):
+                from core import methods
+                learned, self.learned = self.learned, None
+                if methods.save(learned['app'], learned['goal'], learned['steps']):
+                    self.trace['memory'] = 'save_method'
+                    return Reply(f"Saved. Next time I'll go straight through {', '.join(learned['steps'])} in {learned['app']}.")
             if i is None:
                 # Multi-step, screen-control (visual) and audio-output tasks have no single area/action, and we
                 # must never invent a label for Laya to learn. Learning these is planned with any-app control (R7).

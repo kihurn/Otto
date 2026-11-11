@@ -9,9 +9,74 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 - Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
   Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
   volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
-- Then the realigned roadmap in AGENTS.md section 8 (Phase 1 Jarvis: act while talking, any-app control, R7).
+- Any-app control: slice 1 acceptance on Windows, then slices 2-5 in docs/PHASE1_ANY_APP_PLAN.md.
+- Then the rest of AGENTS.md section 8 (act while talking, the companion).
 
 ## Done
+
+### Goal mode, method saving, app context (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- User feedback after testing slices 1-2: fixed single clicks are too shallow (Word start screen, Save inside
+  File, two clicks in one sentence). Approved direction: Qwen-heavy at first, learn and get faster with use.
+- `core/goal_mode.py` (slice 3): loop of read controls -> Qwen picks {action, id, why} from a numbered list ->
+  validate -> act -> re-read. Actions: click, type (the user's text only), done, stop. Limits: 8 steps, 45 s,
+  two no-progress steps. Typing is still a code check first (no model when a text area is obvious). "done" from
+  Qwen counts only after at least one step changed the window; `target_name` gives a code-checked finish for
+  "click X". Risky names are never pressed from goal mode. Local models only (screen content never goes to cloud).
+- Entry points: `type_in_app` with no place to type, `click_button` when the name isn't on screen, and the new
+  `app_goal` action from the rule "<anything else> in <exactly installed app>" (apps area only). All skip goal
+  mode unless there is a live task (so tests and dry runs never call a model). Setting `app_control.goal_mode`
+  (default true).
+- Live, hands-off trial with the real qwen3-vl:8b on the user's PC (nothing pressed): Notepad "press save" ->
+  picked MenuItem File in 1.5 s (2.5 s with screenshot); Spotify "open the settings page" -> picked the profile
+  button in 1.2 s (2.9 s with screenshot). Same picks with and without the image, so the marked screenshot
+  (numbers drawn on the window, "set-of-marks" style) is only sent when fewer than 8 controls are listed or a
+  step got nowhere. Research note: one web search confirmed 0-1000 normalised coordinates are the common
+  convention for Qwen-based GUI models (already what core/computer_use.py uses); goal mode avoids coordinates
+  entirely by having Qwen choose a control number.
+- `core/methods.py` (slice 5 start, R7): otto-data/methods.json keyed app::goal, saved only on "save that",
+  replayed by exact button name with no model call, two misses retire it. Not yet: several-success promotion,
+  app-version binding.
+- Context: pipeline remembers the last app acted in for 120 s; "click/press/tick/turn on/type ..." without an app
+  gets it appended. Compiler: an app named at the end of a compound applies to earlier click-type parts.
+- Voice "play my playlist called For the Rat" -> "could not read the Spotify window": NOT reproduced (matching
+  works on the live window, from a thread too, and with single-threaded COM). Added per-thread COM start-up in
+  ui_probe and the error's class in the reply and log so the next occurrence can be diagnosed. Also seen live:
+  the expanded library shows a "Play <playlist>" button per row, which play_playlist already uses directly.
+- Not run live: any goal-mode press or typing, "save that" replay. Slice 4 (pure-pixel clicking for apps with
+  no listed controls) not built. 366 tests pass.
+
+### Any-app control slice 2, playlists, now-playing (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- Slice 2: `click_button` now runs `app_control.click_named` (ui_probe list, unique-name rule, risky real-name
+  stop, success only if the control list/title/foreground changed within 2 s). New rule-only actions `toggle`
+  (TogglePattern, state read back; already-right presses nothing) and `set_field` (ValuePattern, read back,
+  sensitive boxes refused). Rules in `details.control_intent` need an exactly-installed app name and only run
+  when Laya picks the apps area (not pre-Laya, to avoid hijacking other requests). Safety gate: risky words in
+  a toggle/field name need a yes; the text typed into set_field is not scanned. `pick_menu` from the plan is
+  not built yet.
+- Spotify desktop playlists (`spotify_desktop.play_playlist`): live read of the user's window showed the sidebar
+  entry is a Button named "<playlist> <owner>" ("My playlist #9 Kihurn") and the playlist page has
+  "Play My playlist #9". Otto presses the entry, then that button, and verifies by the button turning into
+  "Pause My playlist #9" plus a playing Spotify session. ASSUMPTION not yet seen live: that the label really
+  flips to "Pause <name>"; if not, Otto will say it could not confirm. Only playlists visible in the sidebar
+  are found (the list is virtualised).
+- `now_playing` is treated as its own observation in the executor (was "sent, but not verified").
+- Not run live: any press, toggle, fill or playlist start. 348 tests pass.
+
+### Any-app control, slice 1 (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- User asked for the Phase 1 plan and to start straight away, reviewing later. Plan: docs/PHASE1_ANY_APP_PLAN.md
+  (five slices; only slice 1 is built). Nus Companion studied read-only at 592e30f; ideas ported, credited in
+  THIRD_PARTY_NOTICES.md.
+- Built: `hands/ui_probe.py` (one cached UIA FindAll per window: Notepad 26 controls/30 ms, Spotify 104/70 ms,
+  Chrome 93/330 ms, measured live), `core/sensitive.py`, `hands/app_control.py` with `type_in_app`
+  (for_brain=False). Rules: "open <app> and write X" and "type X in <app>" (exact installed app names only;
+  Notepad/"note" still make an Otto note). This replaces the earlier interim "I can't type into Word yet" refusal.
+- Decisions: a web page is a read-only "Document" and is never a typing target; without keyboard focus only a
+  lone editor (Document) is chosen, never a lone small box such as Chrome's address bar; success needs the text
+  to appear on read-back (count rises or length grows by 80% of the typed length, to allow auto-correct).
+- Compound volume fix (on claude/live-check-fixes): "then lower it by thirty two" resolves "it" to the volume.
+- Not run live: any real typing (it would have typed into the user's open notes). Word was minimised during
+  the probe, so its document control is unconfirmed. Acceptance list is at the end of the plan. 331 tests pass.
+- Next: user's slice 1 acceptance, then slice 2 (click/set/toggle by name with before/after proof).
 
 ### 1.2 live-check fixes (11 Nov 2026, Claude Code, branch claude/live-check-fixes)
 - User's first live typed check: "play The Hills by The Weeknd" stopped with "Spotify search value did not match"
@@ -27,7 +92,17 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   the real UIA ancestry question left open by R1). Chrome need not be the foreground window. Unconfirmed wording
   is "Opening X. I couldn't confirm it loaded." Live: new-tab open verified True; Gmail/search wording still needs
   the user's re-run. 297 tests pass on Windows.
-- Still open, found in the same run: the banner says "Otto 1.1" (bump at release).
+- Second live run (user): Spotify search confirmed working; "Over the Moon" played. "The Hills" stopped with
+  "More than one matching Play button". Live probe: three candidates, all in the results grid (Top result "Play"
+  plus two "Play The Hills" rows under Songs), not the suggestion dropdown. Decision (user approved): when several
+  controls all match title and artist, press the highest on the page; Windows playback verification is unchanged.
+  The old test that expected a stop was passing only by timing out; it now expects one press.
+- "type hello world in note pad?" kept "in note pad?" in the note; the strip rule now accepts "note pad" and
+  trailing punctuation. "open word and write X" made a Notepad note; the compiler now refuses with "I can't type
+  into Word yet" unless the user says "note" or the app is Notepad. Real typing into apps is Phase 1 any-app control.
+- Unexplained: the user reported Google Docs coming to the front for "open word"; their screenshot shows desktop
+  Word. Ask for a screenshot if it recurs (win.find_window is fuzzy on window titles).
+- Still open, found in the same run: the banner says "Otto 1.1" (bump at release). 302 tests pass on Windows.
 
 ### Review fixes R1–R6 and cleanup (11 Nov 2026, Claude Code, branch claude/review-fixes)
 - Reproduced all six findings with fakes before fixing. R3: tie groups evaluated together, exact stored bar,

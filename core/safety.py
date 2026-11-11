@@ -22,9 +22,10 @@ def step_risk(step: dict) -> int:
     if step["do"] == "open_path":
         from hands.files import open_risk
         risk = max(risk, open_risk(args.get("path", "")))
-    if step["do"] in ("click_button", "type_text", "hotkey"):
+    if step["do"] in ("click_button", "type_text", "hotkey", "toggle", "set_field", "app_goal"):
         from hands.apps import RISKY_WORDS
-        text = " ".join(str(v) for v in args.values())
+        # For set_field the typed words are the user's content, not a control name.
+        text = " ".join(str(v) for k, v in args.items() if not (step["do"] == "set_field" and k == "text"))
         if RISKY_WORDS.search(text):
             risk = ASK
     return risk

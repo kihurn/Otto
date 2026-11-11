@@ -1,7 +1,36 @@
 # Changelog
 
 ## 1.2 (in development)
-- Fixes from the first live Windows check (297 tests pass):
+- Goal mode (any-app control, slice 3; 366 tests pass; real pressing not yet run live):
+  - When a fixed rule can't finish the job, local Qwen picks the next step by number from the window's real
+    buttons and boxes; Otto checks the pick, does it, and looks again (up to 8 steps). Examples: typing in Word
+    from its start screen, "click save in notepad" (File, then Save), "export this as a pdf in word".
+  - Qwen can't type its own words, can't pick anything that isn't on screen, and Send/Delete-type buttons and
+    password boxes are refused. If Qwen is unsure, Otto asks you for the next step.
+  - A screenshot with the same numbers drawn on it is added when the list is short or a step got nowhere.
+  - After a worked-out success, say "save that": next time Otto replays the steps without Qwen.
+- "click view then click status in notepad" clicks both in Notepad; "click status" right after working in an
+  app means that app again (for two minutes).
+- Spotify playlist errors now name what went wrong instead of only "could not read the Spotify window".
+- Any-app control, slice 2 (348 tests pass; not yet run live):
+  - "click X in <app>" now reads the window quickly, stops if two controls share the name, and only says
+    "Clicked" when the window visibly reacted.
+  - New: "turn on/off X in <app>", "tick/untick X in <app>" (reads the switch back) and "set X to Y in <app>"
+    (fills a named box and reads it back). Password and private boxes are refused.
+- Spotify (desktop mode): "play my playlist #9" opens the playlist from Your Library and presses its Play button.
+- "What's playing right now?" answers with the song instead of "sent, but not verified".
+- Any-app control, slice 1 (331 tests pass; live typing not yet confirmed on Windows):
+  - "open Word and write …" and "type … in Word" type the words into that app and read them back to confirm,
+    instead of making a Notepad note. Otto refuses password and private fields and says so when it can't see
+    where to type.
+  - New reader for any app's buttons, boxes and tabs (no screenshot; 30–330 ms on the user's PC).
+  - Plan for the remaining slices: docs/PHASE1_ANY_APP_PLAN.md. Credits: THIRD_PARTY_NOTICES.md.
+- "set volume to 70, then lower it by thirty two" now lowers by 32, not 10.
+- Fixes from the second live run (302 tests pass):
+  - Spotify: the same song listed twice (Top result and again under Songs) no longer stops with "More than one
+    matching Play button"; Otto presses the top one and still checks what Windows says is playing.
+  - "type hello world in note pad?" writes just "hello world".
+- Fixes from the first live Windows check:
   - Spotify: "Spotify search value did not match." Spotify reports its search text 80–400 ms after it is set;
     Otto now re-reads for up to ~2 seconds before giving up.
   - "Open a new tab on chrome and search hello world" no longer searches your files for "new tab chrome"; it is

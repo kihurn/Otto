@@ -109,8 +109,67 @@ def parse_clock(text: str) -> str | None:
 # Per-area rules
 # ---------------------------------------------------------------------------------------------
 
+def type_in_app_intent(text: str, apps) -> Intent | None:
+    """"type hello world in Word" -> type those exact words into that app. Only for an app that is really
+    installed under that name; Notepad and notes keep going to Otto's own notes."""
+    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I)
+    m = re.fullmatch(r"(?:type|write|enter|put)\s+(?P<x>.+?)\s+(?:in|into|on)\s+(?:the\s+|my\s+)?(?P<app>[\w .]+?)\s*[.!?]*",
+                     raw, re.I)
+    if not m or apps is None:
+        return None
+    app = " ".join(m.group("app").lower().split())
+    if re.search(r"\bnotes?\b|note\s?pad", app) or not apps.match_exact(app):
+        return None
+    words = m.group("x").strip(" \"'“”")
+    return Intent("apps", "type_in_app", {"app": app, "text": words}) if words else None
+
+
+def control_intent(text: str, apps) -> Intent | None:
+    """"turn on dark mode in Settings", "untick word wrap in Notepad", "set name to Ki Hurn in Word".
+    Only when the app is really installed under that exact name."""
+    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I).rstrip(" .!?")
+    if apps is None:
+        return None
+
+    def installed(name: str) -> str | None:
+        name = " ".join(name.lower().split()).removeprefix("the ")
+        return name if apps.match_exact(name) else None
+
+    m = re.fullmatch(r"(?:turn|switch)\s+(?P<s>on|off)\s+(?:the\s+)?(?P<n>.+?)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I) \
+        or re.fullmatch(r"(?:turn|switch)\s+(?:the\s+)?(?P<n>.+?)\s+(?P<s>on|off)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")):
+        return Intent("apps", "toggle", {"app": installed(m.group("app")), "name": m.group("n").strip(),
+                                         "state": m.group("s").lower()})
+    m = re.fullmatch(r"(?P<v>tick|check|enable|untick|uncheck|disable)\s+(?:the\s+)?(?P<n>.+?)"
+                     r"(?:\s+(?:box|checkbox|option|setting))?\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")):
+        state = "off" if m.group("v").lower() in ("untick", "uncheck", "disable") else "on"
+        return Intent("apps", "toggle", {"app": installed(m.group("app")), "name": m.group("n").strip(), "state": state})
+    m = re.fullmatch(r"(?:set|fill in|fill|change)\s+(?:the\s+)?(?P<f>.+?)(?:\s+(?:box|field))?\s+(?:to|with)\s+"
+                     r"(?P<x>.+?)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")) and not re.search(r"\b(?:volume|timer|alarm)\b", m.group("f"), re.I):
+        return Intent("apps", "set_field", {"app": installed(m.group("app")), "field": m.group("f").strip(),
+                                            "text": m.group("x").strip(" \"'")})
+    return None
+
+
+def app_goal_intent(text: str, apps) -> Intent | None:
+    """"export this as a pdf in Word": anything else that ends with an installed app's exact name."""
+    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I).rstrip(" .!?")
+    m = re.fullmatch(r"(?P<goal>.{4,}?)\s+(?:in|on|inside)\s+(?:the\s+|my\s+)?(?P<app>[\w .]+)", raw, re.I)
+    if not m or apps is None:
+        return None
+    app = " ".join(m.group("app").lower().split())
+    if not apps.match_exact(app) or re.match(r"(?:open|launch|start|close|quit|search|find|look|play|google)\b", m.group("goal"), re.I):
+        return None
+    return Intent("apps", "app_goal", {"app": app, "goal": m.group("goal").strip()})
+
+
 def _apps(text: str, apps) -> Intent | None:
     t = _t(text)
+    typed = type_in_app_intent(text, apps) or control_intent(text, apps)
+    if typed:
+        return typed
     if re.search(r"\bplay\b|\blisten to\b|\bput on\b", t) and not re.search(r"\b(?:youtube|netflix|steam)\b", t):
         music = music_intent(text)
         if music:
@@ -118,7 +177,8 @@ def _apps(text: str, apps) -> Intent | None:
     # "click the play button in spotify"
     m = re.search(r"\b(?:click|press|tap|hit)(?: on)?\s+(?:the\s+)?(?P<b>.+?)(?:\s+button)?(?:\s+(?:in|on)\s+(?P<app>.+))?$", t)
     if m and m.group("app"):
-        return Intent("apps", "click_button", {"app": m.group("app").strip(), "button": m.group("b").strip()})
+        return Intent("apps", "click_button", {"app": m.group("app").strip(),
+                                               "button": m.group("b").strip(" \"'“”")})
     # "search for drake on spotify", "spotify search lofi", "open spotify and search lofi", "open up lofi beats on spotify"
     for pat in (r"^(?:open|launch|go to|pull up)?\s*(?:up\s+)?(?P<app>.+?)\s+and\s+(?:search|look up|find|look for)\s+(?:for\s+)?(?P<q>.+)$",
                 r"^(?:search|look up|look for|find)\s+(?:for\s+)?(?P<q>.+?)\s+(?:on|in)\s+(?P<app>[\w .'-]+)$",
@@ -312,7 +372,7 @@ def _notes(text: str) -> Intent | None:
     # Keep the user's own capitalisation for the note text
     m = re.search(r"(?::\s*|\b(?:saying|that says|that|type|write|jot down|note down|put|type out)\s+)(?P<x>.+)$", t_raw, re.I)
     if m:
-        x = re.sub(r"\s+(?:in|into|on)\s+(?:notepad|a note|my notes?)\s*$", "", m.group("x"), flags=re.I)
+        x = re.sub(r"\s+(?:in|into|on)\s+(?:note\s?pad|a note|my notes?)\s*[.!?]*\s*$", "", m.group("x"), flags=re.I)
         x = re.sub(r"^(?:this|down|that)\s*:?\s*", "", x, flags=re.I).strip(" \"'")
         if x and x.lower() not in ("this", "it", "that", "something"):
             return Intent("notes", "new_note", {"text": x})
@@ -347,7 +407,7 @@ def by_rules(area: str, text: str, apps) -> Intent | None:
         if area in ("question", "chitchat", "web") and _NOW_PLAYING.search(_t(text)):
             return Intent("media", "now_playing")
         if area == "apps":
-            return _apps(text, apps)
+            return _apps(text, apps) or app_goal_intent(text, apps)
         if area == "media":
             return _media(text)
         if area == "web":

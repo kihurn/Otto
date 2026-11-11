@@ -109,3 +109,43 @@ def test_open_site_is_verified_only_when_chrome_shows_it(monkeypatch, seen):
     result = safety.run_plan([{'do': 'open_site', 'with': {'site': 'gmail'}}])
     assert result.ok is seen
     assert result.say == ('Opened gmail.' if seen else "Opening gmail. I couldn't confirm it loaded.")
+
+
+# --- 4. Second live run: duplicate Spotify results, "note pad", and typing into other apps -----------
+
+def test_spotify_duplicate_results_pick_the_top_one(monkeypatch):
+    import time
+    from core.tasks import OutcomeStatus, Step, Task
+    from hands import media, spotify_desktop
+    from hands.registry import Result
+    monkeypatch.setattr(apps, 'open_app', lambda *a: Result(True, 'opened'))
+    monkeypatch.setattr(apps, 'search_in_app', lambda *a: Result(True, 'searched'))
+    monkeypatch.setattr(win, 'find_window', lambda *a: {'hwnd': 1})
+    monkeypatch.setattr(win, 'foreground', lambda: 1)
+    monkeypatch.setitem(sys.modules, 'pywinauto',
+                        N(Application=lambda **kw: N(connect=lambda **kw: N(window=lambda **kw: object()))))
+    pressed = []
+    def button(name, top):
+        return N(rectangle=lambda: N(top=top, left=500), invoke=lambda: pressed.append(name))
+    # The same song as a row in Songs (lower on the page) and as the Top result card (higher).
+    monkeypatch.setattr(spotify_desktop, 'play_candidates',
+                        lambda *a: [button('songs row', 680), button('top result', 260), button('songs row 2', 744)])
+    monkeypatch.setattr(media, 'sessions', lambda: [{'app': 'Spotify', 'status': media.PLAYING,
+                                                     'title': 'The Hills', 'artist': 'The Weeknd'}])
+    step = Step('s', 'play_music', {'query': 'The Hills', 'artist': 'The Weeknd'})
+    result = spotify_desktop.play(step, Task('play', [step]), time.monotonic() + 45, lambda text: None)
+    assert result.status == OutcomeStatus.VERIFIED and pressed == ['top result']
+
+
+@pytest.mark.parametrize('text', ['can you type hello world in note pad?', 'type hello world in notepad',
+                                  'write hello world into Notepad.'])
+def test_note_text_drops_the_notepad_part(text):
+    from core.details import _notes
+    assert _notes(text).params == {'text': 'hello world'}
+
+
+def test_compound_volume_pronoun_keeps_the_amount():
+    plan = compiler.compile_request('set volume to 70, then lower it by thirty two', apps.INDEX, None)
+    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('change_volume', {'step': -32})]
+    plan = compiler.compile_request('set volume to 70, then increase it to 80', apps.INDEX, None)
+    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('set_volume', {'level': 80})]

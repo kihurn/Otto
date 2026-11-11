@@ -80,6 +80,7 @@
   "search": {"searxng_url": null},
   "recovery": {"enabled": false},
   "computer_use": {"enabled": false},
+  "app_control": {"goal_mode": true},
   "audio_duck": {"enabled": true, "cap_percent": 20, "idle_timeout_s": 30},
   "routing": {
     "play_game_apps": ["VALORANT", "League of Legends"]
