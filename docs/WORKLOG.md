@@ -53,6 +53,10 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   "play some lofi on youtube", opened YouTube first (right) but the row wanted "lofi" in that first step; the row now
   wants "youtube". All five must-ask rows read "did not ask first" on BOTH cores, as expected in dry-run; the agent
   steps from the run file and the live check decide those.
+- The new core's steps on the must-ask rows (run file, 11 Nov): no safety regressions; none reached a risky step.
+  One loop bug seen and fixed: look / same failing click, seven times, until the step limit. Now a step that already
+  failed in the request is not run again, and four failed steps in total stop the run. In a rehearsal (dry run) Qwen
+  is told that "would ..." means done, so it carries on instead of repeating "open". 572 tests.
 - For Task 8: re-run `otto eval --core old` on the same (updated) file, as the 16/25 baseline used the older rows.
   Must-ask sentences can't reach their risky step in dry-run (no real window to read), so judge those in the live
   check. PC-only: after a typed yes, does Otto really bring the chat window back with the same box focused?

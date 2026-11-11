@@ -20,6 +20,10 @@ from core import agent_safety, examples, tools
 
 MAX_STEPS = 16                    # reads count too, and the window must be read again after each action
 MAX_SECONDS = 90
+MAX_FAILURES = 4                  # failed steps in one request, even with successful reads in between
+REHEARSAL = ("This is a rehearsal (dry run): nothing is really done and windows cannot really be read or looked at. "
+             'Treat every "[dry run] would ..." result as done and carry on with the next real step of the request. '
+             "Never repeat a step, and never invent screen positions or options.")
 NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
 ACTING = {"click", "type", "keys", "open", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
 
@@ -56,7 +60,7 @@ class AgentResult:
     pending: dict | None = None  # what resume() needs, for ask and confirm
 
 
-def system_prompt(brain, request: str) -> str:
+def system_prompt(brain, request: str, dry_run: bool = False) -> str:
     parts = []
     try:
         brief = brain.brief()
@@ -65,6 +69,8 @@ def system_prompt(brain, request: str) -> str:
     except Exception:
         pass
     parts += [RULES, "Tools (? = optional):\n" + tools.menu()]
+    if dry_run:
+        parts.append(REHEARSAL)
     similar = examples.similar(request)
     if similar:
         parts.append("Requests that worked before (control numbers differ each time):\n" + examples.as_prompt(similar))
@@ -79,7 +85,7 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     stop: set stop.cancel from anywhere to make the loop stop."""
     ctx.brain = ctx.brain or brain
     agent_safety.back_to_user_window(ctx)
-    messages = [{"role": "system", "content": system_prompt(brain, request)}]
+    messages = [{"role": "system", "content": system_prompt(brain, request, ctx.dry_run)}]
     messages += [m for m in conversation if m.get("role") in ("user", "assistant") and m.get("content")]
     messages.append({"role": "user", "content": request})
     state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(),
@@ -163,14 +169,19 @@ def _loop(state: dict, brain) -> AgentResult:
         invalid = 0
         call = {"tool": name, "args": args, "why": why}
         last = calls[-1] if calls else None
-        if (last and name in ACTING and last["tool"] == name and last["args"] == args
-                and not (name == "keys" and str(args.get("keys", "")).lower() in NAVIGATION) and name != "scroll"):
+        again = (last and name in ACTING and last["tool"] == name and last["args"] == args
+                 and not (name == "keys" and str(args.get("keys", "")).lower() in NAVIGATION) and name != "scroll")
+        # The very same step that already failed in this request (even with a look in between) fails again.
+        failed_before = name in ACTING and any(c["tool"] == name and c["args"] == args and not c.get("ok")
+                                               and not c.get("asked") for c in calls)
+        if again or failed_before:
             # Doing exactly the same thing again is how a task that already worked gets undone.
             calls.append(dict(call, ok=False, say="not repeated"))
-            if _failures(calls) >= 2:
+            if _failures(calls) >= 2 or _all_failures(calls) >= MAX_FAILURES:
                 return _stop(state, "I kept trying the same step, so I stopped.")
             state["messages"].append({"role": "user", "content": "Result: " + json.dumps(
-                {"ok": False, "say": "You just did exactly that. Choose something different, or call done."})})
+                {"ok": False, "say": ("That exact step already failed. " if failed_before else "You just did exactly that. ")
+                 + "Choose something different, ask the user, or call done."})})
             continue
         state["steps"] += 1
         ctx.why = why
@@ -199,7 +210,14 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
     if _failures(calls) >= 2:
         return _stop(state, f"That didn't work twice, so I stopped. {result.say}")
+    if _all_failures(calls) >= MAX_FAILURES:
+        return _stop(state, f"Too many steps failed, so I stopped. {result.say}")
     return None
+
+
+def _all_failures(calls: list[dict]) -> int:
+    """Failed steps in the whole request (a step that only waited for your yes is not a failure)."""
+    return sum(1 for c in calls if not c.get("ok") and not c.get("asked"))
 
 
 def _failures(calls: list[dict]) -> int:

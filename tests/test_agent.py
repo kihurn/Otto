@@ -156,3 +156,41 @@ def test_navigation_keys_may_repeat(ctx):
     brain = Scripted(call("keys", keys="tab"), call("keys", keys="tab"), call("done", say="ok"))
     r = agent.run("move down two fields", [], brain, ctx)
     assert r.status == "done" and sum(c["ok"] for c in r.calls if c["tool"] == "keys") == 2
+
+
+def test_failed_step_is_not_retried_after_a_look(ctx, monkeypatch):
+    """Seen on the PC: look, failing click, look, the same failing click... until the step limit."""
+    from core import agent, tools
+    clicks = []
+
+    def failing_click(c, **k):
+        clicks.append(k)
+        return tools.ToolResult(False, "Use look first.")
+    monkeypatch.setattr(tools.TOOLS["click"], "run", failing_click)
+    monkeypatch.setattr(tools.TOOLS["look"], "run", lambda c, **k: tools.ToolResult(True, "Looked."))
+    pair = [call("look", question="where is john"), call("click", x=312, y=480)]
+    brain = Scripted(*(pair * 8))
+    r = agent.run("reply to john", [], brain, ctx)
+    assert r.status == "stopped" and len(clicks) == 1
+    assert len(brain.seen) <= 8                      # stopped long before the 16-step limit
+
+
+def test_many_different_failures_stop_the_run(ctx, monkeypatch):
+    from core import agent, tools
+    monkeypatch.setattr(tools.TOOLS["click"], "run", lambda c, **k: tools.ToolResult(False, "No."))
+    monkeypatch.setattr(tools.TOOLS["look"], "run", lambda c, **k: tools.ToolResult(True, "Looked."))
+    steps = []
+    for n in range(8):
+        steps += [call("look"), call("click", x=n, y=n)]
+    brain = Scripted(*steps)
+    r = agent.run("click around", [], brain, ctx)
+    assert r.status == "stopped" and "Too many steps failed" in r.say
+    assert sum(1 for c in r.calls if c["tool"] == "click") == agent.MAX_FAILURES
+
+
+def test_rehearsal_is_explained_to_the_model(ctx):
+    from core import agent
+    brain = Scripted(call("done", say="ok"))
+    agent.run("open notepad", [], brain, ctx)
+    assert "rehearsal" in brain.seen[0][0]["content"]
+    assert "rehearsal" not in agent.system_prompt(brain, "open notepad", dry_run=False)
