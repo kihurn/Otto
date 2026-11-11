@@ -17,6 +17,16 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 6: the agent loop (11 Nov 2026, Claude Code, main)
+- `core/agent.py`: `run(request, conversation, brain, ctx)` / `resume(pending, brain, answer=|yes=)`. Qwen replies
+  `{"tool","args","why"}` (our JSON format; native tool calling works too but has no "why", which the coordinate-click
+  safety rule reads). Limits: 12 calls, 90 s, two failures in a row, one corrective retry for an invalid call,
+  identical consecutive acting calls not run. `ask_user` and "waiting for a yes" end the turn with resumable state.
+  `stop_after` lets eval judge only the first decision. In dry runs the safety rules judge by the app last opened.
+- `core/examples.py`: "save that" examples (otto-data/agent_examples.jsonl), most similar 5 shown to Qwen.
+- Not in this task: replaying goal mode's saved methods without a model call (decide in task 7/9 whether examples
+  are enough). 12 tests.
+
 ### Agent core, task 5: look, positions, scroll, drag, point (11 Nov 2026, Claude Code, main)
 - `senses/eyes.capture(hwnd)` returns the image plus the captured screen rectangle and shrink scale; `tools.to_screen`
   maps an image x,y back to the screen. New tools: `look` (screenshot + Qwen, answer as information), `point`,

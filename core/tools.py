@@ -216,6 +216,7 @@ def _dry(ctx: ToolContext, what: str) -> ToolResult:
 def _open(ctx, what):
     from hands import apps, web
     low = what.lower().strip()
+    ctx.app = what
     if re.match(r"^(?:[a-z]:\\|\\\\|~[\\/])", low):
         return _action(ctx, "open_path", path=what)
     if re.match(r"^[a-z][a-z0-9+.-]*:(?!\\)", low) and not re.match(r"^https?:", low):

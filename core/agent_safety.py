@@ -30,6 +30,9 @@ RUN_BUTTONS = re.compile(r"^(run|ok|open|execute)$", re.I)
 
 def front(ctx) -> dict:
     """The window being worked in and the name of its focused control: {exe, title, focused}."""
+    if ctx.dry_run:
+        # Nothing is really open in a dry run: judge by the app the agent last opened or read.
+        return {"exe": "", "title": ctx.app, "focused": ""}
     from hands import win
     hwnd = ctx.hwnd or win.foreground()
     info = win.window_info(hwnd) if hwnd else {}
