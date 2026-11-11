@@ -2,7 +2,7 @@
 import re
 from core import details, planner
 from core.music_goals import compile_music
-from core.search_goals import web_query
+from core.search_goals import new_tab, web_query
 from hands.registry import InvalidPlan
 
 
@@ -25,8 +25,15 @@ def compile_request(text, apps, brain):
     if not 2 <= len(parts) <= 4 or any(not p for p in parts):
         return planner.Plan([], 'none', error='Please give me between two and four complete tasks.')
     steps = []
-    for part in parts:
-        intent = compile_music(part)
+    for index, part in enumerate(parts):
+        intent = None
+        if new_tab(part):
+            # A web search opens its own new tab, so "open a new tab and search X" is just the search.
+            if index + 1 < len(parts) and web_query(parts[index + 1]):
+                continue
+            intent = details.Intent('web', 'open_site', {'site': 'new tab'})
+        if intent is None:
+            intent = compile_music(part)
         if intent is None:
             query = web_query(part)
             if query:

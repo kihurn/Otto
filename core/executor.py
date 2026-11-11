@@ -185,7 +185,16 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
                         if checkable and now is not None and (expected is None or abs(now - expected) <= 1):
                             outcome = Outcome(OutcomeStatus.VERIFIED, f'Volume {now}%.', {'volume': now},
                                               [Evidence('windows.volume', expected={'level': expected}, observed={'level': now})])
-                if outcome.status == OutcomeStatus.DISPATCHED:
+                    elif step.action in {'open_site', 'web_search'} and outcome.data.get('url'):
+                        # Websites: confirmed once Chrome's own address bar shows the page that was opened.
+                        from hands import web
+                        if win.IS_WINDOWS and web.shown_in_chrome(outcome.data['url']):
+                            outcome = Outcome(OutcomeStatus.VERIFIED, outcome.data.get('done', result.say), result.data,
+                                              [Evidence('chrome.address_bar', target=step.args,
+                                                        expected={'url': outcome.data['url']}, observed={'shown': True})])
+                        else:
+                            outcome.say = result.say + " I couldn't confirm it loaded."
+                if outcome.status == OutcomeStatus.DISPATCHED and step.action not in {'open_site', 'web_search'}:
                     outcome.say = 'That action was sent, but its result is not verified yet.'
             if (task.cancel.is_set() or time.monotonic() >= end) and outcome.status != OutcomeStatus.CANCELLED:
                 outcome = Outcome(OutcomeStatus.CANCELLED if task.cancel.is_set() else OutcomeStatus.UNCERTAIN,
