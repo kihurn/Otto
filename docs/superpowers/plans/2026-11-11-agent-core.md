@@ -19,7 +19,7 @@ pywinauto / UI Automation, mss + Pillow.
 
 - Local models only: `qwen3-vl:8b-instruct`, then `qwen3-vl:4b-instruct`. No `gemma4:31b-cloud` in any default chain.
 - `num_ctx` default 32768 (`brain.num_ctx`), fallback 16384.
-- Loop budgets: max 12 tool calls, 90 s per request; stop after 2 failed steps in a row.
+- Loop budgets: max 16 tool calls (reads included), 90 s per request; stop after 2 failed steps in a row.
 - Fast path: exact whole-sentence rule, or Laya ≥ the act bar (this user: 0.90) with a rule that fills the whole
   sentence; any "and / then / after that / also" joining two requests goes to the loop.
 - Ask-first list (spec 5.4): close only when the app shows a message; buy/pay/order/checkout; send (Enter-type keys

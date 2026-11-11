@@ -164,6 +164,8 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
     if name == "click":
         entry["name"] = (_control(ctx, clean.get("control")) or {}).get("name", "")
     ctx.history.append(entry)
+    if name in CHANGES_WINDOW and not ctx.dry_run:
+        ctx.controls = []                    # read the window again before choosing another control
     ctx.confirmed = False
     return result
 
@@ -210,16 +212,28 @@ def _dry(ctx: ToolContext, what: str) -> ToolResult:
     return ToolResult(True, f"[dry run] would {what}.", {"simulated": True})
 
 
+LINK_SCHEMES = {"spotify", "ms-settings", "mailto", "steam", "discord", "ms-windows-store", "zoommtg", "msteams"}
+# Calls after which the window may look different: the numbers from read_window no longer apply.
+CHANGES_WINDOW = {"open", "close", "click", "keys", "type", "drag", "scroll", "media"}
+
+
 # ---- the tools ------------------------------------------------------------------------------
 @tool("open", "open an app, website, file, folder or link (opens it or brings it to the front)",
       {"what": "app name, website name or address, file/folder path, or link"})
 def _open(ctx, what):
     from hands import apps, web
     low = what.lower().strip()
-    ctx.app = what
-    if re.match(r"^(?:[a-z]:\\|\\\\|~[\\/])", low):
-        return _action(ctx, "open_path", path=what)
-    if re.match(r"^[a-z][a-z0-9+.-]*:(?!\\)", low) and not re.match(r"^https?:", low):
+    ctx.app, ctx.hwnd, ctx.controls, ctx.look = what, None, [], {}     # a new window: earlier reads are stale
+    if low.startswith("file:"):
+        from urllib.parse import unquote, urlparse
+        what = unquote(urlparse(what).path).lstrip("/").replace("/", "\\")
+        low = what.lower()
+    if re.match(r"^(?:[a-z]:[\\/]|\\\\|~[\\/])", low):
+        return _action(ctx, "open_path", path=what)        # programs (.exe etc.) ask first there
+    scheme = re.match(r"^([a-z][a-z0-9+.-]*):", low)
+    if scheme and scheme[1] not in ("http", "https"):
+        if scheme[1] not in LINK_SCHEMES:
+            return ToolResult(False, f"I don't open {scheme[1]}: links.")
         return _action(ctx, "open_link", uri=what)
     exact = apps.INDEX.match_exact(low)
     if exact:
@@ -370,6 +384,14 @@ def _click(ctx, control=None, x=None, y=None, button="left"):
     indicator.point(target["rect"] if target else (where[0], where[1], where[0], where[1]))
     if target and button == "left" and ui_probe.press(target):
         return ToolResult(True, f'Pressed "{name}".', {"pressed": name})
+    if not ctx.confirmed:
+        # The mouse lands on whatever is there now: check it is not a risky button.
+        from core.agent_safety import name_at
+        from hands.apps import RISKY_WORDS
+        there = name_at(*where)
+        if there is None or (there and RISKY_WORDS.search(there)):
+            question = f'press "{there}"' if there else "click there (I couldn't check what is under that spot)"
+            return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)
     mouse.click_at(*where, button="right" if button == "right" else "left", double=button == "double")
     return ToolResult(True, f'Clicked "{name}".', {"clicked": name})
 
@@ -466,15 +488,26 @@ def _type(ctx, text, control=None):
         return _dry(ctx, f'type "{text[:60]}"')
     if target is not None and target.get("read_only"):
         return ToolResult(False, "That box can't be typed in.")
-    if target is not None and ui_probe.set_value(target, text):
-        back = ui_probe.read_text(target)
-        if back is not None and text.strip() in back:
-            return ToolResult(True, "Typed it.", {"typed": True, "checked": True})
+    if target is not None:
+        before = ui_probe.read_text(target)
+        if before == "" and ui_probe.set_value(target, text):
+            # Only an empty box is filled directly: setting a value replaces everything already in it.
+            back = ui_probe.read_text(target)
+            if back is not None and text.strip() in back:
+                return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
+        try:
+            target["element"].SetFocus()          # type at the cursor in that box, keeping what is there
+        except Exception:
+            pass
     from hands import apps, win
     if win.focused_is_password():
         return ToolResult(False, "The focused box is a password field, so I won't type in it.")
     apps.type_text(text)
-    return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True, "checked": False})
+    if target is not None:
+        back = ui_probe.read_text(target)
+        if back is not None and text.strip() in back:
+            return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
+    return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True})
 
 
 @tool("keys", "press keys or a shortcut, e.g. ctrl+s, pagedown, enter", {"keys": "the keys, joined with +"})

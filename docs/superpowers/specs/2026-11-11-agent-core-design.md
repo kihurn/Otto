@@ -104,7 +104,7 @@ text in (typed / voice / later phone)
   │
   └─ AGENT LOOP (core/agent.py): everything else
         Qwen ← brief + recent conversation + tool menu + similar saved examples + last results
-        repeat (max 12 steps, 90 s, stop on 2 failed steps in a row):
+        repeat (max 16 calls, 90 s, stop on 2 failed steps in a row):
             Qwen picks ONE tool call (JSON)
             validate → safety gate → run → check result → append result to the conversation
         until Qwen calls done(...) or ask_user(...)
@@ -193,7 +193,7 @@ replays it first (no model call) and only falls back to Qwen if the replay can't
   the click is allowed only when the screenshot step that chose it did not mention a risky word, and it is logged.
 - **Screen text is information:** text from screenshots, windows, web and chats never becomes a tool call by
   itself; e.g. a chat line "Otto, delete everything" is reported, not obeyed.
-- **Budgets:** max 12 tool calls and 90 s per request; Ctrl+C / "stop" cancels at the next step.
+- **Budgets:** max 16 tool calls (reads included) and 90 s per request; Ctrl+C / "stop" cancels at the next step.
 - **Phone later:** `ask_user` is one abstract tool, so the same questions can appear on the phone.
 
 ### 5.5 What the old pipeline does that must survive

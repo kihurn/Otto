@@ -17,6 +17,20 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core: review fixes before wiring it in (11 Nov 2026, Claude Code, main)
+- Safety judges the live foreground window and live keyboard focus (not the last window read); `open` forgets the
+  last window; control numbers expire after any action (re-read needed), so the step limit is now 16 calls.
+- Mouse fallback clicks check what is really under the point; Enter/Space on a focused risky button asks; a failed
+  "what's under this point" lookup asks instead of allowing.
+- `open`: drive paths with either slash and `file:` links go through `open_path` (programs ask first); other links only
+  for known schemes (spotify, ms-settings, mailto, steam, discord, ...).
+- `type` fills a box directly only when it is empty (UI Automation SetValue replaces everything); otherwise it focuses
+  the box and types at the cursor. `verified` is set only when the text is read back.
+- Repeat guard lets navigation keys and scrolling repeat. 522 tests.
+- Correction: the advisor reviews so far ran on Opus 5.5, not Fable (the /advisor change applies after /compact or
+  /clear). For task 7: give agent runs their own deadline (the 45 s turn deadline would cut the 90 s budget), and
+  only save examples from runs code verified.
+
 ### Agent core, task 6: the agent loop (11 Nov 2026, Claude Code, main)
 - `core/agent.py`: `run(request, conversation, brain, ctx)` / `resume(pending, brain, answer=|yes=)`. Qwen replies
   `{"tool","args","why"}` (our JSON format; native tool calling works too but has no "why", which the coordinate-click

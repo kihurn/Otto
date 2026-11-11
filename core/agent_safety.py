@@ -29,32 +29,36 @@ RUN_BUTTONS = re.compile(r"^(run|ok|open|execute)$", re.I)
 
 
 def front(ctx) -> dict:
-    """The window being worked in and the name of its focused control: {exe, title, focused}."""
+    """The window really in front right now and the name of its focused control: {exe, title, focused}.
+    Always read live, because the agent's actions land on whatever is in front, not on the last window read."""
     if ctx.dry_run:
         # Nothing is really open in a dry run: judge by the app the agent last opened or read.
-        return {"exe": "", "title": ctx.app, "focused": ""}
+        app = (ctx.app or "").strip()
+        return {"exe": app.lower().replace(" ", "") + ".exe" if app else "", "title": app, "focused": ""}
     from hands import win
-    hwnd = ctx.hwnd or win.foreground()
+    hwnd = win.foreground()
     info = win.window_info(hwnd) if hwnd else {}
-    focused = next((c.get("name", "") for c in ctx.controls if c.get("focused")), "")
-    if not focused:
-        try:
-            from pywinauto.uia_defines import IUIA
-            focused = IUIA().get_focused_element().CurrentName or ""
-        except Exception:
-            focused = ""
-    return {"exe": info.get("exe", ""), "title": info.get("title", ""), "focused": focused}
+    return {"exe": info.get("exe", ""), "title": info.get("title", ""), "focused": focused_name()}
 
 
-def name_at(x: int, y: int) -> str:
-    """The name of whatever is on the screen at this point, from Windows (empty if unknown)."""
+def focused_name() -> str:
+    try:
+        from pywinauto.uia_defines import IUIA
+        return (IUIA().get_focused_element().CurrentName or "").strip()
+    except Exception:
+        return ""
+
+
+def name_at(x: int, y: int) -> str | None:
+    """The name of whatever is on the screen at this point, from Windows.
+    "" = something is there but it has no name; None = Windows could not be asked (treated as risky)."""
     try:
         from pywinauto.uia_defines import IUIA
         import ctypes.wintypes
         element = IUIA().iuia.ElementFromPoint(ctypes.wintypes.POINT(int(x), int(y)))
         return (element.CurrentName or "").strip() if element else ""
     except Exception:
-        return ""
+        return None
 
 
 def _keys(value: str) -> str:
@@ -121,6 +125,11 @@ def check(name: str, args: dict, ctx) -> str | None:
         if keys in DELETE_KEYS and (w["exe"].lower() == "explorer.exe" or _is_message(w)
                                     or re.search(r"\b(mail|inbox)\b", w["title"], re.I)):
             return f"delete the selected item in {_app_name(w)}"
+        if keys in SEND_KEYS | {"space"}:
+            # Enter or Space on a focused button presses it: same rule as clicking it.
+            from hands.apps import RISKY_WORDS
+            if w["focused"] and RISKY_WORDS.search(w["focused"]):
+                return f'press "{w["focused"]}"'
         return None
     if name == "type":
         text = str(args.get("text", ""))
@@ -138,6 +147,8 @@ def check(name: str, args: dict, ctx) -> str | None:
         if not ctx.look:
             return None                       # the tool itself refuses positions without a look
         label = name_at(*to_screen(ctx, args.get("x", 0), args.get("y", 0)))
+        if label is None:
+            return "click there (I couldn't check what is under that spot)"
         if label and RISKY_WORDS.search(label):
             return f'press "{label}"'
         if not label and RISKY_WORDS.search(ctx.why or ""):

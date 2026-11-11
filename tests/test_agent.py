@@ -34,11 +34,16 @@ def ctx():
 
 def test_youtube_first_video_opens_then_clicks(ctx, monkeypatch):
     from core import agent, tools
-    ctx.controls = [{"id": 1, "name": "Video one", "type": "Hyperlink", "rect": (0, 0, 10, 10), "enabled": True}]
-    brain = Scripted(call("open", what="youtube"), call("click", control=1), call("done", say="Playing the first video."))
+
+    def fake_read(c, app=""):
+        c.controls = [{"id": 1, "name": "Video one", "type": "Hyperlink", "rect": (0, 0, 10, 10), "enabled": True}]
+        return tools.ToolResult(True, "Read Chrome.", information='[1] Hyperlink "Video one"')
+    monkeypatch.setattr(tools.TOOLS["read_window"], "run", fake_read)
+    brain = Scripted(call("open", what="youtube"), call("read_window"), call("click", control=1),
+                     call("done", say="Playing the first video."))
     r = agent.run("open youtube and play the first video", [], brain, ctx)
     assert r.status == "done" and r.ok
-    assert [c["tool"] for c in r.calls] == ["open", "click", "done"]
+    assert [c["tool"] for c in r.calls] == ["open", "read_window", "click", "done"]
 
 
 def test_swap_audio_output_asks_with_real_options(ctx):
@@ -111,11 +116,15 @@ def test_screen_text_never_becomes_call(ctx, monkeypatch):
     assert '"information"' in result_message and "delete everything" in result_message
 
 
-def test_reply_to_john_types_then_confirms_send(ctx):
-    from core import agent
-    ctx.controls = [{"id": 2, "name": "John", "type": "ListItem", "rect": (0, 0, 9, 9), "enabled": True}]
-    brain = Scripted(call("open", what="discord"), call("click", control=2), call("type", text="ok sure, see you soon"),
-                     call("keys", keys="enter"))
+def test_reply_to_john_types_then_confirms_send(ctx, monkeypatch):
+    from core import agent, tools
+
+    def fake_read(c, app=""):
+        c.controls = [{"id": 2, "name": "John", "type": "ListItem", "rect": (0, 0, 9, 9), "enabled": True}]
+        return tools.ToolResult(True, "Read Discord.")
+    monkeypatch.setattr(tools.TOOLS["read_window"], "run", fake_read)
+    brain = Scripted(call("open", what="discord"), call("read_window"), call("click", control=2),
+                     call("type", text="ok sure, see you soon"), call("keys", keys="enter"))
     r = agent.run("reply ok sure i will see you soon to john on discord", [], brain, ctx)
     assert r.status == "confirm" and "send" in r.say.lower()
 
@@ -140,3 +149,10 @@ def test_stop_after_one_for_eval(ctx):
     brain = Scripted(call("open", what="youtube"), call("done", say="x"))
     r = agent.run("open youtube", [], brain, ctx, stop_after=1)
     assert [c["tool"] for c in r.calls] == ["open"]
+
+
+def test_navigation_keys_may_repeat(ctx):
+    from core import agent
+    brain = Scripted(call("keys", keys="tab"), call("keys", keys="tab"), call("done", say="ok"))
+    r = agent.run("move down two fields", [], brain, ctx)
+    assert r.status == "done" and sum(c["ok"] for c in r.calls if c["tool"] == "keys") == 2

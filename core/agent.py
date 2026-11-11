@@ -17,8 +17,9 @@ from dataclasses import dataclass, field
 
 from core import examples, tools
 
-MAX_STEPS = 12
+MAX_STEPS = 16                    # reads count too, and the window must be read again after each action
 MAX_SECONDS = 90
+NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
 ACTING = {"click", "type", "keys", "open", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
 
 RULES = """You are operating the user's Windows PC for them, one tool call at a time.
@@ -123,7 +124,8 @@ def _loop(state: dict, brain) -> AgentResult:
         invalid = 0
         call = {"tool": name, "args": args, "why": why}
         last = calls[-1] if calls else None
-        if (last and name in ACTING and last["tool"] == name and last["args"] == args):
+        if (last and name in ACTING and last["tool"] == name and last["args"] == args
+                and not (name == "keys" and str(args.get("keys", "")).lower() in NAVIGATION) and name != "scroll"):
             # Doing exactly the same thing again is how a task that already worked gets undone.
             calls.append(dict(call, ok=False, say="not repeated"))
             if _failures(calls) >= 2:
