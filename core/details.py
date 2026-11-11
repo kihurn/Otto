@@ -27,6 +27,7 @@ class Intent:
     source: str = "rules"            # rules / brain
     check_app: str | None = None     # "Did you mean <app>?" when the app name was a near match
     compose: str | None = None       # notes: ask the brain to write this first
+    full_match: bool = False         # a whole-sentence rule matched: nothing in the request was left over
 
 
 def _t(text: str) -> str:
@@ -421,6 +422,90 @@ def by_rules(area: str, text: str, apps) -> Intent | None:
     except Exception:
         return None
     return None
+
+
+# ---------------------------------------------------------------------------------------------
+# Whole-sentence rules (the new core's fast path)
+# ---------------------------------------------------------------------------------------------
+# The older rules above search for a phrase anywhere in a sentence, so "open youtube and play the first video"
+# can be cut down to one part of it. These only match when the WHOLE sentence is one simple command;
+# anything else goes to the agent loop, which reads the full request.
+
+_JOINED = re.compile(r"\b(?:and|then|after|before|but|also|while|if|when)\b|[,;:]")
+_KEYS_ONLY = {
+    r"pause|pause (?:it|the music|the song|music|spotify)|stop the music|stop music": "pause",
+    r"resume|unpause|resume (?:it|the music|the song|music|spotify)|play|continue playing": "play",
+    r"next|skip|next song|next track|skip (?:it|this|this song|this track|the song|song|track)": "next",
+    r"previous|previous song|previous track|last song|last track|go back a song|back a song": "previous",
+    r"mute|unmute|mute (?:it|the sound|the volume)|unmute (?:it|the sound|the volume)": "mute",
+    r"louder|volume up|turn (?:it|the volume|the music) up|turn up the volume": "volume_up",
+    r"quieter|softer|volume down|turn (?:it|the volume|the music) down|turn down the volume": "volume_down",
+}
+
+
+def whole_command(text: str) -> Intent | None:
+    """Unmistakable commands that need no Laya: media keys, volume, what's playing, a timer with a length."""
+    t = _t(text)
+    if not t or _JOINED.search(t):
+        return None
+    for pattern, action in _KEYS_ONLY.items():
+        if re.fullmatch(pattern, t):
+            intent = _media(t)
+            if intent and intent.action == action:
+                intent.full_match = True
+                return intent
+    if re.fullmatch(r"(?:set |turn |change )?(?:the )?(?:volume|sound)(?: level)? (?:to |at )?\d{1,3}(?: ?%| percent)?|"
+                    r"\d{1,3}(?: ?%| percent) volume", t):
+        intent = _media(t)
+        if intent and intent.action == "set_volume":
+            intent.full_match = True
+            return intent
+    if re.fullmatch(r"what(?:'s|s| is) playing|what song is (?:this|playing)|what(?:'s|s| is) this song", t):
+        return Intent("media", "now_playing", full_match=True)
+    if re.fullmatch(r"(?:set |start |make )?(?:a |an |the )?(?:timer (?:for )?.+|.+ timer)", t) and "remind" not in t:
+        length = " ".join(re.sub(r"^(?:set |start |make )?(?:a |an |the )?|\btimer\b|\bfor\b", " ", t).split())
+        unit = r"(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|[smh])"
+        one = rf"(?:{_NUMWORD})[ -]?{unit}"
+        if re.fullmatch(rf"{one}(?: {one})*|half an? hour", length) and parse_duration(length):
+            intent = _timer(t)
+            if intent and intent.action == "set_timer" and not intent.params.get("label"):
+                intent.full_match = True
+                return intent
+    return None
+
+
+def whole(area: str, text: str, apps) -> Intent | None:
+    """When Laya is sure of the area, that area's whole-sentence rule (or None if the sentence is more than that)."""
+    t = _t(text)
+    if not t or _JOINED.search(t):
+        return None
+    intent = None
+    if area == "apps" and apps is not None:
+        m = re.fullmatch(r"(?P<verb>open|launch|start|run|close|quit|exit) (?:up )?(?:the )?(?:my )?(?P<app>[\w .'+-]+?)(?: app)?", t)
+        found = apps.match_exact(m["app"]) if m else None
+        if found:
+            action = "close" if m["verb"] in ("close", "quit", "exit") else "open"
+            intent = Intent("apps", action, {"app": found["name"]})
+    elif area == "media":
+        intent = whole_command(text)
+        m = re.fullmatch(r"(?:play|put on) (?P<q>.+?)(?: by (?P<a>.+?))?(?P<s> on spotify)?", t)
+        if not intent and m and (m["a"] or m["s"] or re.search(r"[\"“]", text)):
+            intent = music_intent(text)
+            if intent and intent.action != "play_music":
+                intent = None
+    elif area == "web":
+        m = re.fullmatch(r"(?:google|search (?:google |the web |online )?for|look up) (?P<q>.+)", t)
+        if m and not re.search(r"\b(?:on|in) (?:youtube|spotify|netflix|steam|amazon)\b", t):
+            intent = Intent("web", "web_search", {"query": m["q"].strip()})
+    elif area == "files":
+        m = re.fullmatch(r"(?:find|locate|search for|where(?:'s| is)) (?:my |the )?(?P<q>[\w .'-]+?)(?: file| document)?", t)
+        if m and 1 <= len(m["q"].split()) <= 4:
+            intent = _files(t)
+            if intent and intent.action != "find":
+                intent = None
+    if intent:
+        intent.full_match = True
+    return intent
 
 
 # ---------------------------------------------------------------------------------------------

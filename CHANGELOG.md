@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- New core wired in behind `core.agent` (off by default): simple whole sentences go the fast way (Laya + rules),
+  everything else to the Qwen agent loop, which can ask you a question or wait for your yes. Try it with
+  `otto eval --core new` or `otto set core.agent true`.
 - New core under way (one local Qwen loop with tools). First step: 32k context on every model call, local
   models only (Gemma 4 cloud removed from all model lists, including yours), and a multi-turn chat for the loop.
 - Set this user's Laya acting minimum to 90%. Enforce the configured floor for all calibration modes and route middle-confidence split requests through Qwen too. Full suite passes 452 tests.

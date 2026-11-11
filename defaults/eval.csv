@@ -9,8 +9,8 @@ play the hills by the weeknd,fast,media,the hills,0,0
 play my playlist number nine,fast,media,,1,0
 find my resume,fast,find_files,resume,0,0
 google best gaming mouse,fast,open,best gaming mouse,0,0
-type hello there in notepad,fast,type,hello there,1,0
-click view in notepad,fast,click,view,1,0
+type hello there in notepad,loop,open|type|read_window,notepad,1,0
+click view in notepad,loop,open|read_window|click,notepad,1,0
 close word,fast,close,word,0,0
 swap my audio output,loop,audio_output,,1,0
 how many playlists do i have,loop,open|read_window|look,,0,0

@@ -28,17 +28,71 @@ SELECT_ALL = {"ctrl+a"}
 RUN_BUTTONS = re.compile(r"^(run|ok|open|execute)$", re.I)
 
 
+# In a dry run nothing is really open, so the app's name stands in for its program file.
+DRY_RUN_EXE = {"file explorer": "explorer.exe", "explorer": "explorer.exe", "files": "explorer.exe",
+               "terminal": "windowsterminal.exe", "windows terminal": "windowsterminal.exe",
+               "command prompt": "cmd.exe", "cmd": "cmd.exe", "powershell": "powershell.exe",
+               "windows powershell": "powershell.exe", "run": "", "word": "winword.exe", "microsoft word": "winword.exe",
+               "outlook": "outlook.exe", "teams": "ms-teams.exe", "microsoft teams": "ms-teams.exe",
+               "vs code": "code.exe", "visual studio code": "code.exe", "chrome": "chrome.exe", "google chrome": "chrome.exe"}
+
+
 def front(ctx) -> dict:
-    """The window really in front right now and the name of its focused control: {exe, title, focused}.
+    """The window really in front right now and the name of its focused control: {hwnd, exe, title, focused}.
     Always read live, because the agent's actions land on whatever is in front, not on the last window read."""
     if ctx.dry_run:
         # Nothing is really open in a dry run: judge by the app the agent last opened or read.
         app = (ctx.app or "").strip()
-        return {"exe": app.lower().replace(" ", "") + ".exe" if app else "", "title": app, "focused": ""}
+        exe = DRY_RUN_EXE.get(app.lower(), app.lower().replace(" ", "") + ".exe" if app else "")
+        return {"hwnd": 0, "exe": exe, "title": app, "focused": ""}
     from hands import win
     hwnd = win.foreground()
     info = win.window_info(hwnd) if hwnd else {}
-    return {"exe": info.get("exe", ""), "title": info.get("title", ""), "focused": focused_name()}
+    return {"hwnd": hwnd, "exe": info.get("exe", ""), "title": info.get("title", ""), "focused": focused_name()}
+
+
+def back_to_user_window(ctx) -> None:
+    """You typed your request (or your yes) into Otto's own window, so it is in front. The agent's keys and
+    reading must land on the window you were using, so bring that one back first."""
+    if ctx.dry_run:
+        return
+    try:
+        from hands import win
+        from senses import eyes
+        if win.foreground() in win.OTTO_WINDOWS:
+            other = eyes.last_other_window()
+            if other and other.get("hwnd"):
+                win.focus(other["hwnd"])
+                import time
+                time.sleep(0.3)
+    except Exception:
+        pass
+
+
+def snapshot(ctx) -> dict:
+    """Where a risky step would land, taken when Otto asks for your yes."""
+    return front(ctx)
+
+
+def same_place(before: dict | None, ctx) -> bool:
+    """After your yes: bring the window from the question back to the front, and check it is still the same
+    window with the same box focused. If anything changed, the yes is not used (it was for that place only)."""
+    if not before:
+        return False
+    if ctx.dry_run:
+        return front(ctx) == before
+    try:
+        from hands import win
+        if before.get("hwnd") and win.foreground() != before["hwnd"]:
+            if not win.focus(before["hwnd"]):
+                return False
+            import time
+            time.sleep(0.3)
+    except Exception:
+        return False
+    now = front(ctx)
+    keys = ("hwnd", "exe", "title") + (("focused",) if before.get("focused") else ())
+    return all(now.get(k) == before.get(k) for k in keys)
 
 
 def focused_name() -> str:

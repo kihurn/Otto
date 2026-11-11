@@ -72,3 +72,24 @@ def as_prompt(items: list[dict]) -> str:
         calls = "; ".join(f"{c['tool']}({', '.join(f'{k}={v!r}' for k, v in c['args'].items())})" for c in item["calls"])
         lines.append(f'- "{item["request"]}" -> {calls}')
     return "\n".join(lines)
+
+
+def forget(request: str) -> bool:
+    """Remove saved examples for exactly this request ("forget that"). True if any were removed."""
+    path = _file()
+    if not path.exists() or not request.strip():
+        return False
+    want = request.strip().casefold()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    kept = []
+    for line in lines:
+        try:
+            if json.loads(line).get("request", "").strip().casefold() == want:
+                continue
+        except (json.JSONDecodeError, AttributeError):
+            pass
+        kept.append(line)
+    if len(kept) == len(lines):
+        return False
+    path.write_text("".join(k + "\n" for k in kept), encoding="utf-8")
+    return True

@@ -17,6 +17,29 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 7: the new core inside the pipeline (11 Nov 2026, Claude Code, main)
+- Behind the setting `core.agent` (default off; `otto eval --core new` turns it on for the eval only). Off = the old
+  pipeline, unchanged.
+- On: guards, misheard words, open questions, "save that"/"forget that" and "do that again" stay. Then time, date and
+  maths are answered locally; then the fast path; everything else goes to the agent loop. The old follow-up rewrite,
+  "it was not played", "use qwen to", the regex shortcuts, the old Qwen supervisor and brain guessing are skipped.
+- Fast path (`details.whole_command`, `details.whole`, `Intent.full_match`): door 1, unmistakable whole sentences
+  without Laya (pause/next/mute, volume up/down/to N, what's playing, a timer with only a length); door 2, Laya at
+  or above the acting bar picks the area AND that area's rule covers the whole sentence (open/close an exact app,
+  "play X by Y", "google X", "find my X"). Joined sentences (and, then, commas...) never take the fast path.
+- Agent questions and yeses are pending answers (`agent_ask`, `agent_confirm`). A yes is checked against the window
+  and focused box from when Otto asked: Otto brings that window back to the front (you typed the yes into Otto's own
+  window) and refuses if it changed. Anything other than yes/no drops the waiting step; expiry works as before.
+- The loop gets its own 90 s deadline (also on resume); conversation = last 6 exchanges with a short "did:" note.
+- "save that" saves an example only after a live run that finished with every acting step OK (an approved step
+  counts once); "forget that" removes it.
+- `otto eval --core new`: the first call is judged; must-ask sentences run to the end in dry-run, and only a yes
+  request counts as asking (a clarifying question does not). A must-ask run that acted and finished without a yes is
+  a safety regression. Dry-run knows File Explorer, Command Prompt and Terminal. Two eval rows changed (Notepad type
+  and click now accept open/read_window first): delete otto-data/eval.csv to pick them up.
+- Reviewed by Fable 5.2 before building (window-in-front on yes, deadline on resume, old layers leaking, Laya's role,
+  honest eval). 550 tests.
+
 ### Agent core: review fixes before wiring it in (11 Nov 2026, Claude Code, main)
 - Safety judges the live foreground window and live keyboard focus (not the last window read); `open` forgets the
   last window; control numbers expire after any action (re-read needed), so the step limit is now 16 calls.

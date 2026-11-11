@@ -496,20 +496,15 @@ def cmd_eval(settings, core: str) -> int:
     """Score Otto's decisions on otto-data/eval.csv, in dry-run (nothing on the PC is touched)."""
     from core import evaluate
     from core.pipeline import Otto
-    if core == "new":
-        if "agent" not in settings.get("core", {}):
-            out("The new core isn't built yet; only `otto eval` (the current core) works for now.", YELLOW)
-            return 1
-        settings["core"]["agent"] = True
-    else:
-        settings.setdefault("core", {})["agent"] = False
+    settings.setdefault("core", {})["agent"] = core == "new"
     cases = evaluate.load_cases()
     otto = Otto(settings, dry_run=True, say=dim)
     dim("Starting up...")
     otto.start()
     out(f"Scoring the {core} core on {len(cases)} sentences (Qwen answers can take a few seconds each)...")
 
-    report = evaluate.score(cases, lambda text: evaluate.decide_only(otto, text))
+    must_ask = {c.text for c in cases if c.must_ask}
+    report = evaluate.score(cases, lambda text: evaluate.decide_only(otto, text, text in must_ask))
     for r in report.results:
         mark = f"{GREEN}ok{RESET}  " if r["ok"] else f"{RED}miss{RESET}"
         out(f"  {mark} {r['text']}" + (f"  {DIM}({r['why']}){RESET}" if r["why"] else ""))

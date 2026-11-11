@@ -24,6 +24,7 @@
     ]
   },
   "brain": {"num_ctx": 32768},
+  "core": {"agent": false},
   "brain_timeout_s": 12,
   "laya": {
     "device": "cuda",

@@ -60,6 +60,7 @@ class Pending:
     task: object | None = None
     scope: str = ''
     revision: int = 0
+    agent: dict | None = None     # the agent loop's state, for agent_ask / agent_confirm
 
 
 class Otto:
@@ -84,6 +85,7 @@ class Otto:
         self.last_app = None          # (app name, time) of the last app Otto acted in
         self.learned = None           # a multi-step method goal mode just worked out, if any
         self.turn_deadline = None
+        self.agent_stop_after = None  # otto eval: judge only the agent's first call
         from core.context import ActionContext
         self.action_context = ActionContext()
         from core.audio_context import VolumeContext
@@ -119,6 +121,7 @@ class Otto:
         if reply.text:
             self.history.append({"you": self.trace.get("understood_as") or self.trace.get("text", ""),
                                  "otto": reply.text, "time": time.time(), "area": self.trace.get("area"),
+                                 "tools": (self.trace.get("agent") or {}).get("summary", ""),
                                  "did": bool(self.trace.get("plan") or self.trace.get("answer_by") or self.trace.get("rule"))})
 
     def _handle(self, text: str, heard_conf: float | None) -> Reply:
@@ -137,7 +140,7 @@ class Otto:
         if re.fullmatch(r"how do you know (?:it is|it's|its) (?:tonight|night|morning|afternoon|evening)[?.!]*", t, re.I):
             return Reply("Your PC's local time is in my context, but that was just a greeting.")
 
-        if re.fullmatch(r"(?:it was not played|it (?:didn't|did not) play|you (?:didn't|did not) play it)(?: on spotify)?[.!?]*", t, re.I):
+        if not self._agent_on() and re.fullmatch(r"(?:it was not played|it (?:didn't|did not) play|you (?:didn't|did not) play it)(?: on spotify)?[.!?]*", t, re.I):
             self.pending = None
             self.queue.clear()
             self.rephrase_of = None
@@ -222,7 +225,8 @@ class Otto:
             else:
                 return Reply('There is no verified action to repeat yet.')
         # Follow-ups like "its called student resume" or "turn it up more": make them a full request
-        elif not explicit_correction and not explicit_music_goal and self._looks_like_followup(t):
+        elif (not self._agent_on() and not explicit_correction and not explicit_music_goal
+              and self._looks_like_followup(t)):
             if re.fullmatch(r'(?:(?:can|could) you\s+)?(?:play|open|close|type|search for) (?:it|that|this)[?.!]*', t, re.I):
                 return Reply('Please name the song, app or text you mean.')
             full = self._rewrite_followup(t)
@@ -239,6 +243,8 @@ class Otto:
 
     # ------------------------------------------------------------------------------------------
     def _process(self, t: str, from_split: bool = False) -> Reply:
+        if self._agent_on():
+            return self._process_new(t)
         visual = re.match(r'^(?:use qwen|use computer use) to\s+(.+)$', t, re.I)
         if visual:
             request = visual[1]
@@ -383,7 +389,7 @@ class Otto:
     def _supervise(self, t: str, plan, res) -> Reply | None:
         """Something failed or could not be confirmed: Qwen decides whether to work it out in the app,
         ask the user something specific, or leave the reply as it is. One attempt per request."""
-        if (self.dry_run or res.ok or getattr(self, "_supervising", False) or res.data.get("goal_mode")
+        if (self.dry_run or res.ok or self._agent_on() or getattr(self, "_supervising", False) or res.data.get("goal_mode")
                 or res.data.get("outcome_status") not in ("failed", "uncertain", "needs_input")
                 or any(s["do"] == "app_goal" for s in plan.steps)
                 or not self.settings.get("app_control", {}).get("supervisor", True)):
@@ -473,6 +479,20 @@ class Otto:
                 p.task.cancel.set()
             self.pending = None
             return Reply("Okay, cancelled.")
+
+        if p.kind == "agent_confirm":
+            self.pending = None
+            if kind not in ("yes", "no"):
+                return None                   # something else: a new request, and the waiting step is dropped
+            from core import agent
+            self._agent_deadline()
+            return self._agent_reply(p.text, agent.resume(p.agent, self.brain, yes=(kind == "yes")))
+
+        if p.kind == "agent_ask":
+            self.pending = None
+            from core import agent
+            self._agent_deadline()
+            return self._agent_reply(p.text, agent.resume(p.agent, self.brain, answer=t))
 
         if p.kind == "heard":
             self.pending = None
@@ -720,6 +740,8 @@ class Otto:
             return Reply("There's nothing to save yet. Ask me to do something first.")
         last = self.last
         i: Intent = last["intent"]
+        if last.get("agent") is not None:
+            return self._memory_agent(cmd, last)
         if cmd == "save":
             if not last["ok"]:
                 return Reply("The last thing didn't work, so I won't save it. Want to try again?")
@@ -747,10 +769,107 @@ class Otto:
     def _forget_now(self) -> Reply:
         last = self.last or {}
         learning.remove_example(last.get("text", ""))
+        if last.get("agent") is not None:
+            from core import examples
+            examples.forget(last.get("text", ""))
         plan = last.get("plan")
         removed = bool(plan and plan.key and recipes.forget(plan.key))
         self.last = None
         return Reply("Forgotten." + (" I removed that saved method too." if removed else ""))
+
+    # ------------------------------------------------------------------------------------------
+    # The new core (setting core.agent): a whole-sentence fast path, otherwise the agent loop
+    def _agent_on(self) -> bool:
+        return bool(self.settings.get("core", {}).get("agent"))
+
+    def _agent_deadline(self) -> None:
+        """The agent has its own time limit (90 s), not the 45 s of an ordinary turn."""
+        from core import agent
+        self.turn_deadline = time.monotonic() + agent.MAX_SECONDS + 5
+        self.brain.deadline = self.turn_deadline
+
+    def _process_new(self, t: str) -> Reply:
+        mem = guards.memory_command(t)
+        if mem:
+            return self._memory(mem)
+        if guards.is_gibberish(t, self.apps.known_words()):
+            self.trace["guard"] = "gibberish"
+            return Reply("Sorry, I didn't catch that.")
+        quick = answers.local_answer(t)              # time, date, maths: no model needed
+        if quick:
+            self.trace["answer_by"] = "local"
+            return self._finish(Reply(quick), "question", True)
+        intent = details.whole_command(t)            # door 1: unmistakable commands ("pause", "volume 30")
+        if intent is None:
+            # door 2: Laya is sure of the area AND that area's rule covers the whole sentence
+            p = self.router.predict(t)
+            zone = self.router.zone(p["prob"])
+            self.trace.update(area=p["area"], prob=round(p["prob"], 3), zone=zone, laya_ms=round(p["ms"]),
+                              top=[(a, round(x, 2)) for a, x in p["top"]])
+            if zone == "high":
+                intent = details.whole(p["area"], t, self.apps)
+        if intent is not None:
+            self.trace["rule"] = "whole_sentence"
+            return self._do_area(t, intent.area, intent=intent, via="fast")
+        return self._agent(t)
+
+    def _conversation(self) -> list[dict]:
+        """The last 6 exchanges, as chat turns for the agent (with a short note of what Otto did)."""
+        turns = []
+        for h in list(self.history)[-6:]:
+            if h.get("you"):
+                turns.append({"role": "user", "content": h["you"]})
+            if h.get("otto"):
+                did = f" [did: {h['tools']}]" if h.get("tools") else ""
+                turns.append({"role": "assistant", "content": h["otto"] + did})
+        return turns
+
+    def _agent(self, t: str) -> Reply:
+        from core import agent, tools
+        self._agent_deadline()
+        ctx = tools.ToolContext(dry_run=self.dry_run, brain=self.brain)
+        result = agent.run(t, self._conversation(), self.brain, ctx, stop_after=self.agent_stop_after)
+        return self._agent_reply(t, result)
+
+    def _agent_reply(self, t: str, result) -> Reply:
+        from core import agent
+        calls = result.calls
+        # A step that waited for your yes is listed twice (asked, then run): count it once.
+        acting = [c for c in calls if c["tool"] in agent.ACTING and not c.get("asked")]
+        first = next((c for c in calls if c["tool"] not in ("done", "ask_user")), None)
+        self.trace["agent"] = {
+            "route": "loop", "status": result.status, "ok": result.ok, "asked": result.status == "confirm",
+            "first": {"tool": first["tool"], "args": first.get("args", {})} if first else None,
+            "acting": len(acting), "unsafe": False,
+            "calls": [{"tool": c["tool"], "args": c.get("args", {}), "ok": c.get("ok")} for c in calls],
+            "summary": ", ".join(f"{c['tool']} {' '.join(str(v) for v in c.get('args', {}).values())}".strip()
+                                 for c in acting[-4:])[:200]}
+        if result.status == "ask":
+            self._set_pending("agent_ask", text=t, agent=result.pending)
+            missing = [o for o in result.options if o.casefold() not in result.say.casefold()]
+            return Reply(result.say + (f" ({', '.join(result.options)})" if missing else ""))
+        if result.status == "confirm":
+            self._set_pending("agent_confirm", text=t, agent=result.pending)
+            return Reply(f"Just checking: should I {result.say}?")
+        # Saveable only if it really ran (not a dry run), finished, and every step that acted worked.
+        saveable = (not self.dry_run and result.status == "done" and result.ok and bool(acting)
+                    and all(c.get("ok") for c in acting))
+        self.last = {"text": t, "intent": None, "plan": None, "ok": saveable,
+                     "agent": [c for c in calls if not c.get("asked")]}
+        self.learned = None
+        return Reply(result.say or ("Done." if result.ok else ""))
+
+    def _memory_agent(self, cmd: str, last: dict) -> Reply:
+        if cmd == "forget":
+            self._set_pending("confirm_forget")
+            return Reply(f"Forget how I did \"{last['text']}\"?")
+        if not last["ok"]:
+            return Reply("I couldn't confirm the last thing fully worked, so I won't save it.")
+        from core import examples
+        if examples.save(last["text"], last["agent"]):
+            self.trace["memory"] = "save_example"
+            return Reply("Saved. Next time I'll do it the same way.")
+        return Reply("There was nothing to save from that.")
 
     # ------------------------------------------------------------------------------------------
     # Conversation: follow-ups, multi-step requests, and the context every brain call gets

@@ -5,7 +5,7 @@
       -> checked (valid call? safety? not a repeat?) -> run -> the result goes back to Qwen
       -> ... until Qwen calls done or ask_user, a step needs your yes, or a limit is reached.
 
-Limits: 12 tool calls and 90 seconds per request; two failed steps in a row stop it; a call that is exactly
+Limits: 16 tool calls and 90 seconds per request; two failed steps in a row stop it; a call that is exactly
 the same as the one before (pressing Play twice undoes it) is not run. Text from the screen, the web, files or
 chats only ever comes back as "information"; Qwen is told it is never an instruction.
 """
@@ -15,7 +15,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from core import examples, tools
+from core import agent_safety, examples, tools
 
 MAX_STEPS = 16                    # reads count too, and the window must be read again after each action
 MAX_SECONDS = 90
@@ -67,6 +67,7 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     """Work on a request. conversation: earlier {"role", "content"} turns, oldest first.
     stop_after: stop after this many tool calls (otto eval uses it to judge only the first decision)."""
     ctx.brain = ctx.brain or brain
+    agent_safety.back_to_user_window(ctx)
     messages = [{"role": "system", "content": system_prompt(brain, request)}]
     messages += [m for m in conversation if m.get("role") in ("user", "assistant") and m.get("content")]
     messages.append({"role": "user", "content": request})
@@ -81,8 +82,12 @@ def resume(pending: dict, brain, answer: str | None = None, yes: bool | None = N
     state["started"] = time.monotonic()            # the user's thinking time doesn't count
     if yes is not None:
         call = state.pop("waiting")
+        before = state.pop("waiting_front", None)
         if not yes:
             return AgentResult("stopped", "Okay, I won't.", state["calls"], False)
+        if not agent_safety.same_place(before, state["ctx"]):
+            # The yes was for that window and that box; something else is in front now.
+            return AgentResult("stopped", "The window changed since I asked, so I didn't do it.", state["calls"], False)
         state["ctx"].confirmed = True
         state["ctx"].why = call.get("why", "")
         result = tools.call(call["tool"], call["args"], state["ctx"])
@@ -90,6 +95,7 @@ def resume(pending: dict, brain, answer: str | None = None, yes: bool | None = N
         if after is not None:
             return after
     elif answer is not None:
+        agent_safety.back_to_user_window(state["ctx"])
         state["messages"].append({"role": "user", "content": f"The user answered: {answer}"})
     return _loop(state, brain)
 
@@ -155,6 +161,7 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         return AgentResult("ask", result.say, calls, False, result.observed.get("options", []), state)
     if result.asks:
         state["waiting"] = call
+        state["waiting_front"] = agent_safety.snapshot(state["ctx"])
         return AgentResult("confirm", result.asks, calls, False, [], state)
     state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
     if _failures(calls) >= 2:
