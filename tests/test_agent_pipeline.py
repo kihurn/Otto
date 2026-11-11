@@ -226,9 +226,10 @@ def test_conversation_reaches_the_agent(new):
                call("done", say="Okay."))
     new.handle("open my notes app please and get ready")
     new.handle("now write something nice")
-    contents = [m["content"] for m in s.seen[-1]]
-    assert "open my notes app please and get ready" in contents
-    assert any(c.startswith("Opened Notepad.") and "open Notepad" in c for c in contents)
+    note = s.seen[-1][1]["content"]           # one note before the new request, marked as finished
+    assert note.startswith("Earlier in this conversation") and "never redo" in note
+    assert "open my notes app please and get ready" in note and "Opened Notepad." in note
+    assert "open Notepad" not in note         # no list of steps Qwen could copy
 
 
 # ---- the window in front when you typed into Otto ------------------------------------------------
@@ -450,7 +451,46 @@ def test_do_that_again_goes_to_the_agent(new):
 def test_old_conversation_is_left_out(new):
     new.history.append({"you": "an hour ago", "otto": "ok", "time": time.time() - 3600})
     new.history.append({"you": "just now", "otto": "sure", "time": time.time() - 5})
-    assert [m["content"] for m in new._conversation()] == ["just now", "sure"]
+    note = new._conversation()[0]["content"]
+    assert "just now" in note and "an hour ago" not in note
+
+
+def test_a_pause_starts_a_new_conversation(new):
+    new.history.append({"you": "reply ok sure", "otto": "Sent.", "time": time.time() - 400})
+    assert new._conversation("click the second one") == []
+
+
+# Sentences from the 11 Nov live log: which ones carry on, which ones start fresh.
+@pytest.mark.parametrize("text, fresh", [
+    ("what is on my discord right now", True),
+    ("can you open youtube and press the second video that shows?", True),
+    ("can you open whatsapp", True),
+    ("can you send, this is an ai generated message from kihurn's computer", False),
+    ("can you click on the 4th video?", False),
+    ("you did not save", False),
+    ("no no, can you open chrome and search for banana bread?", False),
+    ("i meant reply this convo \"ok sure\"", False),
+    ("can you reply to yusri, AI is awesome", False),
+    ("what's the word for happy", False),
+])
+def test_which_requests_start_fresh(new, text, fresh):
+    new.history.append({"you": "reply to this group ok sure", "otto": "Okay, I won't.", "time": time.time() - 20})
+    assert (new._conversation(text) == []) is fresh
+
+
+def test_a_dropped_question_is_marked_not_done(new):
+    _reply_flow(new)
+    new.handle("reply see you soon to john on discord")
+    assert new.pending.kind == "agent_confirm"
+    s = script(new, call("done", say="Okay."))
+    new.handle("and what time is my next class")
+    assert "it was NOT done" in s.seen[-1][1]["content"]
+
+
+def test_new_topic_clears_the_conversation(new):
+    new.history.append({"you": "open discord", "otto": "Opened Discord.", "time": time.time() - 5})
+    assert new.handle("new topic").text == "Okay, fresh start."
+    assert not new.history and new._conversation("click it") == []
 
 
 def test_failed_steps_are_not_saved(new):

@@ -41,6 +41,10 @@ def _shared_words(a: str, b: str) -> bool:
     return bool(words(a) & words(b))
 
 
+EARLIER = ("Earlier in this conversation (all of it is already finished: never redo any of it. Use it only to "
+           "understand what words like it, that, there or the same mean in the new request):\n")
+
+
 @dataclass
 class Reply:
     text: str
@@ -118,7 +122,7 @@ class Otto:
         log.write({"type": "request", **self.trace})
         if self.settings.get("show_details", True) and not reply.details:
             reply.details = self._details_line()
-        if reply.text:
+        if reply.text and not self.trace.get("fresh"):
             self.history.append({"you": self.trace.get("understood_as") or self.trace.get("text", ""),
                                  "otto": reply.text, "time": time.time(), "area": self.trace.get("area"),
                                  "tools": (self.trace.get("agent") or {}).get("summary", ""),
@@ -792,6 +796,11 @@ class Otto:
         self.brain.deadline = self.turn_deadline
 
     def _process_new(self, t: str) -> Reply:
+        if self._FRESH.match(t):
+            self.history.clear()
+            self.pending = None
+            self.trace["fresh"] = True
+            return Reply("Okay, fresh start.")
         mem = guards.memory_command(t)
         if mem:
             return self._memory(mem)
@@ -816,18 +825,52 @@ class Otto:
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
 
-    def _conversation(self) -> list[dict]:
-        """The last 6 exchanges, as chat turns for the agent (with a short note of what Otto did)."""
-        turns = []
-        for h in list(self.history)[-6:]:
-            if time.time() - h.get("time", 0) > 900:
-                continue                           # older than 15 minutes: no longer "the conversation"
-            if h.get("you"):
-                turns.append({"role": "user", "content": h["you"]})
-            if h.get("otto"):
-                did = f" [did: {h['tools']}]" if h.get("tools") else ""
-                turns.append({"role": "assistant", "content": h["otto"] + did})
-        return turns
+    CONVERSATION_GAP = 180         # seconds of quiet after which a new request starts a new conversation
+    _FRESH = re.compile(r"^(?:new topic|start over|start again|fresh start|new conversation|"
+                        r"forget (?:this|the|our) conversation)[.!]*$", re.I)
+    _CORRECTION = re.compile(r"^(?:no+\b|nope|wrong|wait\b|you (?:did ?n[o']?t|didn't|forgot|missed)|"
+                             r"that'?s (?:wrong|not)|not (?:that|this|what)|try again|again\b)", re.I)
+    _PLACE_WORD = re.compile(r"\b(?:open|launch|start|close|switch to|go to|in|on|into|from)\s+(?:my |the )?", re.I)
+
+    def _conversation(self, t: str = "") -> list[dict]:
+        """What the new request continues, as one note for the agent; [] when it starts a new conversation.
+        A new conversation starts after 3 minutes of quiet, or when the request names its own app or site
+        ("what is on my discord", "open youtube and ...") and doesn't refer back ("it", "that", "no, ...")."""
+        chain, later = [], time.time()
+        for h in reversed(list(self.history)[-6:]):
+            if later - h.get("time", 0) > self.CONVERSATION_GAP:
+                break
+            chain.insert(0, h)
+            later = h.get("time", 0)
+        if not chain or (t and self._new_topic(t)):
+            return []
+        lines = []
+        for h in chain:
+            otto = h.get("otto", "")
+            if h.get("cancelled"):
+                otto += " (the user moved on without answering: it was NOT done)"
+            lines.append(f"- User: {h.get('you', '')}\n  Otto: {otto}")
+        return [{"role": "user", "content": EARLIER + "\n".join(lines)}]
+
+    def _new_topic(self, t: str) -> bool:
+        if self._FOLLOW.match(t) or self._CORRECTION.match(t):
+            return False
+        return self._names_place(t)
+
+    def _names_place(self, t: str) -> bool:
+        """Does the request name an app or website to work in ("on my discord", "open youtube")?"""
+        from hands import web
+        names = getattr(self, "_place_names", None)
+        if names is None:
+            names = {n.lower() for n in getattr(self.apps, "names", lambda: [])()}
+            names |= set(getattr(self.apps, "aliases", {}) or {}) | set(web.sites())
+            names = self._place_names = sorted((n for n in names if len(n) >= 3), key=len, reverse=True)
+        low = t.lower()
+        for m in self._PLACE_WORD.finditer(low):
+            rest = low[m.end():]
+            if any(rest.startswith(n) and (len(rest) == len(n) or not rest[len(n)].isalnum()) for n in names):
+                return True
+        return False
 
     def _agent(self, t: str) -> Reply:
         from core import agent, tools
@@ -836,7 +879,7 @@ class Otto:
         ctx = tools.ToolContext(dry_run=self.dry_run, brain=self.brain)
         self.active_task = agent.Stopper()         # what Otto's cancel key stops
         try:
-            result = agent.run(t, self._conversation(), self.brain, ctx, stop_after=self.agent_stop_after,
+            result = agent.run(t, self._conversation(t), self.brain, ctx, stop_after=self.agent_stop_after,
                                stop=self.active_task)
         finally:
             self.active_task = None
