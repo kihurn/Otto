@@ -164,7 +164,7 @@ def test_agent_question_then_answer_resumes(new):
 
 
 def _reply_flow(o):
-    return script(o, call("open", what="Discord"), call("type", text="see you soon"), call("keys", keys="enter"),
+    return script(o, call("open", what="Discord"), call("read_window", app="Discord"), call("type", text="see you soon"), call("keys", keys="enter"),
                   call("done", say="Sent."))
 
 
@@ -176,13 +176,13 @@ def test_confirm_yes_runs(new):
     assert new.handle("yes").text == "Sent."
     calls = new.trace["agent"]["calls"]
     # The Enter appears twice: once when Otto asked, once when it ran after the yes.
-    assert [c["tool"] for c in calls] == ["open", "type", "keys", "keys", "done"] and calls[3]["ok"]
+    assert [c["tool"] for c in calls] == ["open", "read_window", "type", "keys", "keys", "done"] and calls[4]["ok"]
 
 
 def test_confirm_no_cancels(new):
     s = _reply_flow(new)
     new.handle("reply see you soon to john on discord")
-    assert new.handle("no").text == "Okay, I won't."
+    assert new.handle("no").text == "Okay, I won't. What I typed is still in the box."
     assert len(s.replies) == 1              # Qwen was not asked again
 
 
@@ -264,8 +264,8 @@ def test_second_confirm_takes_a_new_snapshot(monkeypatch):
     monkeypatch.setattr(agent_safety, "front", lambda ctx: {"hwnd": 0, "focused": "", "title": ctx.app or "Discord",
                                                             "exe": (ctx.app or "Discord").lower() + ".exe"})
     brain = SimpleNamespace(brief=lambda: "")
-    s = Scripted(brain, call("type", text="hi"), call("keys", keys="enter"),
-                 call("open", what="Slack"), call("type", text="hey"), call("keys", keys="enter"),
+    s = Scripted(brain, call("read_window"), call("type", text="hi"), call("keys", keys="enter"),
+                 call("open", what="Slack"), call("read_window", app="Slack"), call("type", text="hey"), call("keys", keys="enter"),
                  call("done", say="Both sent."))
     brain.chat = s
     ctx = tools.ToolContext(dry_run=True)

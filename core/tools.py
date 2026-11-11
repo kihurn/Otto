@@ -154,6 +154,10 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
     if name in ON_FRONT_WINDOW and agent_safety.otto_in_front(ctx):
         return ToolResult(False, "Otto's own window is in front and I couldn't get back to yours, so I did nothing. "
                                  "Click the window you mean, then ask again.")
+    refused = agent_safety.blocked(name, clean, ctx)
+    if refused:
+        ctx.history.append({"tool": name, "args": clean, "ok": False})
+        return ToolResult(False, refused, {"blocked": True})
     question = agent_safety.check(name, clean, ctx)
     if question:
         return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)

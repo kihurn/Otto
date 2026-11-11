@@ -85,7 +85,7 @@ def test_budget_stops_at_limit(ctx):
 def test_confirm_then_resume_sends(ctx, monkeypatch):
     from core import agent
     ctx.app = "Discord"
-    brain = Scripted(call("type", text="ok sure, see you soon"), call("keys", keys="enter"))
+    brain = Scripted(call("read_window", app="Discord"), call("type", text="ok sure, see you soon"), call("keys", keys="enter"))
     r = agent.run("reply ok sure see you soon to john", [], brain, ctx)
     assert r.status == "confirm" and "ok sure, see you soon" in r.say
     sent_before = [c for c in r.calls if c["tool"] == "keys" and c["ok"]]
@@ -99,7 +99,7 @@ def test_confirm_then_resume_sends(ctx, monkeypatch):
 def test_no_cancels_the_waiting_step(ctx):
     from core import agent
     ctx.app = "Discord"
-    brain = Scripted(call("type", text="hi"), call("keys", keys="enter"))
+    brain = Scripted(call("read_window", app="Discord"), call("type", text="hi"), call("keys", keys="enter"))
     r = agent.run("say hi to john", [], brain, ctx)
     r2 = agent.resume(r.pending, brain, yes=False)
     assert r2.status == "stopped" and not any(c["tool"] == "keys" and c["ok"] for c in r2.calls)
@@ -124,7 +124,7 @@ def test_reply_to_john_types_then_confirms_send(ctx, monkeypatch):
         return tools.ToolResult(True, "Read Discord.")
     monkeypatch.setattr(tools.TOOLS["read_window"], "run", fake_read)
     brain = Scripted(call("open", what="discord"), call("read_window"), call("click", control=2),
-                     call("type", text="ok sure, see you soon"), call("keys", keys="enter"))
+                     call("read_window"), call("type", text="ok sure, see you soon"), call("keys", keys="enter"))
     r = agent.run("reply ok sure i will see you soon to john on discord", [], brain, ctx)
     assert r.status == "confirm" and "send" in r.say.lower()
 
@@ -194,3 +194,28 @@ def test_rehearsal_is_explained_to_the_model(ctx):
     agent.run("open notepad", [], brain, ctx)
     assert "rehearsal" in brain.seen[0][0]["content"]
     assert "rehearsal" not in agent.system_prompt(brain, "open notepad", dry_run=False)
+
+
+def test_send_waits_until_the_chat_was_read_after_a_click(ctx, monkeypatch):
+    """The WhatsApp run: a click from a screenshot, then type and Enter. Not even offered for a yes until the
+    chat has been read again, because the click may have opened the wrong person's chat."""
+    from core import agent, agent_safety
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "whatsapp.exe", "title": "WhatsApp",
+                                                          "focused": "Type a message"})
+    brain = Scripted(call("click", control=3), call("type", text="AI is awesome"), call("keys", keys="enter"),
+                     call("read_window", app="WhatsApp"), call("keys", keys="enter"))
+    r = agent.run("reply to yusri AI is awesome", [], brain, ctx)
+    blocked = [c for c in r.calls if c.get("blocked")]
+    assert blocked and blocked[0]["tool"] == "keys" and "read_window" in blocked[0]["say"]
+    assert r.status == "confirm" and "AI is awesome" in r.say and "WhatsApp" in r.say
+
+
+def test_send_question_shows_what_is_really_in_the_box(monkeypatch):
+    from core import agent_safety, tools
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "discord.exe",
+                                                          "title": "(2) #general | Friends - Discord", "focused": "Message"})
+    monkeypatch.setattr(agent_safety, "focused_text", lambda: "ok sureok sure")
+    c = tools.ToolContext(dry_run=False)
+    c.history = [{"tool": "read_window", "args": {}, "ok": True}, {"tool": "type", "args": {"text": "ok sure"}, "ok": True}]
+    q = agent_safety.check("keys", {"keys": "enter"}, c)
+    assert q == 'send "ok sureok sure" in #general | Friends - Discord'

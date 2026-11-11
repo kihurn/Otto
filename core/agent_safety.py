@@ -115,6 +115,58 @@ def same_place(before: dict | None, ctx) -> bool:
     return all(now.get(k) == before.get(k) for k in keys) and _steady(now.get("title")) == _steady(before.get("title"))
 
 
+def sending(name: str, args: dict) -> bool:
+    """Would this call send what is in a box (Enter, or a typed new line)?"""
+    if name == "keys":
+        return _keys(args.get("keys", "")) in SEND_KEYS
+    text = str(args.get("text", "")) if name == "type" else ""
+    return "\n" in text.rstrip(" ") or "\r" in text
+
+
+def blocked(name: str, args: dict, ctx) -> str | None:
+    """A send that may not even be offered for a yes yet: the chat must have been read since the last open or
+    click, so Otto knows the right chat is open (a click from a screenshot can land on the wrong person).
+    Returns what to tell the model, or None."""
+    if ctx.confirmed or not sending(name, args):
+        return None
+    w = front(ctx)
+    if _is_command(w) or not _is_message(w) or _read_since_moved(ctx):
+        return None
+    return ("Not sent. First use read_window (or look) to check that the right chat is open and what the message "
+            "box holds, then press enter again.")
+
+
+def _read_since_moved(ctx) -> bool:
+    """Was the window read (or looked at) after the last open or click in this request?"""
+    for h in reversed(ctx.history):
+        if h.get("tool") in ("read_window", "look") and h.get("ok"):
+            return True
+        if h.get("tool") in ("open", "click"):
+            return False
+    return False
+
+
+def _send_question(ctx, w: dict, typed: str) -> str:
+    """The question before sending, built from what is really there: the box's own text (it may hold more than
+    Otto typed, e.g. text left over from an earlier try) and the window's title (which names the chat in most apps)."""
+    box = None if ctx.dry_run else focused_text()
+    shown = (box or "").strip() or typed
+    place = re.sub(r"\(\d+\+?\)\s*", "", w.get("title", "")).strip() or _app_name(w)   # no unread counts
+    if len(shown) > 200:
+        shown = shown[:200] + "..."
+    return f'send "{shown}" in {place}' if shown else f"send the message in {place}"
+
+
+def focused_text() -> str | None:
+    """The text in the focused box right now, or None if Windows can't tell."""
+    try:
+        from pywinauto.uia_defines import IUIA
+        from hands import ui_probe
+        return ui_probe.read_text({"element": IUIA().get_focused_element()}, limit=2000)
+    except Exception:
+        return None
+
+
 def focused_name() -> str:
     try:
         from pywinauto.uia_defines import IUIA
@@ -192,8 +244,7 @@ def check(name: str, args: dict, ctx) -> str | None:
             command = _last_typed(ctx)
             return f'run "{command}" in {_app_name(w)}' if command else f"press {keys} to run the command in {_app_name(w)}"
         if keys in SEND_KEYS and _is_message(w):
-            text = _last_typed(ctx)
-            return f'send "{text}" in {_app_name(w)}' if text else f"send the message in {_app_name(w)}"
+            return _send_question(ctx, w, _last_typed(ctx))
         if keys in {"delete", "del", "backspace"} and _selected_all(ctx):
             return f"delete everything selected in {_app_name(w)}"
         if keys in DELETE_KEYS and (w["exe"].lower() == "explorer.exe" or _is_message(w)
@@ -210,7 +261,7 @@ def check(name: str, args: dict, ctx) -> str | None:
         if "\n" in text.rstrip(" ") or "\r" in text:
             w = front(ctx)
             if _is_message(w):
-                return f'send "{text.strip()}" in {_app_name(w)}'
+                return _send_question(ctx, w, text.strip())
             if _is_command(w):
                 return f'run "{text.strip()}" in {_app_name(w)}'
         return None

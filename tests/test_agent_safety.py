@@ -16,6 +16,9 @@ def make(monkeypatch):
     return build
 
 
+READ = {"tool": "read_window", "args": {}, "ok": True}
+
+
 def typed(text):
     return {"tool": "type", "args": {"text": text}, "ok": True}
 
@@ -112,7 +115,7 @@ def test_tools_call_runs_the_safety_check_first(make, monkeypatch):
     pressed = []
     monkeypatch.setattr(win, "hotkey", lambda keys: pressed.append(keys))
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
-    ctx = make("discord.exe", "Discord", "Message @John", [typed("hi")])
+    ctx = make("discord.exe", "Discord", "Message @John", [READ, typed("hi")])
     r = tools.call("keys", {"keys": "enter"}, ctx)
     assert r.asks and not pressed
     ctx.confirmed = True

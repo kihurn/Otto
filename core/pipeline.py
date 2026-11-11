@@ -486,7 +486,11 @@ class Otto:
         if p.kind == "agent_confirm":
             self.pending = None
             if kind not in ("yes", "no"):
-                return None                   # something else: a new request, and the waiting step is dropped
+                # Something else: a new request, and the waiting step is dropped. Mark it in the conversation,
+                # or Qwen sees an unanswered "should I send?" and carries it out with the next request.
+                if self.history and self.history[-1].get("otto", "").startswith("Just checking"):
+                    self.history[-1]["cancelled"] = True
+                return None
             return self._agent_resume(p, yes=(kind == "yes"))
 
         if p.kind == "agent_ask":

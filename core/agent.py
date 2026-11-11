@@ -120,7 +120,7 @@ def _resume(state: dict, brain, answer: str | None, yes: bool | None) -> AgentRe
         call = state.pop("waiting")
         before = state.pop("waiting_front", None)
         if not yes:
-            return AgentResult("stopped", "Okay, I won't.", state["calls"], False)
+            return AgentResult("stopped", "Okay, I won't." + left_over(state["calls"]), state["calls"], False)
         if not agent_safety.same_place(before, state["ctx"]):
             # The yes was for that window and that box; something else is in front now.
             return AgentResult("stopped", "The window changed since I asked, so I didn't do it.", state["calls"], False)
@@ -174,7 +174,7 @@ def _loop(state: dict, brain) -> AgentResult:
                  and not (name == "keys" and str(args.get("keys", "")).lower() in NAVIGATION) and name != "scroll")
         # The very same step that already failed in this request (even with a look in between) fails again.
         failed_before = name in ACTING and any(c["tool"] == name and c["args"] == args and not c.get("ok")
-                                               and not c.get("asked") for c in calls)
+                                               and not c.get("asked") and not c.get("blocked") for c in calls)
         if again or failed_before:
             # Doing exactly the same thing again is how a task that already worked gets undone.
             calls.append(dict(call, ok=False, say="not repeated"))
@@ -196,7 +196,8 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     """Record a call's result. Returns a result when the turn ends here, None to keep going."""
     calls = state["calls"]
     end = result.observed.get("end")
-    calls.append(dict(call, ok=result.ok, say=result.say, asked=bool(result.asks)))
+    calls.append(dict(call, ok=result.ok, say=result.say, asked=bool(result.asks),
+                      blocked=bool(result.observed.get("blocked"))))
     if end == "done":
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"])
@@ -216,9 +217,15 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     return None
 
 
+def left_over(calls: list[dict]) -> str:
+    """After a send or run was turned down: say if text Otto typed is still sitting in the box."""
+    typed = [c for c in calls if c["tool"] == "type" and c.get("ok")]
+    return " What I typed is still in the box." if typed else ""
+
+
 def _all_failures(calls: list[dict]) -> int:
     """Failed steps in the whole request (a step that only waited for your yes is not a failure)."""
-    return sum(1 for c in calls if not c.get("ok") and not c.get("asked"))
+    return sum(1 for c in calls if not c.get("ok") and not c.get("asked") and not c.get("blocked"))
 
 
 def _failures(calls: list[dict]) -> int:
