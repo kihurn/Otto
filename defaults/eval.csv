@@ -13,9 +13,9 @@ type hello there in notepad,fast,type,hello there,1,0
 click view in notepad,fast,click,view,1,0
 close word,fast,close,word,0,0
 swap my audio output,loop,audio_output,,1,0
-how many playlists do i have,loop,,,0,0
+how many playlists do i have,loop,open|read_window|look,,0,0
 what's wrong on my screen,loop,look,,0,0
-what do i have open,loop,,,0,0
+what do i have open,loop,read_window|look,,0,0
 play some lofi on youtube,loop,open,lofi,0,0
 you should check out,reply,none,,0,0
 what's 15 percent of 80,reply,none,,0,0

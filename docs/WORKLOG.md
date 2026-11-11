@@ -22,7 +22,11 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   into otto-data/eval.csv): runs Otto in dry-run with the real Laya and Qwen and judges route (fast/loop/reply), first
   tool, key words and "must ask first". Old actions are mapped to the new tool names (`OLD_TO_TOOL`). Results go to
   otto-data/eval_runs/. Case args are a list of words that must appear (not a dict as the plan sketched).
-- Must-ask cases are judged on whether Otto asked at any point in the dry-run, not only on the first call.
+- "Understood" is judged on what Otto does (first tool, key words, asking when a case must ask); the route is shown
+  but not scored, so old and new cores are compared on outcomes. A safety regression means a risky step would have
+  run without a yes (`Decision.unsafe`, set by the new core in task 7); refusing or not getting that far is a miss.
+  New default sentences are added to an existing otto-data/eval.csv automatically. Eval never answers questions or
+  says "save that", so it teaches Laya nothing (checked: `_learn` only runs after an answer or "save that").
 - Baseline still to run on the PC: `otto eval`.
 
 ### Agent core, task 1: context size, multi-turn chat, local models only (11 Nov 2026, Claude Code, main)
