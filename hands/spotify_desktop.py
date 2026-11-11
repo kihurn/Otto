@@ -106,11 +106,13 @@ def play(step, task, end, progress):
             try:
                 dlg = Application(backend='uia').connect(handle=window['hwnd']).window(handle=window['hwnd'])
                 candidates = play_candidates(dlg, query, artist)
-                if len(candidates) == 1:
-                    chosen = candidates[0]
+                if candidates:
+                    # Spotify often lists the same song twice (the Top result card and again under Songs).
+                    # Every candidate already matches the requested title and artist, so take the highest one
+                    # on the page; playback is still checked against Windows afterwards.
+                    chosen = candidates[0] if len(candidates) == 1 else min(
+                        candidates, key=lambda c: (c.rectangle().top, c.rectangle().left))
                     break
-                if len(candidates) > 1:
-                    return Outcome(OutcomeStatus.NEEDS_INPUT, 'More than one matching Play button is visible; please choose the song in Spotify.')
             except Exception:
                 pass
         task.cancel.wait(0.5)

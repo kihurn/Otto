@@ -27,7 +27,17 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   the real UIA ancestry question left open by R1). Chrome need not be the foreground window. Unconfirmed wording
   is "Opening X. I couldn't confirm it loaded." Live: new-tab open verified True; Gmail/search wording still needs
   the user's re-run. 297 tests pass on Windows.
-- Still open, found in the same run: the banner says "Otto 1.1" (bump at release).
+- Second live run (user): Spotify search confirmed working; "Over the Moon" played. "The Hills" stopped with
+  "More than one matching Play button". Live probe: three candidates, all in the results grid (Top result "Play"
+  plus two "Play The Hills" rows under Songs), not the suggestion dropdown. Decision (user approved): when several
+  controls all match title and artist, press the highest on the page; Windows playback verification is unchanged.
+  The old test that expected a stop was passing only by timing out; it now expects one press.
+- "type hello world in note pad?" kept "in note pad?" in the note; the strip rule now accepts "note pad" and
+  trailing punctuation. "open word and write X" made a Notepad note; the compiler now refuses with "I can't type
+  into Word yet" unless the user says "note" or the app is Notepad. Real typing into apps is Phase 1 any-app control.
+- Unexplained: the user reported Google Docs coming to the front for "open word"; their screenshot shows desktop
+  Word. Ask for a screenshot if it recurs (win.find_window is fuzzy on window titles).
+- Still open, found in the same run: the banner says "Otto 1.1" (bump at release). 302 tests pass on Windows.
 
 ### Review fixes R1–R6 and cleanup (11 Nov 2026, Claude Code, branch claude/review-fixes)
 - Reproduced all six findings with fakes before fixing. R3: tie groups evaluated together, exact stored bar,

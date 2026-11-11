@@ -1,7 +1,12 @@
 # Changelog
 
 ## 1.2 (in development)
-- Fixes from the first live Windows check (297 tests pass):
+- Fixes from the second live run (302 tests pass):
+  - Spotify: the same song listed twice (Top result and again under Songs) no longer stops with "More than one
+    matching Play button"; Otto presses the top one and still checks what Windows says is playing.
+  - "type hello world in note pad?" writes just "hello world".
+  - "open Word and write …" no longer quietly makes a Notepad note; Otto says it can't type into Word yet.
+- Fixes from the first live Windows check:
   - Spotify: "Spotify search value did not match." Spotify reports its search text 80–400 ms after it is set;
     Otto now re-reads for up to ~2 seconds before giving up.
   - "Open a new tab on chrome and search hello world" no longer searches your files for "new tab chrome"; it is

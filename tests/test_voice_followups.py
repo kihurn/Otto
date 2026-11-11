@@ -38,7 +38,8 @@ def test_desktop_route_does_not_call_api(monkeypatch):
 
 
 @pytest.mark.parametrize('count', [1, 2])
-def test_desktop_invokes_only_unique_match(monkeypatch, count):
+def test_desktop_invokes_one_matching_control(monkeypatch, count):
+    # Two matches are the same song listed twice (Top result and Songs); exactly one is pressed.
     import sys
     from types import SimpleNamespace
     from hands import apps, media, win, spotify_desktop as ui
@@ -47,7 +48,8 @@ def test_desktop_invokes_only_unique_match(monkeypatch, count):
     clicked = []
     ctrl = SimpleNamespace(window_text=lambda: 'Play Over the Moon by The Marias',
                            is_visible=lambda: True, is_enabled=lambda: True,
-                           invoke=lambda: clicked.append(True))
+                           invoke=lambda: clicked.append(True),
+                           rectangle=lambda: SimpleNamespace(top=100, left=100))
     dialog = SimpleNamespace(descendants=lambda **kw: [ctrl] * count)
     app = SimpleNamespace(connect=lambda **kw: SimpleNamespace(window=lambda **kw: dialog))
     monkeypatch.setitem(sys.modules, 'pywinauto', SimpleNamespace(Application=lambda **kw: app))
@@ -60,5 +62,4 @@ def test_desktop_invokes_only_unique_match(monkeypatch, count):
     task = Task('play', [])
     outcome = ui.play(Step('s', 'play_music', {'query': 'Over the Moon', 'artist': 'The Marias'}),
                       task, float('inf'), lambda m: None)
-    assert outcome.ok == (count == 1)
-    assert len(clicked) == (1 if count == 1 else 0)
+    assert outcome.ok and len(clicked) == 1

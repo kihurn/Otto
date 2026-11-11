@@ -25,6 +25,7 @@ def compile_request(text, apps, brain):
     if not 2 <= len(parts) <= 4 or any(not p for p in parts):
         return planner.Plan([], 'none', error='Please give me between two and four complete tasks.')
     steps = []
+    typing_into = None   # the app opened by the previous part, if any
     for index, part in enumerate(parts):
         intent = None
         if new_tab(part):
@@ -55,6 +56,14 @@ def compile_request(text, apps, brain):
             built = planner.builtin_steps(intent)
             if not built:
                 return planner.brain_plan(text, None, brain)
+            # "open Word and write hello": Otto can't type into other apps yet (that is the any-app control
+            # work). Say so instead of quietly writing a Notepad note the user didn't ask for.
+            if (typing_into and any(s['do'] == 'new_note' for s in built)
+                    and not re.search(r'\bnote', part, re.I)):
+                return planner.Plan([], 'none', error=f"I can't type into {typing_into} yet, so nothing was run. "
+                                    "Say \"write a note saying ...\" if you want it as a note.")
+            opened = [s['with'].get('app', '') for s in built if s['do'] in {'open_app', 'switch_to'}]
+            typing_into = opened[-1] if opened and 'notepad' not in opened[-1].casefold() else None
             steps.extend(built)
         except (InvalidPlan, TypeError, ValueError):
             return planner.Plan([], 'none', error='One of those tasks has invalid arguments; nothing was run.')

@@ -312,7 +312,7 @@ def _notes(text: str) -> Intent | None:
     # Keep the user's own capitalisation for the note text
     m = re.search(r"(?::\s*|\b(?:saying|that says|that|type|write|jot down|note down|put|type out)\s+)(?P<x>.+)$", t_raw, re.I)
     if m:
-        x = re.sub(r"\s+(?:in|into|on)\s+(?:notepad|a note|my notes?)\s*$", "", m.group("x"), flags=re.I)
+        x = re.sub(r"\s+(?:in|into|on)\s+(?:note\s?pad|a note|my notes?)\s*[.!?]*\s*$", "", m.group("x"), flags=re.I)
         x = re.sub(r"^(?:this|down|that)\s*:?\s*", "", x, flags=re.I).strip(" \"'")
         if x and x.lower() not in ("this", "it", "that", "something"):
             return Intent("notes", "new_note", {"text": x})
