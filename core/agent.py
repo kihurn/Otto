@@ -23,7 +23,8 @@ MAX_SECONDS = 90
 MAX_FAILURES = 4                  # failed steps in one request, even with successful reads in between
 REHEARSAL = ("This is a rehearsal (dry run): nothing is really done and windows cannot really be read or looked at. "
              'Treat every "[dry run] would ..." result as done and carry on with the next real step of the request. '
-             "Never repeat a step, and never invent screen positions or options.")
+             "There are no control numbers or screen positions in a rehearsal: type without a control number and "
+             "use keys (for example enter) where the real task would. Never repeat a step or invent options.")
 NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
 ACTING = {"click", "type", "keys", "open", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
 
