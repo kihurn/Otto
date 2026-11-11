@@ -43,6 +43,17 @@ def front(ctx) -> dict:
     return {"exe": info.get("exe", ""), "title": info.get("title", ""), "focused": focused}
 
 
+def name_at(x: int, y: int) -> str:
+    """The name of whatever is on the screen at this point, from Windows (empty if unknown)."""
+    try:
+        from pywinauto.uia_defines import IUIA
+        import ctypes.wintypes
+        element = IUIA().iuia.ElementFromPoint(ctypes.wintypes.POINT(int(x), int(y)))
+        return (element.CurrentName or "").strip() if element else ""
+    except Exception:
+        return ""
+
+
 def _keys(value: str) -> str:
     return "+".join(p for p in str(value).lower().replace(" ", "").split("+") if p)
 
@@ -90,7 +101,8 @@ def _selected_all(ctx) -> bool:
 
 def check(name: str, args: dict, ctx) -> str | None:
     """None = go ahead. Otherwise the question to ask (the call waits for a yes)."""
-    if ctx.confirmed or name in ("read_window", "find_files", "web_search", "ask_user", "done", "look", "point"):
+    if ctx.confirmed or name in ("read_window", "find_files", "web_search", "ask_user", "done", "look", "point",
+                                 "scroll"):
         return None
     if name == "keys":
         keys = _keys(args.get("keys", ""))
@@ -115,6 +127,18 @@ def check(name: str, args: dict, ctx) -> str | None:
                 return f'send "{text.strip()}" in {_app_name(w)}'
             if _is_command(w):
                 return f'run "{text.strip()}" in {_app_name(w)}'
+        return None
+    if name == "click" and args.get("control") is None:
+        # A position from a screenshot: ask Windows what is really there.
+        from core.tools import to_screen
+        from hands.apps import RISKY_WORDS
+        if not ctx.look:
+            return None                       # the tool itself refuses positions without a look
+        label = name_at(*to_screen(ctx, args.get("x", 0), args.get("y", 0)))
+        if label and RISKY_WORDS.search(label):
+            return f'press "{label}"'
+        if not label and RISKY_WORDS.search(ctx.why or ""):
+            return f"click there ({ctx.why.strip()})"
         return None
     if name == "click":
         from hands.apps import RISKY_WORDS

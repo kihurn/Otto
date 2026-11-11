@@ -17,6 +17,14 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 5: look, positions, scroll, drag, point (11 Nov 2026, Claude Code, main)
+- `senses/eyes.capture(hwnd)` returns the image plus the captured screen rectangle and shrink scale; `tools.to_screen`
+  maps an image x,y back to the screen. New tools: `look` (screenshot + Qwen, answer as information), `point`,
+  `scroll`, `drag`; `click` also takes x,y from the last look (refused without one). Coordinate clicks ask Windows
+  what is under the point (`agent_safety.name_at`, UI Automation ElementFromPoint) and ask first for risky names, or
+  when nothing is identified and the model's stated reason is risky. `hands/mouse.py`: scroll, drag.
+- Not verified on Windows yet: ElementFromPoint call shape, DPI (physical pixels assumed), sideways scrolling.
+
 ### Agent core, task 4: safety rules for tool calls (11 Nov 2026, Claude Code, main)
 - `core/agent_safety.check(name, args, ctx)` runs inside `tools.call` before every call: send keys / typed new lines in
   message boxes and messaging apps, Enter/Run/OK for typed commands (terminals, Run box, Explorer address bar, VS

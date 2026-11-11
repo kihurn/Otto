@@ -71,6 +71,35 @@ def screenshot(max_width: int = 1280) -> tuple[str, dict | None]:
     return base64.b64encode(buf.getvalue()).decode(), target
 
 
+def capture(hwnd: int | None = None, max_width: int = 1280) -> tuple[str, tuple[int, int, int, int], float]:
+    """JPEG (base64) of a window, or the main screen, for the agent's look tool.
+    Also returns the captured screen rectangle (left, top, right, bottom) and the scale the image was
+    shrunk by, so a position the model gives on the image can be turned back into a screen position.
+    Screen positions are physical pixels (mss and GetWindowRect agree when Otto is DPI-aware)."""
+    import mss
+    from PIL import Image
+
+    with mss.mss() as s:
+        region = s.monitors[1]
+        if hwnd:
+            try:
+                l, t, r, b = win.window_info(hwnd)["rect"]
+                if r - l > 100 and b - t > 100:
+                    region = {"left": l, "top": t, "width": r - l, "height": b - t}
+            except Exception:
+                pass
+        shot = s.grab(region)
+        img = Image.frombytes("RGB", shot.size, shot.rgb)
+    scale = 1.0
+    if img.width > max_width:
+        scale = max_width / img.width
+        img = img.resize((max_width, int(img.height * scale)))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=80)
+    rect = (region["left"], region["top"], region["left"] + region["width"], region["top"] + region["height"])
+    return base64.b64encode(buf.getvalue()).decode(), rect, scale
+
+
 def clipboard() -> str:
     try:
         import win32clipboard

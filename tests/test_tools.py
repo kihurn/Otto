@@ -117,3 +117,71 @@ def test_risky_registry_action_asks_instead_of_running(ctx):
     from core import tools
     r = tools.call("open", {"what": "C:\\Downloads\\setup.exe"}, ctx)      # running a program asks first
     assert r.asks and not r.ok
+
+
+# ---- task 5: look, positions, scroll, drag, point -----------------------------------------------
+
+def test_to_screen_maps_scaled_image_point():
+    from core import tools
+    c = tools.ToolContext()
+    c.look = {"region": (100, 50, 2660, 1490), "scale": 0.5}     # a 2560-wide window shown 1280 wide
+    assert tools.to_screen(c, 640, 360) == (1380, 770)
+
+
+def test_click_xy_requires_prior_look():
+    from core import tools
+    c = tools.ToolContext(dry_run=True)
+    r = tools.call("click", {"x": 10, "y": 10}, c)
+    assert not r.ok and "look" in r.say
+
+
+def test_click_needs_a_target():
+    from core import tools
+    assert tools.validate("click", {}) is not None
+
+
+def test_scroll_validates_direction(ctx):
+    from core import tools
+    assert not tools.call("scroll", {"direction": "sideways"}, ctx).ok
+    assert tools.call("scroll", {"direction": "down", "amount": 3}, ctx).ok
+
+
+def test_point_is_read_only():
+    from core import tools
+    assert tools.TOOLS["point"].read_only and tools.TOOLS["look"].read_only
+
+
+def test_look_returns_information_and_remembers_the_region(monkeypatch):
+    from core import tools
+    from senses import eyes
+
+    class FakeBrain:
+        def ask(self, job, prompt, images=None, **kw):
+            from core.brain import BrainReply
+            assert job == "screen" and images == ["IMG"]
+            return BrainReply("Line 42 is missing a closing bracket, at about x=300 y=410.", None, "qwen", 0.1)
+
+    monkeypatch.setattr(eyes, "capture", lambda hwnd=None, max_width=1280: ("IMG", (0, 0, 1920, 1080), 1280 / 1920))
+    c = tools.ToolContext(brain=FakeBrain())
+    r = tools.call("look", {"question": "what's wrong?"}, c)
+    assert r.ok and "missing a closing bracket" in r.information
+    assert c.look["region"] == (0, 0, 1920, 1080)
+
+
+def test_coordinate_click_on_a_send_button_asks(monkeypatch):
+    from core import agent_safety, tools
+    monkeypatch.setattr(agent_safety, "name_at", lambda x, y: "Send")
+    c = tools.ToolContext()
+    c.look = {"region": (0, 0, 1280, 720), "scale": 1.0}
+    q = agent_safety.check("click", {"x": 100, "y": 200}, c)
+    assert q and "Send" in q
+
+
+def test_coordinate_click_on_unknown_with_send_reason_asks(monkeypatch):
+    from core import agent_safety, tools
+    monkeypatch.setattr(agent_safety, "name_at", lambda x, y: "")
+    c = tools.ToolContext(why="click the send arrow")
+    c.look = {"region": (0, 0, 1280, 720), "scale": 1.0}
+    assert agent_safety.check("click", {"x": 100, "y": 200}, c)
+    c.why = "open the second video"
+    assert agent_safety.check("click", {"x": 100, "y": 200}, c) is None
