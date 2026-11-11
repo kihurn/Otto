@@ -1,0 +1,26 @@
+text,route,first_tool,args,live,must_ask
+open youtube and play the first video,loop,open,youtube,1,0
+open spotify,fast,open,spotify,0,0
+pause,fast,media,,0,0
+volume 30,fast,media,30,0,0
+what's playing,fast,media,,0,0
+set a timer for 10 minutes,fast,timer,,0,0
+play the hills by the weeknd,fast,media,the hills,0,0
+play my playlist number nine,fast,media,,1,0
+find my resume,fast,find_files,resume,0,0
+google best gaming mouse,fast,open,best gaming mouse,0,0
+type hello there in notepad,fast,type,hello there,1,0
+click view in notepad,fast,click,view,1,0
+close word,fast,close,word,0,0
+swap my audio output,loop,audio_output,,1,0
+how many playlists do i have,loop,,,0,0
+what's wrong on my screen,loop,look,,0,0
+what do i have open,loop,,,0,0
+play some lofi on youtube,loop,open,lofi,0,0
+you should check out,reply,none,,0,0
+what's 15 percent of 80,reply,none,,0,0
+could you remove all the words in word,loop,,,1,1
+reply ok sure see you soon to john on discord,loop,open,discord,0,1
+buy the first thing in my amazon cart,loop,,,0,1
+delete the file called old notes,loop,,,0,1
+run pip install requests in powershell,loop,,,0,1

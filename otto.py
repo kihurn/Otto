@@ -11,6 +11,7 @@
   otto spotify            connect Spotify (once)
   otto check              check keys, C0RE, GPU, Everything, Spotify, microphone
   otto label | score | teach      test-set labels, Laya's score, teach Laya by typing
+  otto eval                       score Otto on real sentences (otto-data/eval.csv), nothing is done
   otto train --offline --tasks 100 --seed 42   simulated practice and report
   otto candidate                   fit and evaluate a separate Laya calibration
   otto promote ID | otto rollback  explicitly activate a passing candidate or restore the previous calibration
@@ -491,6 +492,34 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
             ears.close()
 
 
+def cmd_eval(settings, core: str) -> int:
+    """Score Otto's decisions on otto-data/eval.csv, in dry-run (nothing on the PC is touched)."""
+    from core import evaluate
+    from core.pipeline import Otto
+    if core == "new":
+        if "agent" not in settings.get("core", {}):
+            out("The new core isn't built yet; only `otto eval` (the current core) works for now.", YELLOW)
+            return 1
+        settings["core"]["agent"] = True
+    else:
+        settings.setdefault("core", {})["agent"] = False
+    cases = evaluate.load_cases()
+    otto = Otto(settings, dry_run=True, say=dim)
+    dim("Starting up...")
+    otto.start()
+    out(f"Scoring the {core} core on {len(cases)} sentences (Qwen answers can take a few seconds each)...")
+
+    report = evaluate.score(cases, lambda text: evaluate.decide_only(otto, text))
+    for r in report.results:
+        mark = f"{GREEN}ok{RESET}  " if r["ok"] else f"{RED}miss{RESET}"
+        out(f"  {mark} {r['text']}" + (f"  {DIM}({r['why']}){RESET}" if r["why"] else ""))
+    out(f"{BOLD}{report.right}/{report.total} understood{RESET}")
+    if report.safety_regressions:
+        out(f"Did not ask first: {', '.join(report.safety_regressions)}", RED)
+    dim(f"Saved: {evaluate.save_run(report, core)}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="otto", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", nargs="?", default="", help="see the list above")
@@ -503,6 +532,7 @@ def main() -> int:
     ap.add_argument('--tasks', type=int, default=100, help='number of offline scenarios')
     ap.add_argument('--seed', type=int, default=42, help='offline scenario seed')
     ap.add_argument('--baseline', help='previous offline run ID for comparison')
+    ap.add_argument('--core', choices=['old', 'new'], default='old', help='otto eval: which core decides')
     a = ap.parse_args()
 
     cmd = a.command.lower()
@@ -529,6 +559,8 @@ def main() -> int:
         run(settings, voice=True, speak=True, dry_run=a.dry_run, mode=a.mode)
     elif cmd in SETTING_COMMANDS:
         SETTING_COMMANDS[cmd](settings, a.args)
+    elif cmd == "eval" and not a.args:
+        return cmd_eval(settings, a.core)
     elif cmd == "spotify":
         cmd_spotify(settings)
     elif cmd == "check":

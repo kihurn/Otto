@@ -37,7 +37,7 @@ APPS_CACHE = DATA / "apps_cache.json"
 # Files copied from defaults/ into otto-data/ only if they don't exist yet,
 # so pasting a newer version of Otto never overwrites your data.
 SEED_FILES = ["examples.csv", "test_set.csv", "recipes.json",
-              "sites.json", "app_aliases.json", "brief.md"]
+              "sites.json", "app_aliases.json", "brief.md", "eval.csv"]
 BRIEF_FILE = DATA / "brief.md"
 
 

@@ -17,6 +17,14 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 2: `otto eval` (11 Nov 2026, Claude Code, main)
+- `core/evaluate.py` + `defaults/eval.csv` (25 seed sentences from recorded failures and the acceptance lists, seeded
+  into otto-data/eval.csv): runs Otto in dry-run with the real Laya and Qwen and judges route (fast/loop/reply), first
+  tool, key words and "must ask first". Old actions are mapped to the new tool names (`OLD_TO_TOOL`). Results go to
+  otto-data/eval_runs/. Case args are a list of words that must appear (not a dict as the plan sketched).
+- Must-ask cases are judged on whether Otto asked at any point in the dry-run, not only on the first call.
+- Baseline still to run on the PC: `otto eval`.
+
 ### Agent core, task 1: context size, multi-turn chat, local models only (11 Nov 2026, Claude Code, main)
 - Design approved by the user (docs/superpowers/specs/2026-11-11-agent-core-design.md): one local-Qwen loop with
   tools replaces the deciding layers; 1.2's remaining checks are frozen (replaced by the new core); Codex paused on
