@@ -1,7 +1,7 @@
 # Phase 1 plan: control any app
 
-Written 11 November 2026 (Claude Code). Status: **slice 1 is built and tested with fakes; slices 2–5 are
-planned, not started.** Ki reviews this plan after the fact, so each later slice still stops for a yes
+Written 11 November 2026 (Claude Code). Status: **slices 1 and 2 are built and tested with fakes (not yet
+run live); slices 3–5 are planned, not started.** Ki reviews this plan after the fact, so each later slice still stops for a yes
 before it is switched on by default.
 
 ## The goal
@@ -66,7 +66,7 @@ Where Otto deliberately differs from Nūs: Nūs only *points* and the human clic
 **Needs Ki's PC:** typing into real Word and another app, Word's start screen (no document), a document
 in Protected View, and a login page (must refuse).
 
-### Slice 2: click and set things by name, with proof
+### Slice 2: click and set things by name, with proof (built, except `pick_menu`)
 
 - Upgrade `click_button` to use `ui_probe` (fast, bounded), stop on an ambiguous name instead of guessing,
   apply the risky-word check to the *real* control name, and verify with a before/after comparison of the
@@ -106,6 +106,16 @@ verified successes and Ki's approval; one wrong target quarantines it; two misse
 Slice 1 fixes something Ki hit today and builds the reader every later slice needs. Slice 2 is still
 rule-driven, so it is fast and predictable. Slice 3 is the real "Jarvis" step and the first place a model
 chooses, so it comes after the guards exist and are tested. Slices 4 and 5 build on 3.
+
+## Acceptance list for slice 2 (run on Windows)
+
+| Type | Expected |
+|---|---|
+| `click view in notepad` | Notepad's View menu opens; "Clicked "View"." |
+| `turn on word wrap in notepad` (with the View menu's item visible) | Reads back as on, or an honest "can't see a switch called…" |
+| `click save in notepad` when two things are called Save | "I can see more than one…", nothing pressed |
+| `play my playlist #9` | Opens the playlist, presses Play, "Playing your playlist My playlist #9." |
+| `whats playing right now?` | The song and artist |
 
 ## Acceptance list for slice 1 (run on Windows)
 

@@ -80,10 +80,95 @@ def play_candidates(dialog, query, artist):
     return candidates
 
 
+def playlist_names(query):
+    """The names a playlist asked for as "my playlist #9" may really have: '#9', 'playlist #9', 'My playlist #9'."""
+    wanted = normalized(query)
+    return {wanted, 'playlist ' + wanted, 'my playlist ' + wanted} if wanted else set()
+
+
+def play_playlist(step, task, end, progress):
+    """Play one of the user's own playlists from the Your Library sidebar: open it, press its Play button,
+    then confirm from the window (the button turns into Pause) and from Windows (Spotify is playing)."""
+    from core.action_runtime import check
+    from hands import app_control, media, ui_probe, win
+    query = step.args['query']
+    names = playlist_names(query)
+    progress('Opening Spotify and looking for that playlist.')
+    check()
+    window, _, problem = app_control.front_window('Spotify')
+    if not window:
+        return Outcome(OutcomeStatus.UNCERTAIN, problem or 'I could not open Spotify.')
+    hwnd = window['hwnd']
+
+    def buttons():
+        return [c for c in ui_probe.list_controls(hwnd, limit=400) if c['type'] == 'Button' and c['enabled']]
+
+    def page_button(found, verb):
+        # On a playlist's own page the big button is named "Play <playlist name>" (or "Pause ..." once playing).
+        return [c for c in found if normalized(c['name']).startswith(verb + ' ')
+                and normalized(c['name'])[len(verb) + 1:] in names]
+
+    try:
+        found = buttons()
+        if page_button(found, 'pause'):
+            return Outcome(OutcomeStatus.VERIFIED, f'Your playlist {query} is already playing.')
+        if not page_button(found, 'play'):
+            # In the sidebar each playlist is a button named "<playlist name> <owner>".
+            entries = [c for c in found if 'edit details' not in c['name'].casefold()
+                       and any(normalized(c['name']) == n or normalized(c['name']).startswith(n + ' ') for n in names)]
+            labels = sorted({c['name'] for c in entries})
+            if not labels:
+                return Outcome(OutcomeStatus.NEEDS_INPUT, f"I can't see a playlist called {query} in your Spotify library list. "
+                                                         "Scroll it into view in Your Library and ask again.")
+            if len(labels) > 1:
+                return Outcome(OutcomeStatus.NEEDS_INPUT, 'I can see more than one: ' + ', '.join(labels[:4]) + '. Which one?')
+            check()
+            if win.foreground() != hwnd or not ui_probe.press(entries[0]):
+                return Outcome(OutcomeStatus.UNCERTAIN, 'Spotify did not open that playlist.')
+            opened_by = min(end, time.monotonic() + 6)
+            while time.monotonic() < opened_by and not task.cancel.is_set():
+                task.cancel.wait(0.4)
+                found = buttons()
+                if page_button(found, 'play') or page_button(found, 'pause'):
+                    break
+        chosen = page_button(found, 'play')
+        if page_button(found, 'pause'):
+            return Outcome(OutcomeStatus.VERIFIED, f'Your playlist {query} is already playing.')
+        if len(chosen) != 1:
+            return Outcome(OutcomeStatus.UNCERTAIN, 'I opened the playlist but could not find its Play button.')
+        if task.cancel.is_set():
+            return Outcome(OutcomeStatus.CANCELLED, 'Cancelled.')
+        progress('Starting the playlist and checking playback.')
+        check()
+        if win.foreground() != hwnd or not ui_probe.press(chosen[0]):
+            return Outcome(OutcomeStatus.UNCERTAIN, 'Spotify lost focus; I have not pressed play.')
+        shown = chosen[0]['name'][5:].strip() or query
+        verify_end = min(end, time.monotonic() + 6)
+        while not task.cancel.is_set() and time.monotonic() < verify_end:
+            task.cancel.wait(0.5)
+            playing = [s for s in media.sessions() or []
+                       if 'spotify' in s.get('app', '').casefold() and s.get('status') == media.PLAYING]
+            if playing and page_button(buttons(), 'pause'):
+                evidence = Evidence('windows.spotify_session', target={'playlist': shown},
+                                    expected={'playing': True}, observed=dict(playing[0]))
+                return Outcome(OutcomeStatus.VERIFIED, f'Playing your playlist {shown}.', evidence=[evidence],
+                               side_effect_possible=True)
+    except Exception as error:
+        from core.action_runtime import ActionInterrupted
+        if isinstance(error, ActionInterrupted):
+            raise
+        return Outcome(OutcomeStatus.UNCERTAIN, 'I could not read the Spotify window.', side_effect_possible=True)
+    return Outcome(OutcomeStatus.CANCELLED if task.cancel.is_set() else OutcomeStatus.UNCERTAIN,
+                   'Cancelled.' if task.cancel.is_set() else 'I pressed Play on the playlist, but could not confirm it started.',
+                   side_effect_possible=True)
+
+
 def play(step, task, end, progress):
     from core.action_runtime import check, ActionInterrupted
     from hands import apps, media, win
     from pywinauto import Application
+    if step.action == 'play_music' and step.args.get('kind') == 'playlist':
+        return play_playlist(step, task, end, progress)
     if step.action != 'play_music' or step.args.get('kind', 'auto') not in {'auto', 'track'}:
         return Outcome(OutcomeStatus.NEEDS_INPUT, 'Desktop playback currently needs a song title and artist.')
     query, artist = step.args['query'], step.args.get('artist', '')

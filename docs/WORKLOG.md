@@ -14,6 +14,23 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Any-app control slice 2, playlists, now-playing (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- Slice 2: `click_button` now runs `app_control.click_named` (ui_probe list, unique-name rule, risky real-name
+  stop, success only if the control list/title/foreground changed within 2 s). New rule-only actions `toggle`
+  (TogglePattern, state read back; already-right presses nothing) and `set_field` (ValuePattern, read back,
+  sensitive boxes refused). Rules in `details.control_intent` need an exactly-installed app name and only run
+  when Laya picks the apps area (not pre-Laya, to avoid hijacking other requests). Safety gate: risky words in
+  a toggle/field name need a yes; the text typed into set_field is not scanned. `pick_menu` from the plan is
+  not built yet.
+- Spotify desktop playlists (`spotify_desktop.play_playlist`): live read of the user's window showed the sidebar
+  entry is a Button named "<playlist> <owner>" ("My playlist #9 Kihurn") and the playlist page has
+  "Play My playlist #9". Otto presses the entry, then that button, and verifies by the button turning into
+  "Pause My playlist #9" plus a playing Spotify session. ASSUMPTION not yet seen live: that the label really
+  flips to "Pause <name>"; if not, Otto will say it could not confirm. Only playlists visible in the sidebar
+  are found (the list is virtualised).
+- `now_playing` is treated as its own observation in the executor (was "sent, but not verified").
+- Not run live: any press, toggle, fill or playlist start. 348 tests pass.
+
 ### Any-app control, slice 1 (11 Nov 2026, Claude Code, branch claude/any-app-control)
 - User asked for the Phase 1 plan and to start straight away, reviewing later. Plan: docs/PHASE1_ANY_APP_PLAN.md
   (five slices; only slice 1 is built). Nus Companion studied read-only at 592e30f; ideas ported, credited in

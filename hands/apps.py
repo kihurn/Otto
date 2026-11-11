@@ -282,37 +282,10 @@ RISKY_WORDS = re.compile(r"\b(send|buy|pay|purchase|order|submit|post|delete|rem
 @action("click_button", UNDOABLE, {"app": "app name", "button": "the button's name as shown"},
         lambda app, button: f"click \"{button}\" in {app}", for_brain=True,
         note="buttons named send/buy/pay/delete always need the user's yes")
-def click_button(app: str, button: str) -> Result:
-    from pywinauto import Application
-    from rapidfuzz import fuzz
-
-    w = win.find_window(app)
-    if not w:
-        return Result(False, f"{app.title()} isn't open, so I can't click anything in it.")
-    win.focus(w["hwnd"])
-    time.sleep(0.3)
-    try:
-        dlg = Application(backend="uia").connect(handle=w["hwnd"]).window(handle=w["hwnd"])
-        best, best_score = None, 0
-        for ctrl in dlg.descendants():
-            ctype = ctrl.element_info.control_type
-            if ctype not in ("Button", "MenuItem", "Hyperlink", "TabItem", "ListItem", "CheckBox"):
-                continue
-            name = (ctrl.window_text() or ctrl.element_info.name or "").strip()
-            if not name:
-                continue
-            score = fuzz.WRatio(button.lower(), name.lower())
-            if score > best_score:
-                best, best_score = ctrl, score
-        if not best or best_score < 80:
-            return Result(False, f"I couldn't find a \"{button}\" button in {app.title()}.")
-        try:
-            best.invoke()
-        except Exception:
-            best.click_input()
-        return Result(True, f"Clicked \"{best.window_text() or button}\".")
-    except Exception as e:
-        return Result(False, f"Clicking didn't work in {app.title()} ({type(e).__name__}).")
+def click_button(app: str, button: str):
+    """Press a named button, tab, link or menu item, and confirm the window reacted (hands/app_control.py)."""
+    from hands.app_control import click_named
+    return click_named(app, button)
 
 
 @action("hotkey", UNDOABLE, {"keys": "e.g. ctrl+l, ctrl+t, enter"}, lambda keys: f"press {keys}",

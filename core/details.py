@@ -124,9 +124,38 @@ def type_in_app_intent(text: str, apps) -> Intent | None:
     return Intent("apps", "type_in_app", {"app": app, "text": words}) if words else None
 
 
+def control_intent(text: str, apps) -> Intent | None:
+    """"turn on dark mode in Settings", "untick word wrap in Notepad", "set name to Ki Hurn in Word".
+    Only when the app is really installed under that exact name."""
+    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I).rstrip(" .!?")
+    if apps is None:
+        return None
+
+    def installed(name: str) -> str | None:
+        name = " ".join(name.lower().split()).removeprefix("the ")
+        return name if apps.match_exact(name) else None
+
+    m = re.fullmatch(r"(?:turn|switch)\s+(?P<s>on|off)\s+(?:the\s+)?(?P<n>.+?)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I) \
+        or re.fullmatch(r"(?:turn|switch)\s+(?:the\s+)?(?P<n>.+?)\s+(?P<s>on|off)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")):
+        return Intent("apps", "toggle", {"app": installed(m.group("app")), "name": m.group("n").strip(),
+                                         "state": m.group("s").lower()})
+    m = re.fullmatch(r"(?P<v>tick|check|enable|untick|uncheck|disable)\s+(?:the\s+)?(?P<n>.+?)"
+                     r"(?:\s+(?:box|checkbox|option|setting))?\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")):
+        state = "off" if m.group("v").lower() in ("untick", "uncheck", "disable") else "on"
+        return Intent("apps", "toggle", {"app": installed(m.group("app")), "name": m.group("n").strip(), "state": state})
+    m = re.fullmatch(r"(?:set|fill in|fill|change)\s+(?:the\s+)?(?P<f>.+?)(?:\s+(?:box|field))?\s+(?:to|with)\s+"
+                     r"(?P<x>.+?)\s+(?:in|on)\s+(?P<app>[\w .]+)", raw, re.I)
+    if m and installed(m.group("app")) and not re.search(r"\b(?:volume|timer|alarm)\b", m.group("f"), re.I):
+        return Intent("apps", "set_field", {"app": installed(m.group("app")), "field": m.group("f").strip(),
+                                            "text": m.group("x").strip(" \"'")})
+    return None
+
+
 def _apps(text: str, apps) -> Intent | None:
     t = _t(text)
-    typed = type_in_app_intent(text, apps)
+    typed = type_in_app_intent(text, apps) or control_intent(text, apps)
     if typed:
         return typed
     if re.search(r"\bplay\b|\blisten to\b|\bput on\b", t) and not re.search(r"\b(?:youtube|netflix|steam)\b", t):

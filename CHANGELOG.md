@@ -1,6 +1,13 @@
 # Changelog
 
 ## 1.2 (in development)
+- Any-app control, slice 2 (348 tests pass; not yet run live):
+  - "click X in <app>" now reads the window quickly, stops if two controls share the name, and only says
+    "Clicked" when the window visibly reacted.
+  - New: "turn on/off X in <app>", "tick/untick X in <app>" (reads the switch back) and "set X to Y in <app>"
+    (fills a named box and reads it back). Password and private boxes are refused.
+- Spotify (desktop mode): "play my playlist #9" opens the playlist from Your Library and presses its Play button.
+- "What's playing right now?" answers with the song instead of "sent, but not verified".
 - Any-app control, slice 1 (331 tests pass; live typing not yet confirmed on Windows):
   - "open Word and write …" and "type … in Word" type the words into that app and read them back to confirm,
     instead of making a Notepad note. Otto refuses password and private fields and says so when it can't see

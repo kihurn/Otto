@@ -18,7 +18,7 @@ MAX_CONTROLS = 150                       # small lists keep a model accurate and
 
 def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     """The interactive, on-screen controls of one window, in reading order, each as a plain dict:
-    id, name, type, automation_id, rect (left, top, right, bottom), password, enabled, focused, read_only.
+    id, name, type, automation_id, rect (left, top, right, bottom), password, enabled, focused, read_only, checked.
     'element' holds the live Windows handle for acting on it and must never be sent to a model."""
     from pywinauto.uia_defines import IUIA
 
@@ -34,7 +34,8 @@ def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     for prop in (ids.UIA_NamePropertyId, ids.UIA_ControlTypePropertyId, ids.UIA_AutomationIdPropertyId,
                  ids.UIA_BoundingRectanglePropertyId, ids.UIA_IsPasswordPropertyId, ids.UIA_IsEnabledPropertyId,
                  ids.UIA_HasKeyboardFocusPropertyId, ids.UIA_IsValuePatternAvailablePropertyId,
-                 ids.UIA_ValueIsReadOnlyPropertyId):
+                 ids.UIA_ValueIsReadOnlyPropertyId, ids.UIA_IsTogglePatternAvailablePropertyId,
+                 ids.UIA_ToggleToggleStatePropertyId):
         cache.AddProperty(prop)
     # One round trip to the app: Windows returns every match with the properties above already filled in.
     found = uia.iuia.ElementFromHandle(hwnd).FindAllBuildCache(ids.TreeScope_Descendants, wanted, cache)
@@ -59,6 +60,9 @@ def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
                 # A web page is also a "Document", but a read-only one: it is not somewhere to type.
                 'read_only': bool(element.GetCachedPropertyValue(ids.UIA_IsValuePatternAvailablePropertyId)
                                   and element.GetCachedPropertyValue(ids.UIA_ValueIsReadOnlyPropertyId)),
+                # For tick boxes and switches: True = on, False = off, None = not a switch.
+                'checked': (element.GetCachedPropertyValue(ids.UIA_ToggleToggleStatePropertyId) == 1
+                            if element.GetCachedPropertyValue(ids.UIA_IsTogglePatternAvailablePropertyId) else None),
                 'element': element,
             })
         except Exception:
@@ -148,3 +152,52 @@ def read_text(control: dict, limit: int = 200_000) -> str | None:
     except Exception:
         pass
     return None
+
+
+def _pattern(control: dict, pattern_id: str, interface: str):
+    """One of the standard ways Windows lets a program operate a control, or None if this control lacks it."""
+    from pywinauto.uia_defines import IUIA
+
+    ids = IUIA().UIA_dll
+    try:
+        found = control['element'].GetCurrentPattern(getattr(ids, pattern_id))
+        return found.QueryInterface(getattr(ids, interface)) if found else None
+    except Exception:
+        return None
+
+
+def press(control: dict) -> bool:
+    """Press a button, pick a tab or list item, or flip a switch, the way the app itself offers.
+    No mouse pointer is moved, so nothing else on screen can be hit by mistake."""
+    for pattern_id, interface, method in (
+            ('UIA_InvokePatternId', 'IUIAutomationInvokePattern', 'Invoke'),
+            ('UIA_SelectionItemPatternId', 'IUIAutomationSelectionItemPattern', 'Select'),
+            ('UIA_TogglePatternId', 'IUIAutomationTogglePattern', 'Toggle')):
+        pattern = _pattern(control, pattern_id, interface)
+        if pattern is not None:
+            getattr(pattern, method)()
+            return True
+    return False
+
+
+def flip(control: dict) -> bool:
+    """Flip a tick box or switch once."""
+    pattern = _pattern(control, 'UIA_TogglePatternId', 'IUIAutomationTogglePattern')
+    if pattern is None:
+        return False
+    pattern.Toggle()
+    return True
+
+
+def set_value(control: dict, text: str) -> bool:
+    """Put text straight into a box (no keystrokes)."""
+    pattern = _pattern(control, 'UIA_ValuePatternId', 'IUIAutomationValuePattern')
+    if pattern is None or pattern.CurrentIsReadOnly:
+        return False
+    pattern.SetValue(text)
+    return True
+
+
+def fingerprint(controls: list[dict]) -> frozenset:
+    """A summary of what a window shows, to tell whether a click changed anything."""
+    return frozenset((c['type'], c['name'], c.get('checked'), c['enabled']) for c in controls)
