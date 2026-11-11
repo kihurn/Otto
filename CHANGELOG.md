@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- Set this user's Laya acting minimum to 90%. Enforce the configured floor for all calibration modes and route middle-confidence split requests through Qwen too. Full suite passes 452 tests.
+- Word window lookup requires WINWORD.EXE ownership, preventing unrelated workspace/document titles from matching Word or Microsoft Word. Nine regressions added; full suite passes 444 tests. Native voice acceptance pending.
+- Goal-mode completion/replay stabilization (435 tests pass): verify Spotify's requested playback, stop on unconfirmed Play, treat Qwen completion as uncertain, verify saved-method outcomes, and prevent retries of dispatched clicks. Partial replays stop without restarting. Settings and saved data are preserved; live acceptance pending.
 - Goal mode fixes from the second live run (418 tests pass; not yet re-run live):
   - Knows when it is finished: a code check where one exists (the asked-for "Play …" button was pressed and
     Windows reports music playing), otherwise Qwen is asked a separate yes/no "is the goal reached?" after each

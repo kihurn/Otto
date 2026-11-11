@@ -6,6 +6,33 @@ before it is switched on by default.
 
 ## The goal
 
+### Completion stabilization acceptance (11 November)
+
+The latest goal-mode fix keeps Qwen's completion judgment separate from code-verified success. It also
+checks saved-method results and blocks repeated dispatches, including clicks whose effects are delayed.
+The full test suite passes 435 tests with fake controls/models. These voice checks remain manual.
+
+Restart Otto from PowerShell in the project folder with `otto voice`. Use Ctrl+Alt if needed.
+
+| Say | Expected result |
+|---|---|
+| “Play my playlist number nine” | The requested playlist plays and Otto stops. If playback cannot be confirmed, Otto says so and stops without choosing another song. |
+| “Play The Hills by The Weeknd” | A different song, artist or live version must not be reported as the requested recording. |
+| “How many playlists do I have?” | Answer mode remains available. Visible items may not represent the entire library. |
+| “Open the View menu in Notepad” | An exact named-button operation may verify the click. A broader goal judged only by Qwen must report that completion is unconfirmed. |
+| “Save that” after an unconfirmed goal | No new learned method is saved from that uncertain run. |
+| Repeat a previously saved goal | Stop when the requested outcome is observed. If a step fails after earlier clicks, report the partial replay and do not restart it. |
+
+For regression tests in PowerShell, use an unsynced temporary directory to avoid OneDrive file locks.
+
+```powershell
+Set-Location 'C:\Users\User\OneDrive\Documents\Otto'
+$ottoTestTemp = Join-Path $env:TEMP ('otto-test-' + [guid]::NewGuid().ToString('N'))
+& 'C:\Users\User\.otto\venv\Scripts\python.exe' -B -m pytest -q tests -p no:cacheprovider --basetemp=$ottoTestTemp
+```
+
+## Original goal
+
 Say or type "open Word and write…", "click Export in CapCut", "turn on dark mode in Settings", and have
 Otto do it in whatever app is in front, safely, and tell the truth about whether it worked.
 

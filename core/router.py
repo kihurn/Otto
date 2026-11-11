@@ -74,6 +74,7 @@ def serving_bars(zones: dict, measured: dict | None) -> tuple[float, float]:
             act = max(float(m["act_bar"]), float(zones.get("act_bar_floor", 0.70)))
         if m.get("guess_bar") is not None:
             guess = float(m["guess_bar"])
+    act = max(act, float(zones.get("act_bar_floor", 0.70)))
     gap = float(zones.get("ask_zone_min", 0.20))
     guess = max(0.15, min(guess, act - gap))
     return float(act), float(guess)

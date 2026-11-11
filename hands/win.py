@@ -71,7 +71,11 @@ def find_window(app_name: str) -> dict | None:
     """The window that best matches an app name, by its program name or title."""
     from rapidfuzz import fuzz
 
-    name = app_name.lower()
+    name = ' '.join(app_name.casefold().split())
+    # Office's process name differs from its spoken name. A workspace or document title
+    # mentioning Word is not proof of app ownership, even with a high fuzzy score.
+    if name in {'word', 'microsoft word', 'winword'}:
+        return next((w for w in windows() if w['exe'].casefold() == 'winword.exe'), None)
     best, best_score = None, 0
     for w in windows():
         exe = w["exe"].lower().removesuffix(".exe")

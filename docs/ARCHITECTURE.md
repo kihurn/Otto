@@ -1,5 +1,24 @@
 # Otto: Architecture
 
+Current user routing preference is a 90% Laya acting minimum (`zones.act_bar` and
+`zones.act_bar_floor` both 0.90). Calibration may raise that threshold but cannot lower the floor.
+Below-threshold Laya predictions go to the existing Qwen interpreter, including split requests.
+This user's `brains.decide` chain is local Qwen 8B followed by local Qwen 4B.
+Rules-first paths remain independent of Laya confidence. Qwen uncertainty/unavailability retains
+clarification and safety checks. This is a user setting, not a migration of every installation.
+
+Word window identity uses WINWORD.EXE for Word/Microsoft Word/WINWORD requests. Fuzzy title matching
+is not allowed for that target. Installed-app resolution still supplies the launch identity when no
+Word process window is found. Other applications retain their existing matching behavior.
+
+Goal-mode completion checkpoint, 11 November: `core/goal_mode.py` checks requested Spotify playback
+through Windows sessions and exact song/artist or named playlist Pause evidence. Qwen completion
+judgments stop execution with an uncertain outcome and cannot teach a method. Saved button methods
+use the same completion checks after every step, stop at the observed goal, and never restart after a
+partial dispatch. Attempted clicks are recorded before sending, so delayed/failed responses cannot
+cause repeated clicks. The existing method store format is preserved. Full version-bound promotion
+remains deferred under R7. See WORKLOG and PHASE1_ANY_APP_PLAN for validation and voice checks.
+
 D–F implementation checkpoint: `hands/audio_devices.py` handles media output selection and undo;
 timer, note and file-search actions supply action-specific observations. `core/audio_focus.py`
 caps competing audio sessions during voice interactions and restores unchanged values. `core/offline_eval.py`

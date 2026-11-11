@@ -40,6 +40,30 @@ def test_is_this_the_thing_that_was_asked_for(button, goal, same):
     assert goal_mode.same_thing(button, goal) is same
 
 
+@pytest.mark.parametrize('session,pause', [
+    ({'app': 'Chrome', 'status': media.PLAYING}, 'Pause My playlist #9'),
+    ({'app': 'Spotify.exe', 'status': media.PLAYING}, 'Pause My playlist #8'),
+    ({'app': 'Spotify.exe', 'status': media.PLAYING}, 'Play My playlist #9'),
+])
+def test_playlist_needs_spotify_and_the_requested_pause_control(app, monkeypatch, session, pause):
+    monkeypatch.setattr(media, 'sessions', lambda: [session])
+    app.controls = [control('Button', 'Play My playlist #9')]
+    app.screens = {'Play My playlist #9': [control('Button', pause)]}
+    result = goal_mode.pursue('spotify', 'play my playlist number nine',
+                              propose=qwen(app, ('click', 'Play My playlist #9'), ('stop', '')))
+    assert not result.ok and 'learned' not in result.data
+
+
+@pytest.mark.parametrize('title,artist,expected', [
+    ('The Hills', 'The Weeknd', True), ('The Hills Live', 'The Weeknd', False),
+    ('The Hills', 'Someone else', False), ('Another song', 'The Weeknd', False),
+])
+def test_goal_song_observer_matches_title_version_and_artist(app, monkeypatch, title, artist, expected):
+    monkeypatch.setattr(media, 'sessions', lambda: [
+        {'app': 'Spotify.exe', 'status': media.PLAYING, 'title': title, 'artist': artist}])
+    assert bool(goal_mode.playback_evidence('spotify', 7, 'play the hills by the weeknd')) is expected
+
+
 def test_qwen_is_asked_whether_it_is_finished_after_each_step(app):
     app.controls = [control('MenuItem', 'View')]
     app.screens = {'View': [control('MenuItem', 'View'), control('CheckBox', 'Status bar', checked=True)]}
@@ -50,8 +74,105 @@ def test_qwen_is_asked_whether_it_is_finished_after_each_step(app):
         return True
     result = goal_mode.pursue('notepad', 'show the view menu', propose=qwen(app, ('click', 'View'), ('click', 'Status bar')),
                               judge=judge)
-    assert result.status == OutcomeStatus.VERIFIED and app.pressed == ['View'] and len(asked) == 1
+    assert result.status == OutcomeStatus.UNCERTAIN and app.pressed == ['View'] and len(asked) == 1
     assert result.data['judged_by'] == 'qwen'
+    assert 'learned' not in result.data
+
+
+def test_model_done_after_a_click_stops_without_learning(app):
+    app.controls = [control('MenuItem', 'File')]
+    app.screens = {'File': [control('MenuItem', 'Export')]}
+    result = goal_mode.pursue('word', 'export as pdf',
+                              propose=qwen(app, ('click', 'File'), ('done', ''), ('click', 'Export')))
+    assert result.status == OutcomeStatus.UNCERTAIN
+    assert app.pressed == ['File'] and 'learned' not in result.data
+
+
+def test_replay_of_export_buttons_is_not_proof_of_an_export(app):
+    from core.config import load_json
+    methods.save('Word', 'export as pdf', ['File', 'Export'])
+    app.controls = [control('MenuItem', 'File')]
+    app.screens = {'File': [control('MenuItem', 'Export')], 'Export': [control('Edit', 'File name')]}
+    result = goal_mode.pursue('word', 'export as pdf', propose=qwen(app))
+    entry = load_json(methods.METHODS_FILE, {})[methods.key_for('Word', 'export as pdf')]
+    assert result.status == OutcomeStatus.UNCERTAIN and 'learned' not in result.data
+    assert entry['runs'] == 0 and entry['misses'] == 1 and app.asked == 0
+
+
+def test_partial_replay_does_not_restart_or_consult_model(app):
+    methods.save('Word', 'export as pdf', ['File', 'Missing'])
+    app.controls = [control('MenuItem', 'File')]
+    app.screens = {'File': [control('MenuItem', 'File'), control('MenuItem', 'Export')]}
+    result = goal_mode.pursue('word', 'export as pdf',
+                              propose=lambda *a: pytest.fail('must not restart a partial replay'))
+    assert result.status == OutcomeStatus.UNCERTAIN and app.pressed == ['File']
+
+
+def test_replay_stops_when_requested_playlist_is_observed(app, monkeypatch):
+    from core.config import load_json
+    goal = 'play my playlist number nine'
+    methods.save('Word', goal, ['Play My playlist #9', 'Other'])
+    app.controls = [control('Button', 'Play My playlist #9')]
+    app.screens = {'Play My playlist #9': [control('Button', 'Pause My playlist #9'), control('Button', 'Other')]}
+    monkeypatch.setattr(media, 'sessions', lambda: [{'app': 'Spotify.exe', 'status': media.PLAYING}])
+    result = goal_mode.pursue('spotify', goal, propose=qwen(app))
+    assert result.ok and app.pressed == ['Play My playlist #9'] and app.asked == 0
+    entry = load_json(methods.METHODS_FILE, {})[methods.key_for('Word', goal)]
+    assert entry['runs'] == 1 and entry['misses'] == 0
+
+
+def test_already_playing_playlist_needs_no_replay(app, monkeypatch):
+    goal = 'play my playlist number nine'
+    methods.save('Word', goal, ['Play My playlist #9'])
+    app.controls = [control('Button', 'Pause My playlist #9')]
+    monkeypatch.setattr(media, 'sessions', lambda: [{'app': 'Spotify.exe', 'status': media.PLAYING}])
+    result = goal_mode.pursue('spotify', goal, propose=qwen(app))
+    assert result.ok and not app.pressed and not app.asked
+
+
+def test_failed_press_response_is_not_retried(app, monkeypatch):
+    app.controls = [control('Button', 'Playlists')]
+    def press(target):
+        app.pressed.append(target['name'])
+        return False
+    monkeypatch.setattr(ui_probe, 'press', press)
+    result = goal_mode.pursue('word', 'open library', propose=qwen(app, *[('click', 'Playlists')] * 4))
+    assert not result.ok and app.pressed == ['Playlists'] and 'learned' not in result.data
+
+
+def test_unconfirmed_play_does_not_go_on_to_a_different_song(app, monkeypatch):
+    monkeypatch.setattr(media, 'sessions', lambda: [])
+    app.controls = [control('Button', 'Play My playlist #9')]
+    app.screens = {'Play My playlist #9': [control('Button', 'Other song')]}
+    result = goal_mode.pursue('spotify', 'play my playlist number nine',
+                              propose=qwen(app, ('click', 'Play My playlist #9'), ('click', 'Other song')))
+    assert result.status == OutcomeStatus.UNCERTAIN and app.pressed == ['Play My playlist #9']
+
+
+def test_unconfirmed_saved_play_stops_before_later_saved_steps(app, monkeypatch):
+    goal = 'play my playlist number nine'
+    methods.save('Word', goal, ['Play My playlist #9', 'Other song'])
+    monkeypatch.setattr(media, 'sessions', lambda: [])
+    app.controls = [control('Button', 'Play My playlist #9')]
+    app.screens = {'Play My playlist #9': [control('Button', 'Other song')]}
+    result = goal_mode.pursue('spotify', goal, propose=qwen(app))
+    assert result.status == OutcomeStatus.UNCERTAIN and app.pressed == ['Play My playlist #9']
+
+
+def test_replay_with_no_observed_change_does_not_press_next_step(app):
+    methods.save('Word', 'open library', ['Playlists', 'Other'])
+    app.controls = [control('Button', 'Playlists'), control('Button', 'Other')]
+    result = goal_mode.pursue('word', 'open library', propose=qwen(app))
+    assert result.status == OutcomeStatus.UNCERTAIN and app.pressed == ['Playlists']
+
+
+def test_unreadable_document_is_not_verified_empty(app, monkeypatch):
+    app.controls = [control('Document', 'Page 1', focused=True)]
+    monkeypatch.setattr(ui_probe, 'read_text', lambda target: None)
+    monkeypatch.setattr(win, 'hotkey', lambda key: None)
+    picks = iter([{'action': 'key', 'key': 'delete'}, {'action': 'stop'}])
+    result = goal_mode.pursue('word', 'remove all the words', propose=lambda *a: next(picks))
+    assert not result.ok and 'learned' not in result.data
 
 
 def test_the_same_control_is_never_pressed_twice(app):

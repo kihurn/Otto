@@ -125,6 +125,12 @@ python -m pytest -q tests
 
 ## 7. Status (as of 11 November 2026)
 
+Latest checkpoint: the user selected a 90% minimum Laya acting confidence (both zones.act_bar and
+zones.act_bar_floor are 0.90 in their settings). Lower-confidence requests go to the Qwen interpreter.
+Rules-first handling remains. The full suite passes 452 tests. Qwen's completion judgment
+is uncertain until code verifies the goal; saved methods also require completion evidence and stop after
+partial dispatch. Voice acceptance for this batch is pending (see WORKLOG and PHASE1_ANY_APP_PLAN).
+
 **1.2 is in development.** The user reported the 1.2 live voice checks as working on 11 Nov and merged the
 live-check and any-app-control branches (PRs #4, #5). Since then work is committed straight to `main` at the
 user's request, as kihurn with no AI attribution lines; 395 tests. Laya + rules handle plain requests; local

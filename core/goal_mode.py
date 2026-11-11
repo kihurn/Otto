@@ -202,52 +202,104 @@ def ask_if_reached(goal: str, app: str, controls: list[dict], history: list[str]
 
 def same_thing(control_name: str, goal: str) -> bool:
     """Is this "Play <something>" button the thing the goal asked to play? ("number nine" counts as "#9".)"""
-    import re
-    from core.details import _num
+    from core.details import music_intent
+    from hands.spotify_desktop import normalized, playlist_names
+    intent = music_intent(goal)
+    if not intent or intent.action != 'play_music' or not control_name.casefold().startswith('play '):
+        return False
+    query, artist = intent.params['query'], intent.params.get('artist', '')
+    shown = normalized(control_name[5:])
+    if artist:
+        return shown == normalized(f'{query} by {artist}')
+    return shown in playlist_names(query)
 
-    def words(text: str) -> set[str]:
-        found = set()
-        for word in re.findall(r'\w+', text.casefold()):
-            number = _num(word)
-            found.add(str(int(number)) if number is not None and number == int(number) else word)
-        return found - {'play', 'the', 'a', 'my', 'number', 'no', 'by'}
-    wanted, shown = words(goal), words(control_name)
-    return bool(shown) and len(shown & wanted) / len(shown) >= 0.6
+
+def playback_evidence(app, hwnd, goal):
+    """Check Spotify and the requested recording or a named playlist Pause control."""
+    from core.action_runtime import check
+    from core.details import music_intent
+    from hands import media, ui_probe, win
+    from hands.spotify_desktop import normalized, playlist_names, same_recording
+    if app.casefold() != 'spotify' or win.foreground() != hwnd:
+        return None
+    intent = music_intent(goal)
+    if not intent or intent.action != 'play_music':
+        return None
+    query, artist = intent.params['query'], intent.params.get('artist', '')
+    kind = intent.params.get('kind', 'auto')
+    playing = [s for s in media.sessions() or []
+               if 'spotify' in s.get('app', '').casefold() and s.get('status') == media.PLAYING]
+    check()
+    if not playing or win.foreground() != hwnd:
+        return None
+    if kind in {'auto', 'playlist'} and not artist:
+        names = playlist_names(query)
+        paused = [c['name'] for c in ui_probe.list_controls(hwnd, limit=400)
+                  if c['type'] == 'Button' and c['enabled'] and c['name'].casefold().startswith('pause ')
+                  and normalized(c['name'][6:]) in names]
+        if len(paused) == 1:
+            return Evidence('spotify.playlist_controls_and_session', target={'playlist': query},
+                            observed={'pause_control': paused[0], 'session': dict(playing[0])})
+    if kind in {'auto', 'track'}:
+        for session in playing:
+            if (same_recording(session.get('title', ''), query)
+                    and (not artist or normalized(session.get('artist', '')) == normalized(artist))):
+                return Evidence('windows.spotify_session', target={'query': query, 'artist': artist},
+                                observed=dict(session))
+    return None
 
 
 def _wait_for_change(hwnd: int, before, title: str, tries: int = 8) -> bool:
+    from core.action_runtime import check
     from hands import ui_probe, win
     for _ in range(tries):
+        check()
         time.sleep(0.25)
         try:
-            if win.foreground() != hwnd or win.window_info(hwnd)['title'] != title:
+            if win.foreground() != hwnd:
+                return False
+            if win.window_info(hwnd)['title'] != title:
                 return True
             if ui_probe.fingerprint(ui_probe.list_controls(hwnd, limit=400)) != before:
                 return True
         except Exception:
-            return True
+            return False
     return False
 
 
-def replay(window: dict, name: str, steps: list[str]) -> bool:
-    """Press a saved list of button names in order. False as soon as one cannot be found exactly once."""
+def replay(window, steps, attempted, pressed, end, observe, goal):
+    """Replay once, checking completion after each dispatch. Return (sequence_complete, outcome)."""
     from core.action_runtime import check
     from hands import ui_probe, win
     from hands.apps import RISKY_WORDS
     hwnd = window['hwnd']
+    if len(steps) > MAX_STEPS:
+        return False, None
     for wanted in steps:
         check()
-        if win.foreground() != hwnd or RISKY_WORDS.search(wanted):
-            return False
+        token = wanted.strip().casefold()
+        if (time.monotonic() >= end - 3 or token in attempted
+                or win.foreground() != hwnd or RISKY_WORDS.search(wanted)):
+            return False, None
         controls = ui_probe.list_controls(hwnd, limit=400)
         usable = [c for c in controls if c['type'] in CLICKABLE and c['enabled'] and c['name']]
         target, only = ui_probe.find_control(usable, wanted)
         if not target or not only or ui_probe.name_score(target['name'], wanted) < 100:
-            return False
-        if not ui_probe.press(target):
-            return False
-        _wait_for_change(hwnd, ui_probe.fingerprint(controls), win.window_info(hwnd)['title'])
-    return True
+            return False, None
+        before, title = ui_probe.fingerprint(controls), win.window_info(hwnd)['title']
+        attempted.add(token)  # Even a failed response can follow a successful click.
+        responded = ui_probe.press(target)
+        changed = _wait_for_change(hwnd, before, title) if responded else False
+        if changed:
+            pressed.append(target['name'])
+        outcome = observe()
+        if outcome:
+            return True, outcome
+        if same_thing(target['name'], goal):
+            return False, None  # Never follow an unconfirmed Play with another saved click.
+        if not responded or not changed:
+            return False, None
+    return True, None
 
 
 def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: float | None = None,
@@ -274,17 +326,43 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
     hwnd = window['hwnd']
     history: list[str] = []
     pressed: list[str] = []
+    attempted: set[str] = set()
+    replayed = False
+    replay_success = False
     typed = False
     stuck = 0
 
-    def finished(judged_by: str, say: str) -> Outcome:
+    def finished(judged_by: str, say: str, evidence=None) -> Outcome:
+        nonlocal replay_success
+        check()
+        if time.monotonic() >= end or win.foreground() != hwnd:
+            return unconfirmed('The window changed or the task timed out before I could confirm it.')
         data = {'app': name, 'judged_by': judged_by}
-        if len(pressed) >= 1 and not replayed:
+        if len(pressed) >= 1 and not replayed and not keys_used and len(pressed) == len(attempted):
             data['learned'] = {'app': name, 'goal': key, 'steps': list(pressed)}
+        replay_success = replayed
         return Outcome(OutcomeStatus.VERIFIED, say, data,
-                       [Evidence('goal_mode', target={'app': name, 'goal': goal},
+                       evidence or [Evidence('goal_mode', target={'app': name, 'goal': goal},
                                  expected={'reached': True}, observed={'judged_by': judged_by, 'steps': len(pressed)})],
                        side_effect_possible=True)
+
+    def unconfirmed(say='Qwen thinks it is finished, but I could not confirm the result.') -> Outcome:
+        return Outcome(OutcomeStatus.UNCERTAIN, say,
+                       {'app': name, 'goal_mode': True, 'judged_by': 'qwen'},
+                       side_effect_possible=bool(attempted or keys_used))
+
+    def observe_completion():
+        check()
+        if time.monotonic() >= end or win.foreground() != hwnd:
+            return None
+        evidence = playback_evidence(app, hwnd, goal)
+        if evidence:
+            label = (evidence.observed['pause_control'][6:] if 'pause_control' in evidence.observed
+                     else evidence.observed.get('title', 'the requested music'))
+            return finished('code', f'Playing {label}.', [evidence])
+        if target_name and pressed and ui_probe.name_score(pressed[-1], target_name) == 100:
+            return finished('code', f'Clicked "{pressed[-1]}".')
+        return None
 
     def type_here(target: dict) -> Outcome | None:
         """Type the user's text into this text area and confirm it appeared. None means it worked."""
@@ -311,25 +389,33 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
         return Outcome(OutcomeStatus.UNCERTAIN, f"I typed it in {name}, but couldn't see the text appear.",
                        side_effect_possible=True)
 
-    # A method the user saved earlier: replay it first, with no model call.
-    replayed = False
     saved = methods.find(name, key)
-    if saved:
-        replayed = replay(window, name, saved)
-        methods.record(name, key, replayed)
-        if replayed:
-            pressed = list(saved)
-            history = [f'pressed "{step}" (changed the window)' for step in saved]
-            if not text:
-                return finished('saved method', 'Done, the way you saved it.')
-
     try:
+        observed = observe_completion()
+        if observed:
+            return observed
+        if saved:
+            replayed = True
+            complete, observed = replay(window, saved, attempted, pressed, end, observe_completion, goal)
+            if observed:
+                return observed
+            history = [f'pressed "{step}" (changed the window)' for step in pressed]
+            if not complete:
+                if attempted:
+                    return unconfirmed('The saved method stopped partway through. I have not restarted it.')
+                methods.record(name, key, False)
+                replayed = False  # Nothing was dispatched, so fresh planning is safe.
+            elif not text:
+                return unconfirmed('I replayed the saved steps, but could not confirm the result.')
         for _ in range(MAX_STEPS):
             check()
             if time.monotonic() >= end - 3:
                 break
             if win.foreground() != hwnd:
                 return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I stopped.', side_effect_possible=bool(pressed))
+            observed = observe_completion()
+            if observed:
+                return observed
             everything = ui_probe.list_controls(hwnd, limit=400)
             if text and not typed:
                 # Code check first: if there is an obvious place to type, no model is needed.
@@ -362,7 +448,7 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
             if action == 'done':
                 if not pressed:
                     break                       # "done" with nothing done is not evidence of anything
-                return finished('qwen', 'Done, as far as I can tell.')
+                return unconfirmed()
             if action == 'type':
                 failed = type_here(control)
                 if failed:
@@ -384,13 +470,15 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
                 now = ui_probe.list_controls(hwnd, limit=400)
                 if why == 'delete':
                     box, _ = ui_probe.text_target(now)
-                    if box and not (ui_probe.read_text(box) or '').strip():
+                    value = ui_probe.read_text(box) if box else None
+                    if value is not None and not value.strip():
                         return finished('code', 'Cleared it.')          # the text area is empty now
                 if why != 'select_all' and judge and judge(goal, name, shortlist(now), history, min(end - 2, time.monotonic() + 8)):
-                    return finished('qwen', 'Done, as far as I can tell.')
+                    return unconfirmed()
                 continue
             # click
-            if control['name'] in pressed:
+            token = control['name'].strip().casefold()
+            if token in attempted:
                 # Pressing the same thing again is how a task that already worked gets undone.
                 history.append(f'("{control["name"]}" was already pressed; choose something different, or "done")')
                 stuck += 1
@@ -405,28 +493,37 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
             check()
             from hands import indicator
             indicator.point(control['rect'])
-            if win.foreground() != hwnd or not ui_probe.press(control):
+            if win.foreground() != hwnd:
+                return unconfirmed(f'{name} lost focus, so I stopped.')
+            attempted.add(token)
+            if not ui_probe.press(control):
                 history.append(f'tried "{control["name"]}" but it did not respond')
                 stuck += 1
             elif _wait_for_change(hwnd, before, title):
                 pressed.append(control['name'])
                 history.append(f'pressed "{control["name"]}" (changed the window)')
                 stuck = 0
-                if target_name and ui_probe.name_score(control['name'], target_name) >= 60:
-                    return finished('code', f'Clicked "{control["name"]}".')
-                # Finished? A code check where one exists, otherwise a direct yes/no question to Qwen.
-                if control['name'].casefold().startswith('play ') and same_thing(control['name'], goal):
-                    from hands import media
-                    for _ in range(6):
-                        if any(s.get('status') == media.PLAYING for s in media.sessions() or []):
-                            return finished('code', f'Playing {control["name"][5:]}.')
-                        time.sleep(0.5)
+                observed = observe_completion()
+                if observed:
+                    return observed
                 now = shortlist(ui_probe.list_controls(hwnd, limit=400)) if win.foreground() == hwnd else []
-                if judge and judge(goal, name, now, history, min(end - 2, time.monotonic() + 8)):
-                    return finished('qwen', 'Done, as far as I can tell.')
+                if (not (app.casefold() == 'spotify' and same_thing(control['name'], goal))
+                        and judge and judge(goal, name, now, history, min(end - 2, time.monotonic() + 8))):
+                    return unconfirmed()
             else:
                 history.append(f'pressed "{control["name"]}" but nothing changed')
                 stuck += 1
+            if app.casefold() == 'spotify' and same_thing(control['name'], goal):
+                # Playback can start after the click returns. Observe instead of choosing another song.
+                for _ in range(6):
+                    check()
+                    if time.monotonic() >= end:
+                        break
+                    observed = observe_completion()
+                    if observed:
+                        return observed
+                    time.sleep(0.5)
+                return unconfirmed('I sent Play, but could not confirm the requested music. I stopped there.')
             if stuck >= 2:
                 break
     except Exception as error:
@@ -440,6 +537,9 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
             return Outcome(OutcomeStatus.UNCERTAIN, "Qwen didn't answer, so I stopped.", side_effect_possible=bool(pressed))
         return Outcome(OutcomeStatus.UNCERTAIN, f"Something went wrong while working in {name}, so I stopped.",
                        side_effect_possible=bool(pressed))
+    finally:
+        if replayed:
+            methods.record(name, key, replay_success)
     done_so_far = (' I got as far as ' + ', then '.join(f'"{p}"' for p in pressed) + '.') if pressed else ''
     return Outcome(OutcomeStatus.NEEDS_INPUT,
                    f"I'm not sure how to do that in {name}.{done_so_far} Can you tell me the next step?",

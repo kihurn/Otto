@@ -6,6 +6,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
 
 ## Next up
+- Re-run the goal-mode voice cases after the completion/replay fixes below (docs/PHASE1_ANY_APP_PLAN.md, completion stabilization). Then continue the existing acceptance order. Screenshot-only clicking and full method promotion remain later work.
 - Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
   Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
   volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
@@ -14,6 +15,28 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 - Then the rest of AGENTS.md section 8 (act while talking, the companion).
 
 ## Done
+
+### Laya 90% acting floor (11 Nov 2026, Codex)
+- Inspection found brains.decide still tried Gemma cloud first despite the interpreter's Qwen name. Set this user's decision chain to local qwen3-vl:8b-instruct, then qwen3-vl:4b-instruct, as requested. Other job-specific model chains are unchanged. Read back both settings successfully; no model inference was run.
+- User requested that Laya act directly only at 90% confidence or above, handing less-confident requests to Qwen. Set this user's zones.act_bar and zones.act_bar_floor to 0.90 using the settings API. Effective loaded threshold verified as 0.90; 0.89 is middle, 0.90 is high. No retraining or default migration.
+- The acting floor now applies even when measured bars are disabled or unavailable. Stricter measured thresholds remain respected. Removed the old split-request shortcut that allowed middle-confidence Laya decisions to act directly.
+- Existing rules-first commands remain fast. Below-threshold predictions enter the existing Qwen interpreter; if it is unavailable or uncertain, existing clarification/safety behavior remains. High-confidence suspicious requests still get Qwen review.
+- Eight focused regressions pass; full suite 452 passed in 7.90 s. No live voice/model invocation. Restart Otto to load the updated settings. Previously staged candidates require reevaluation because promotion fingerprints include zone settings.
+
+### Word process identity after voice acceptance (11 Nov 2026, Codex)
+- Installed-app lookup resolved Word correctly (100) and Microsoft Word to Word (90). The open-window matcher still used fuzzy title matching, which could identify an unrelated window as Word. Read-only inspection found a non-exact window above its 80-point threshold, but its process identity was unavailable in the sandbox, so the historical Antigravity target was not independently confirmed.
+- Word/Microsoft Word/WINWORD now require WINWORD.EXE ownership, and never fall back to a document/workspace title. A missing Word window allows the existing installed Word launch path. Existing settings and aliases were preserved.
+- Added nine fake-window regression cases, including launch-vs-focus behavior. Full suite: 444 passed in 7.52 s. No live app launch, close or typing performed. Restart Otto and say “Open Word” and “Open Microsoft Word” for native acceptance.
+- User suggested later CRM integrations for account context. Structured messages/timestamps can support latest-message questions where service access permits. Screen question routing/counting and the WhatsApp screenshot's older-message selection are not fixed by this narrow change. Core app ownership and completion verification remain current work, independent of later connectors.
+
+### Goal-mode completion and replay stabilization (11 Nov 2026, Codex)
+- Continued from Fable's cd965ae on codex/goal-completion. Preserved the interpreter, answer mode, key allowlist, indicator, settings and saved-method data.
+- Playback completion now requires a playing Spotify session plus the requested song/version/artist, or a uniquely named matching playlist Pause control. Removed loose word-overlap matching for Play goals. After the requested Play is dispatched, poll for completion and stop on uncertainty instead of choosing another song. Already-playing goals need no click.
+- Qwen's done or yes/no completion judgment stops actions with an uncertain result, never verified success or a learned method. Code-observed typing and exact named-button tasks still verify. An unreadable text area is no longer treated as an empty document.
+- Saved methods check completion after each step and stop early when the goal is observed. A completed button sequence alone earns no success. Partial/uncertain replay never restarts in the same task. Replay scores increment only after verified completion; unsuccessful runs retain the existing two-miss retirement policy. Saved methods containing key actions are not offered as incomplete button-only recipes.
+- Every click attempt is recorded before dispatch, including failed responses and delayed/no UI changes. Repeated names are blocked within a task. Lost focus or unreadable UI is not counted as a successful window change.
+- Focused checkpoints passed (30, 49, then 56 tests). Final suite: 435 passed in 6.17 s with temporary files outside OneDrive. One preceding full run had 434 passes and a WinError 5 replacing an audio test journal in the synced test folder; no audio runtime code changed.
+- Native Spotify/Word/voice acceptance was not run in this batch. No model calls, training, data migration, model promotion, commit or push. Full app/version-bound method promotion remains R7, outside these four fixes.
 
 ### Goal mode: finishing, answers, keys; indicator colour (11 Nov 2026, Claude Code, main)
 - Second live run by the user. Their question: is the weakness Qwen 8B, and does it need fine-tuning? Finding:

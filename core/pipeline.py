@@ -327,7 +327,7 @@ class Otto:
         self.trace.update(area=p["area"], prob=round(p["prob"], 3), zone=zone, laya_ms=round(p["ms"]),
                           top=[(a, round(x, 2)) for a, x in p["top"]])
 
-        if zone == "high" or (from_split and zone == "middle"):
+        if zone == "high":
             if p["area"] in ACTIONS and not from_split:
                 from core import interpreter
                 quick = details.by_rules(p["area"], t, self.apps)

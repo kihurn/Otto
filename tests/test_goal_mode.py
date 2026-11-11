@@ -114,7 +114,7 @@ def test_private_boxes_are_refused_even_if_the_model_picks_them(app):
 def test_pressing_things_that_change_nothing_stops_after_two(app):
     app.controls = [control('Button', 'Dead')]
     result = goal_mode.pursue('word', 'do a thing', propose=qwen(app, *[('click', 'Dead')] * 6))
-    assert result.status == OutcomeStatus.NEEDS_INPUT and app.pressed == ['Dead', 'Dead']
+    assert result.status == OutcomeStatus.NEEDS_INPUT and app.pressed == ['Dead']
 
 
 def test_saved_method_replays_without_the_model_and_retires_after_two_misses(app):
@@ -122,7 +122,7 @@ def test_saved_method_replays_without_the_model_and_retires_after_two_misses(app
     start = [control('MenuItem', 'File')]
     app.controls = list(start)
     app.screens = {'File': [control('MenuItem', 'Save')], 'Save': [control('Edit', 'File name')]}
-    result = goal_mode.pursue('word', 'press save', propose=qwen(app))
+    result = goal_mode.pursue('word', 'press save', target_name='Save', propose=qwen(app))
     assert result.status == OutcomeStatus.VERIFIED and app.pressed == ['File', 'Save'] and app.asked == 0
     assert 'learned' not in result.data          # nothing new to offer to save
     # The app changes and the saved names are gone: two misses retire the method.
