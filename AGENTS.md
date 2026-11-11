@@ -117,12 +117,14 @@ python -m pytest -q tests
 - Things only the user's PC can confirm: mic/Whisper, hotkeys, Kokoro audio, Spotify API calls, window
   control, Everything, notifications. Say so when you hand over.
 
-## 7. Status (as of 10 November 2026)
+## 7. Status (as of 11 November 2026)
 
-**11 November review update:** 1.2 remains in development. Read `docs/V1_2_FINAL_REVIEW.md` before
-expanding D–F. Confidence gating, native visual target identity, song-version verification, audio
-restoration and task saving have open findings. Recovery-recipe candidate learning is not implemented.
-The figures below describe the earlier handover, not current release acceptance.
+**1.2 is in development, waiting for Windows acceptance.** The D–F review findings R1–R6 in
+`docs/V1_2_FINAL_REVIEW.md` are fixed with regression tests (branch `claude/review-fixes`, 279 tests).
+R7 (learning reusable screen-control methods) is **postponed** to the any-app control work in Phase 1 below.
+Open before release: the live checks in `docs/V1_2_VOICE_TESTS.md` (fresh-start Spotify and Chrome visual
+control, voice ducking, a second audio output). Any Laya candidate staged before the R2 fix must be re-evaluated
+with `otto candidate` (promotion refuses old ones). The figures below describe the earlier handover.
 
 - **Phase 0 (checks): done.** **Phase 1 (1.0): delivered and used.** **1.1: delivered, not yet confirmed on Windows.**
 - User feedback on 1.0 that 1.1 addresses: Spotify search showed "lofi+beats"; "play music" said "Done." but
@@ -132,23 +134,31 @@ The figures below describe the earlier handover, not current release acceptance.
 - Pass marks for Phase 1 (decide whether Otto keeps growing or narrows to a CRM MCP): acting alone ≥ 95% right,
   ≥ 90% of requests handled, recipes ≥ 95%, < 1 s typed / < 2.5 s spoken.
 
-## 8. Backlog (in order; confirm with the user before starting)
+## 8. Roadmap (realigned 11 November 2026; confirm with the user before starting each item)
 
-1. **Fix whatever 1.1 breaks on Windows** (expect: hotkeys, wake detection thresholds, winrt media sessions,
-   Spotify device pick-up, open_app window check timing).
-2. **Training mode with an AI judge** (agreed design): `otto train` runs a list of safe tasks (never ask-first
-   actions) on a clear desktop; each result is checked by **code first** (window exists, music playing, volume,
-   file written), and only if code can't tell, by Gemma looking at a screenshot. End report: passed/failed
-   with reasons; the user approves passes in one go; only approved results become recipes/examples. The judge
-   never teaches Otto directly.
-3. Existing users' `whisper.hotwords` is still "Otto" (their settings file has the old value): consider a migration.
-4. Laya also choosing the **action** (needs action-labelled examples; confirmations already log the action).
-5. **Phase 2:** local API (FastAPI on 127.0.0.1 + random token) and the floating Tauri overlay with the Otto mascot
-   (user is designing it), hold-to-talk, confirm buttons.
-6. **Phase 3:** screen understanding and pointing at buttons (UI Automation first, screenshot fallback); replaces "Lenz".
-7. **Phase 4:** calendar, email, CRM (Google Sheets), proposals (Google Docs), as an MCP server too.
-   Add areas `calendar`, `email`, `clients` and move matching `unsure` examples into them.
-8. **Phase 5:** custom voice (VoiceStudio, optional), iPhone web app over Tailscale, Mac version.
+The goal for Phases 1–2: a voice "Jarvis" that can operate the whole PC, plus an on-screen companion, in the
+spirit of the Nūs app (github.com/potlakai/nus-desktop, MIT; use as a reference, credit any copied code in a
+THIRD_PARTY_NOTICES file, and keep Otto's own name and mascot, never their "Knot" branding).
+
+1. **Finish 1.2:** the live acceptance checks above; fix what they find.
+2. **Phase 1, "Jarvis": control any app by voice.**
+   - **Act while talking:** stream Whisper partial transcripts (~0.5 s) through guards, Laya and rules; start an
+     *undoable/read* action as soon as the same intent is stable across two partials. Risky actions still wait.
+   - **Any-app control:** extend the observe → propose one action → act → verify controller from Spotify/Chrome
+     to any app. UI Automation tree first (names, roles, positions), screenshots + vision as fallback; step and
+     time limits; every action through the safety gate; never type in password fields. Gemma 4 (cloud) for
+     long unfamiliar tasks, Qwen locally for short ones.
+   - **R7, learning methods:** successful verified methods become candidate recipes (app/version/verifier bound),
+     promoted only after several independent verified successes and your approval; quarantined after a wrong target.
+   - Training mode: code checks first, a Gemma screenshot judge only where code can't tell; you approve before learning.
+3. **Phase 2, the Otto companion:** local API (FastAPI on 127.0.0.1 + random token) and a floating Tauri overlay
+   with the Otto mascot (`Otter.md`; the user designs it): answers on screen, confirm buttons, pointing at
+   buttons and step-by-step guidance (UI Automation first), hidden from screen sharing/recording.
+4. **Later:** CRM server (calendar, email, clients, proposals; MCP too), the student side (syllabi, deadlines,
+   daily brief), Obsidian link, custom voice, iPhone web app, Mac.
+
+Smaller items: existing users' `whisper.hotwords` may still be "Otto" (consider a migration); Laya choosing the
+**action** too (needs action-labelled examples).
 
 ## 9. Working together (Codex + Claude Code at the same time)
 
