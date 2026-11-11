@@ -1,4 +1,4 @@
-"""A visible sign that Otto is operating an app: a thin glow around that window and a small Otto pointer
+"""A visible sign that Otto is operating an app: a soft blue glow around that window and a small Otto pointer
 that glides to each control Otto is about to use. Both disappear when the task ends.
 
 It is drawing only. Mouse clicks pass straight through it, it never takes the keyboard, it is hidden from
@@ -13,8 +13,9 @@ import queue
 import threading
 import time
 
-GLOW = ((11, 94, 82), (25, 168, 144), (46, 230, 197))    # outer to inner: Otto's teal (red, green, blue)
-KEY = (1, 2, 3)                                         # the colour Windows treats as see-through
+COLOUR = (24, 119, 201)        # Otto's blue, #1877c9 (red, green, blue)
+GLOW_WIDTH = 18                # how many pixels the glow takes to fade away from the window's edge
+FADE_SECONDS = 0.25            # fade in when Otto starts on a window, fade out when it finishes
 HIDE_FROM_CAPTURE = True                                # only ever switched off by a test that photographs it
 _commands: queue.Queue | None = None
 _lock = threading.Lock()
@@ -63,64 +64,49 @@ def hide() -> None:
         _send(('hide',))
 
 
+def render(size, frame):
+    """The overlay picture: see-through everywhere except a glow that is brightest at the window's edge and
+    fades towards its middle, plus the pointer. Returns bytes in the layout Windows wants."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    image = Image.new('RGBA', size, (0, 0, 0, 0))
+    if frame:
+        draw = ImageDraw.Draw(image)
+        (l, t, r, b), dot = frame
+        for step in range(GLOW_WIDTH):
+            strength = (1 - step / GLOW_WIDTH) ** 2                     # quick fall-off: bright edge, soft inside
+            draw.rectangle((l + step, t + step, r - 1 - step, b - 1 - step), outline=COLOUR + (int(235 * strength),))
+        if dot:
+            x, y = dot
+            for grow, alpha in ((6, 40), (4, 80), (2, 140)):            # a soft halo around the ring
+                draw.ellipse((x - 13 - grow, y - 13 - grow, x + 13 + grow, y + 13 + grow), outline=COLOUR + (alpha,), width=2)
+            draw.ellipse((x - 13, y - 13, x + 13, y + 13), outline=COLOUR + (255,), width=3)
+            draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=(255, 255, 255, 255), outline=COLOUR + (255,))
+    pixels = np.asarray(image, dtype=np.uint16)
+    alpha = pixels[..., 3:4]
+    colour = (pixels[..., :3] * alpha // 255)[..., ::-1]                # Windows wants blue-green-red, pre-faded
+    return np.concatenate([colour, alpha], axis=2).astype(np.uint8).tobytes()
+
+
 def _run(commands: queue.Queue) -> None:
     """The overlay's own thread: one plain Windows window covering the screen, see-through except for the
     glow and pointer. (A plain window is used because a Tk window grabs the keyboard when shown.)"""
     try:
         import ctypes
+        from ctypes import wintypes
         import win32api
         import win32con
         import win32gui
         from hands import win
 
-        user32 = ctypes.windll.user32
+        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
         left, top = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)          # all monitors together
         width, height = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
-        state = {'target': None, 'want': None, 'at': None, 'seen': time.monotonic(), 'visible': False, 'drawn': None}
-        key = win32api.RGB(*KEY)
-
-        def paint(hwnd):
-            hdc, ps = win32gui.BeginPaint(hwnd)
-            try:
-                background = win32gui.CreateSolidBrush(key)
-                win32gui.FillRect(hdc, (0, 0, width, height), background)
-                win32gui.DeleteObject(background)
-                frame = state['drawn']
-                if frame:
-                    hollow = win32gui.GetStockObject(5)                               # draw outlines only
-                    win32gui.SelectObject(hdc, hollow)
-                    (l, t, r, b), dot = frame
-                    for inset, colour in enumerate(GLOW):
-                        pen = win32gui.CreatePen(0, 2, win32api.RGB(*colour))
-                        old = win32gui.SelectObject(hdc, pen)
-                        win32gui.Rectangle(hdc, l + inset * 2, t + inset * 2, r - inset * 2, b - inset * 2)
-                        win32gui.SelectObject(hdc, old)
-                        win32gui.DeleteObject(pen)
-                    if dot:
-                        x, y = dot
-                        pen = win32gui.CreatePen(0, 3, win32api.RGB(*GLOW[2]))
-                        old = win32gui.SelectObject(hdc, pen)
-                        win32gui.Ellipse(hdc, x - 13, y - 13, x + 13, y + 13)
-                        fill = win32gui.CreateSolidBrush(win32api.RGB(*GLOW[2]))
-                        win32gui.SelectObject(hdc, fill)
-                        win32gui.Ellipse(hdc, x - 4, y - 4, x + 4, y + 4)
-                        win32gui.SelectObject(hdc, hollow)
-                        win32gui.SelectObject(hdc, old)
-                        win32gui.DeleteObject(fill)
-                        win32gui.DeleteObject(pen)
-            finally:
-                win32gui.EndPaint(hwnd, ps)
-
-        def procedure(hwnd, message, wparam, lparam):
-            if message == win32con.WM_PAINT:
-                paint(hwnd)
-                return 0
-            if message == win32con.WM_MOUSEACTIVATE:
-                return 3                                                              # never become the active window
-            return win32gui.DefWindowProc(hwnd, message, wparam, lparam)
 
         kind = win32gui.WNDCLASS()
-        kind.lpfnWndProc = procedure
+        kind.lpfnWndProc = lambda hwnd, message, wparam, lparam: (
+            3 if message == win32con.WM_MOUSEACTIVATE else win32gui.DefWindowProc(hwnd, message, wparam, lparam))
         kind.lpszClassName = 'OttoIndicator'
         kind.hInstance = win32api.GetModuleHandle(None)
         try:
@@ -130,11 +116,41 @@ def _run(commands: queue.Queue) -> None:
         # layered + click-through + never takes focus + not in the taskbar or Alt-Tab + always on top
         own = win32gui.CreateWindowEx(0x80000 | 0x20 | 0x08000000 | 0x80 | 0x8, 'OttoIndicator', '', win32con.WS_POPUP,
                                       left, top, width, height, 0, 0, kind.hInstance, None)
-        win32gui.SetLayeredWindowAttributes(own, key, 0, 1)                           # that colour is see-through
         if HIDE_FROM_CAPTURE:
             user32.SetWindowDisplayAffinity(own, 0x11)                                # left out of screenshots
         win.OTTO_WINDOWS.add(own)
 
+        # A picture buffer Windows can blend onto the screen with per-pixel see-through.
+        class Header(ctypes.Structure):
+            _fields_ = [('size', wintypes.DWORD), ('width', wintypes.LONG), ('height', wintypes.LONG),
+                        ('planes', wintypes.WORD), ('bits', wintypes.WORD), ('compression', wintypes.DWORD),
+                        ('image_size', wintypes.DWORD), ('xppm', wintypes.LONG), ('yppm', wintypes.LONG),
+                        ('used', wintypes.DWORD), ('important', wintypes.DWORD)]
+
+        class Blend(ctypes.Structure):
+            _fields_ = [('op', ctypes.c_byte), ('flags', ctypes.c_byte), ('alpha', ctypes.c_ubyte), ('format', ctypes.c_byte)]
+
+        user32.GetDC.restype = gdi32.CreateCompatibleDC.restype = gdi32.CreateDIBSection.restype = ctypes.c_void_p
+        gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+        gdi32.CreateDIBSection.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint]
+        gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        user32.UpdateLayeredWindow.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                                               ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+        screen = user32.GetDC(None)
+        memory = gdi32.CreateCompatibleDC(screen)
+        header = Header(ctypes.sizeof(Header), width, -height, 1, 32, 0, 0, 0, 0, 0, 0)   # negative height = top row first
+        bits = ctypes.c_void_p()
+        bitmap = gdi32.CreateDIBSection(memory, ctypes.byref(header), 0, ctypes.byref(bits), None, 0)
+        gdi32.SelectObject(memory, bitmap)
+        where, extent, origin = wintypes.POINT(left, top), wintypes.SIZE(width, height), wintypes.POINT(0, 0)
+
+        def present(alpha: int) -> None:
+            blend = Blend(0, 0, max(0, min(255, alpha)), 1)
+            user32.UpdateLayeredWindow(own, screen, ctypes.byref(where), ctypes.byref(extent), memory,
+                                       ctypes.byref(origin), 0, ctypes.byref(blend), 2)
+
+        state = {'target': None, 'want': None, 'at': None, 'seen': time.monotonic(), 'drawn': None,
+                 'level': 0.0, 'shown': False}
         while True:
             try:
                 while True:
@@ -158,6 +174,9 @@ def _run(commands: queue.Queue) -> None:
                 except Exception:
                     state['target'] = None
                 else:
+                    # A maximised window pokes a few pixels past the screen; keep the glow where it can be seen.
+                    l, t = max(l, left), max(t, top)
+                    r, b = min(r, left + width), min(b, top + height)
                     dot = None
                     if state['want']:
                         ax, ay = state['at']
@@ -166,12 +185,24 @@ def _run(commands: queue.Queue) -> None:
                         state['at'] = (ax, ay)
                         dot = (round(ax) - left, round(ay) - top)
                     frame = ((l - left, t - top, r - left, b - top), dot)
-            if frame != state['drawn']:
+            goal = 1.0 if frame else 0.0
+            step = 0.04 / FADE_SECONDS
+            level = min(goal, state['level'] + step) if goal > state['level'] else max(goal, state['level'] - step)
+            redraw = frame is not None and frame != state['drawn']                    # while fading out, keep the last picture
+            if redraw:
                 state['drawn'] = frame
-                win32gui.InvalidateRect(own, None, True)
-            if bool(state['target']) != state['visible']:
-                state['visible'] = bool(state['target'])
-                win32gui.ShowWindow(own, 4 if state['visible'] else 0)                # 4 = show without activating
+                data = render((width, height), frame)
+                ctypes.memmove(bits, data, len(data))
+            if redraw or level != state['level']:
+                state['level'] = level
+                if level > 0 and not state['shown']:
+                    win32gui.ShowWindow(own, 4)                                       # 4 = show without activating
+                    state['shown'] = True
+                present(int(255 * level))
+                if level == 0 and state['shown']:
+                    win32gui.ShowWindow(own, 0)
+                    state['shown'] = False
+                    state['drawn'] = None
             win32gui.PumpWaitingMessages()
             time.sleep(0.04)
     except Exception:
