@@ -15,6 +15,37 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Goal mode: finishing, answers, keys; indicator colour (11 Nov 2026, Claude Code, main)
+- Second live run by the user. Their question: is the weakness Qwen 8B, and does it need fine-tuning? Finding:
+  mostly the loop, not the model. Evidence from their transcripts: "play my playlist number nine" pressed the
+  right Play button and then kept going (no finished check); "how many playlists" pressed Playlists seven times
+  (no answer action, no repeat guard); "you should check out" was typed into Word (Qwen's type_in_app accepted a
+  whole stray sentence); "remove all the words" had no keyboard; "close word" had no verification.
+- `core/goal_mode.py`: `ask_if_reached` (separate yes/no question after each window-changing step and after
+  keys other than select-all; only when goal mode runs with the real model, so scripted tests stay
+  deterministic), `same_thing` + media-session check as the code proof for "Play X", repeat-press guard,
+  `answer` action (only when `is_question(goal)`), `key` action limited to KEYS (select_all, undo, escape,
+  delete; delete only if the goal says delete/remove; max 4 keys; never into a password box; clearing a text
+  area is code-verified by reading it back empty). Enter is deliberately not offered.
+- Live hands-off trial (decisions only): finished? after "Play My playlist #9" with its Pause button showing ->
+  True in 0.3 s; finished? for "open the settings page" after only the profile button -> False. For "How many
+  playlists do I have?" Qwen first chose to expand the library rather than answer straight away; the full
+  click-then-answer path was not run live.
+- `core/interpreter.py`: type_in_app/new_note need a typing word in the sentence and text that is a proper part
+  of it. NOT changed (differs from what was proposed): a non-yes/no reply to "Just checking..." still replaces
+  the question with the new request, because that is existing, tested behaviour ("close Spotify" -> "what is
+  the volume now?"); the typing guard is what stops stray remarks doing anything.
+- `hands/spotify_desktop.py`: `playlist_names` adds the digit form of spoken numbers; `in_library` sends a
+  no-artist "play X" to the playlist path when the open Spotify window lists a playlist of that name (exact, or
+  >= 90 fuzzy). Only checks an already-open Spotify window.
+- `core/executor.py`: close_app verified by the window disappearing within 3 s.
+- `hands/win.find_window`: title matching now only looks at the last " - " part of the title. Found live: with
+  Word closed, "Word" matched a Notepad tab titled "... in word hi I am.txt". This is the likely cause of the
+  earlier unexplained "Google Docs came to the front for open word".
+- `hands/indicator.py`: per-pixel alpha overlay (UpdateLayeredWindow), colour #1877c9, 18 px glow fading from
+  the window edge, 0.25 s fade in/out, glow clamped to the screen for maximised windows. Checked live by photo.
+- 418 tests pass.
+
 ### Qwen in the loop, indicator (11 Nov 2026, Claude Code, committed to main at the user's request)
 - User merged PRs #4/#5 and reported the 1.2 voice checks as working. New instruction: commit straight to main,
   as kihurn, with no AI attribution.

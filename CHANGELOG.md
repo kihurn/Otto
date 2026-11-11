@@ -1,6 +1,20 @@
 # Changelog
 
 ## 1.2 (in development)
+- Goal mode fixes from the second live run (418 tests pass; not yet re-run live):
+  - Knows when it is finished: a code check where one exists (the asked-for "Play …" button was pressed and
+    Windows reports music playing), otherwise Qwen is asked a separate yes/no "is the goal reached?" after each
+    step. The same control is never pressed twice in one task.
+  - Questions get answers: "how many playlists do I have" lets Qwen read the listed controls and reply.
+  - A few safe keys: select all, undo, Escape, and Delete only when your request was to delete or remove
+    (which already asks "Just checking…"). No Enter, because Enter can mean Send.
+  - Stray speech is never typed: Qwen may type or write only when you used a typing word and the text is part
+    of what you said.
+  - Spotify: "number nine" means "#9"; "play for the rat" plays your playlist of that name if you have one.
+  - Closing an app is confirmed by its window going away ("Closed Word."), or Otto says it is still open.
+  - Finding an app's window no longer matches other windows that merely mention its name (a Notepad file
+    called "… in word …" was being treated as Word).
+- Indicator is now blue (#1877c9) with a soft fade.
 - Qwen in the loop (395 tests pass; real requests through it not yet run live):
   - Interpreter: when Laya is unsure, or the rules have no answer or an odd one, local Qwen reads the request
     with the last few turns, the last app used and the window in front, and picks one of Otto's named actions.

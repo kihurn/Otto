@@ -133,6 +133,18 @@ Not in the original slices; added after Ki's tests showed Qwen was rarely consul
 | "save that" said quietly while a question is open | Accepted |
 | Any app action | Teal glow on that window and a pointer at each control; both vanish at the end |
 
+## Acceptance list after the finishing fixes (run on Windows)
+
+| Say or type | Expected |
+|---|---|
+| "play my playlist number nine" | Plays it and stops there: "Playing your playlist My playlist #9." |
+| "can you play for the rat" | Plays the playlist, not a song search |
+| "how many playlists do I have" | A spoken number ("I can see …"), with at most a click or two first |
+| "could you remove all the words in word", then "yes" | Select all, delete, "Cleared it." |
+| Say something unrelated while Otto waits for a yes | Nothing is typed anywhere |
+| "will you close word", then "yes" | "Closed Word.", or that it is waiting for you to save |
+| "open word" with Word closed and a Notepad file with "word" in its name open | Word opens; Notepad is not mistaken for it |
+
 ## Acceptance list for goal mode (run on Windows)
 
 | Type | Expected |

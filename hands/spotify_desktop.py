@@ -82,8 +82,16 @@ def play_candidates(dialog, query, artist):
 
 def playlist_names(query):
     """The names a playlist asked for as "my playlist #9" may really have: '#9', 'playlist #9', 'My playlist #9'."""
+    from core.details import _num
     wanted = normalized(query)
-    return {wanted, 'playlist ' + wanted, 'my playlist ' + wanted} if wanted else set()
+    if not wanted:
+        return set()
+    spoken = [wanted]
+    # "number nine" as heard by voice is "#9" as written.
+    said_number = re.fullmatch(r'(?:(?:my )?playlist )?(?:number |no )?([a-z]+(?: [a-z]+)?|\d+)', wanted)
+    if said_number and _num(said_number[1]) is not None:
+        spoken.append(str(int(_num(said_number[1]))))
+    return {name for base in spoken for name in (base, 'playlist ' + base, 'my playlist ' + base)}
 
 
 def closest_playlist(buttons, query, window_rect):
@@ -98,6 +106,22 @@ def closest_playlist(buttons, query, window_rect):
     if not scored or scored[0][0] < 60 or (len(scored) > 1 and scored[0][0] - scored[1][0] < 12):
         return None, 0
     return scored[0][1], scored[0][0]
+
+
+def in_library(query):
+    """Is there a playlist with (nearly) this name in the Your Library list right now?"""
+    try:
+        from hands import ui_probe, win
+        window = win.find_window('Spotify')
+        if not window:
+            return False
+        buttons = [c for c in ui_probe.list_controls(window['hwnd'], limit=400) if c['type'] == 'Button']
+        names = playlist_names(query)
+        if any(normalized(c['name']).startswith('play ') and normalized(c['name'])[5:] in names for c in buttons):
+            return True
+        return closest_playlist(buttons, query, win.window_info(window['hwnd'])['rect'])[1] >= 90
+    except Exception:
+        return False
 
 
 def play_playlist(step, task, end, progress):
@@ -201,6 +225,10 @@ def play(step, task, end, progress):
     from hands import apps, media, win
     from pywinauto import Application
     if step.action == 'play_music' and step.args.get('kind') == 'playlist':
+        return play_playlist(step, task, end, progress)
+    if (step.action == 'play_music' and step.args.get('kind', 'auto') == 'auto' and not step.args.get('artist')
+            and in_library(step.args['query'])):
+        # "play for the rat" with no artist, and you have a playlist by that name: play the playlist.
         return play_playlist(step, task, end, progress)
     if step.action != 'play_music' or step.args.get('kind', 'auto') not in {'auto', 'track'}:
         return Outcome(OutcomeStatus.NEEDS_INPUT, 'Desktop playback currently needs a song title and artist.')

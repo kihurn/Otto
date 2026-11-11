@@ -185,6 +185,20 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
                         if checkable and now is not None and (expected is None or abs(now - expected) <= 1):
                             outcome = Outcome(OutcomeStatus.VERIFIED, f'Volume {now}%.', {'volume': now},
                                               [Evidence('windows.volume', expected={'level': expected}, observed={'level': now})])
+                    elif step.action == 'close_app':
+                        # Closed means its window is gone. An app waiting on "save changes?" is still there.
+                        gone = False
+                        for _ in range(12):
+                            if not win.IS_WINDOWS or not win.find_window(step.args['app']):
+                                gone = win.IS_WINDOWS
+                                break
+                            time.sleep(0.25)
+                        if gone:
+                            outcome = Outcome(OutcomeStatus.VERIFIED, f"Closed {step.args['app'].title()}.", result.data,
+                                              [Evidence('windows.window_gone', target=step.args, observed={'gone': True})])
+                        else:
+                            outcome.say = (f"I asked {step.args['app'].title()} to close, but its window is still there. "
+                                           'It may be waiting for you to save.')
                     elif step.action in {'now_playing', 'media_key'}:
                         # The answer is itself a reading of what Windows/Spotify report as playing
                         # (media_key checks the play state or reads the new song before it replies).
@@ -199,7 +213,7 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
                                                         expected={'url': outcome.data['url']}, observed={'shown': True})])
                         else:
                             outcome.say = result.say + " I couldn't confirm it loaded."
-                if outcome.status == OutcomeStatus.DISPATCHED and step.action not in {'open_site', 'web_search'}:
+                if outcome.status == OutcomeStatus.DISPATCHED and step.action not in {'open_site', 'web_search', 'close_app'}:
                     outcome.say = 'That action was sent, but its result is not verified yet.'
             if (task.cancel.is_set() or time.monotonic() >= end) and outcome.status != OutcomeStatus.CANCELLED:
                 outcome = Outcome(OutcomeStatus.CANCELLED if task.cancel.is_set() else OutcomeStatus.UNCERTAIN,

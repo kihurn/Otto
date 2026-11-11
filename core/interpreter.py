@@ -105,8 +105,15 @@ def to_intent(reply, text: str, apps, last_app: str = "") -> tuple[Intent | None
                 {"click_button": "button", "type_in_app": "text", "app_goal": "goal"}[action]):
             return None, "", False
     key = _QUOTED.get(choice)
-    if key and not _said(str(params.get(key, "")), text):
-        return None, "", False                       # Qwen made up the words: do not type or write them
+    if key:
+        words = str(params.get(key, ""))
+        flat = lambda value: " ".join(re.findall(r"\w+", value.lower()))
+        # Typing or writing needs three things: the user really said those words, they asked for it with a
+        # typing word, and the words are only part of what they said. Otherwise a stray remark
+        # ("you should check out") could end up typed into the open document.
+        if (not _said(words, text) or flat(words) == flat(text)
+                or not re.search(r"\b(?:type|write|enter|put|note|jot)\b", _t(text))):
+            return None, "", False
     if choice == "media.set_volume":
         try:
             params["level"] = max(0, min(100, int(float(params["level"]))))
