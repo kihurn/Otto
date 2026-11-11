@@ -48,6 +48,11 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   and yeses wait 2 minutes, not 30 s; "do that again" goes to the loop; conversation older than 15 minutes is left
   out; failed steps are not saved into examples; "10-4" is not a sum; the glow is hidden after a run (a pointer you
   asked for stays); "open youtube" (a site in your sites list) takes the fast path. 569 tests.
+- Task 8, first numbers from the PC (11 Nov, same 25 rows): old core 16/25, new core 19/25. The new core fixed
+  "open youtube and play the first video", both Notepad rows and "swap my audio output". Its one ordinary miss,
+  "play some lofi on youtube", opened YouTube first (right) but the row wanted "lofi" in that first step; the row now
+  wants "youtube". All five must-ask rows read "did not ask first" on BOTH cores, as expected in dry-run; the agent
+  steps from the run file and the live check decide those.
 - For Task 8: re-run `otto eval --core old` on the same (updated) file, as the 16/25 baseline used the older rows.
   Must-ask sentences can't reach their risky step in dry-run (no real window to read), so judge those in the live
   check. PC-only: after a typed yes, does Otto really bring the chat window back with the same box focused?
