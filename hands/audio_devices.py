@@ -76,7 +76,8 @@ def select_output(provider, endpoint):
     wanted = dict.fromkeys(MEDIA_ROLES, endpoint)
     result = change(provider, before, wanted)
     if result.ok:
-        result.say = f'Default media output is {outputs[endpoint]}.'
+        result.say = (f'{outputs[endpoint]} was already the output, so nothing changed.' if before == wanted
+                      else f'Default media output is {outputs[endpoint]}.')
         if before != wanted:
             _receipt = (time.monotonic() + 120, before, wanted)
     else:
@@ -100,6 +101,22 @@ def set_output(device):
         options = ', '.join(f'{index}. {label}' for index, (_, label) in enumerate(candidates, 1))
         return Outcome(OutcomeStatus.NEEDS_INPUT, f'Which output? {options}', {'audio_candidates': candidates})
     return select_output(provider, next(iter(matches)))
+
+
+@action('swap_audio_output', UNDOABLE, {}, lambda: 'switch to the other audio output')
+def swap_output():
+    """"Swap my audio output": the output that is NOT playing now (with more than two, ask which)."""
+    provider = WindowsAudioOutputs()
+    outputs = provider.inventory()
+    current = provider.defaults().get(1)
+    others = [(key, label) for key, label in outputs.items() if key != current]
+    if not others:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, 'There is only one audio output, so there is nothing to swap to.')
+    if len(others) > 1:
+        candidates = others[:8]
+        options = ', '.join(f'{index}. {label}' for index, (_, label) in enumerate(candidates, 1))
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f'Swap to which output? {options}', {'audio_candidates': candidates})
+    return select_output(provider, others[0][0])
 
 
 @action('set_audio_output_id', UNDOABLE, {'device': 'selected audio endpoint ID'}, lambda device: 'set the selected audio output')

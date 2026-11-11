@@ -302,11 +302,12 @@ def _media(ctx, do, query="", artist="", level=None):
     return ToolResult(False, f"media can't {do!r}.")
 
 
-@tool("audio_output", "speakers/headphones: list them, read the current one, switch, or undo a switch",
-      {"do": "list, get, set or undo", "device": "optional: for set, the output's name"})
+@tool("audio_output", "speakers/headphones: list them, read the current one, swap to the other one, switch to a "
+      "named one, or undo a switch", {"do": "list, get, swap, set or undo", "device": "optional: for set, the output's name"})
 def _audio_output(ctx, do, device=""):
     do = do.lower().strip()
-    names = {"list": "list_audio_outputs", "get": "get_audio_output", "undo": "undo_audio_output"}
+    names = {"list": "list_audio_outputs", "get": "get_audio_output", "undo": "undo_audio_output",
+             "swap": "swap_audio_output", "switch": "swap_audio_output", "other": "swap_audio_output"}
     if do == "set":
         return _action(ctx, "set_audio_output", device=device) if device else ToolResult(False, "set needs a device.")
     if do in names:

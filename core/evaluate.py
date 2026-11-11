@@ -36,7 +36,7 @@ OLD_TO_TOOL = {
     "play_music": "media", "play_liked": "media", "media_key": "media", "now_playing": "media",
     "get_volume": "media", "set_volume": "media", "change_volume": "media",
     "list_audio_outputs": "audio_output", "get_audio_output": "audio_output", "set_audio_output": "audio_output",
-    "set_audio_output_id": "audio_output", "undo_audio_output": "audio_output",
+    "set_audio_output_id": "audio_output", "undo_audio_output": "audio_output", "swap_audio_output": "audio_output",
     "set_timer": "timer", "set_alarm": "timer", "time_left": "timer", "cancel_timers": "timer",
     "new_note": "note", "add_to_note": "note",
     "close_app": "close", "minimise": "close",

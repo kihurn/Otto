@@ -17,6 +17,28 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### New core: fixes from the first live run (11 Nov 2026, Claude Code, main)
+The user's live log (core.agent true) showed: a WhatsApp message sent after a click from a screenshot with no
+re-read of the chat; "ok sure" typed three times into Discord's box across runs; "what is on my discord" redoing
+the earlier reply and YouTube searching the earlier "banana bread" (conversation bleed); "Saved the file." after
+clicking an unknown control; web_search used for "search and press show more", then a click at a random spot;
+"open chrome" failing; "swap my audio output" setting the device already in use; PowerShell opened as Anaconda
+Prompt; "clear" closing Discord. User decision: fix code and instructions first, fine-tune only after
+(training on top of these bugs would teach Qwen workarounds).
+- Sending (`agent_safety.blocked`, `_send_question`): a send is refused (not even asked) until read_window/look
+  happened after the last open/click in the request; the question shows the focused box's real text and the
+  window title minus unread counts. Blocked calls don't count as failures or block the retry.
+- Conversation (`pipeline._conversation(t)`): chain of turns with gaps under 180 s; empty when the request names
+  an app/site after open/in/on/... and isn't a follow-up or correction. One note, "already finished: never redo";
+  dropped confirms marked NOT done; no step lists. "new topic"/"start over" clear history. Bare "clear" is
+  deliberately NOT a command (it may mean "clear the text"): Qwen is told to ask about one- or two-word requests.
+- Done checks (`agent._not_saved`): save requests need ctrl+s / a Save press and a title without unsaved marks
+  (`*`, ●, "unsaved"); a Save As window asks for a name. Title markers are from memory: PC check needed.
+- Tools: web_search says nothing was shown and points to a Google link; position clicks report the name under the
+  point; `swap_audio_output`; `agent.named_apps` hint; `win.find_window` accepts chrome.exe for "Google Chrome".
+- Logging: each call's `say` (160 chars) is in `otto-data/logs`.
+- Chrome cause NOT confirmed: the profile-name title is a guess; the next log shows the real reason.
+
 ### Agent core, task 7: the new core inside the pipeline (11 Nov 2026, Claude Code, main)
 - Behind the setting `core.agent` (default off; `otto eval --core new` turns it on for the eval only). Off = the old
   pipeline, unchanged.

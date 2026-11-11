@@ -1,6 +1,22 @@
 # Changelog
 
 ## 1.2 (in development)
+- New core, fixes from the first live run (596 tests pass; not yet re-run live):
+  - Sending: Otto only offers to send after reading the chat again since the last click, and its question shows
+    the message box's real text and the chat's title (left-over text from an earlier try shows up). After a "no",
+    Otto says the typed text is still in the box.
+  - Conversations: a new one starts after 3 minutes of quiet, or when a request names its own app or site
+    ("what is on my discord"), unless it refers back ("it", "no, ..."). Earlier turns reach Qwen as one note
+    marked "already finished, never redo", a question you moved on from is marked "not done", and
+    "new topic" / "start over" clears it.
+  - Honest replies: "Saved" only when the window stops showing unsaved changes; web search says nothing appeared
+    on screen (to search where you can see it, Qwen opens a Google link in Chrome); clicks by position name what
+    was really under them.
+  - "Swap my audio output" switches to the output that isn't playing; picking the current one says nothing changed.
+  - Apps you name are spelled out for Qwen ("powershell = Windows PowerShell"); control numbers come only from the
+    latest window read ("the 4th video" is not control 4); one- or two-word unclear requests get a question.
+  - Chrome's window is found even when its title ends in a profile name (a guess at why "open chrome" failed).
+  - The day's log now records what each step said, so failures explain themselves.
 - New core wired in behind `core.agent` (off by default): simple whole sentences go the fast way (Laya + rules),
   everything else to the Qwen agent loop, which can ask you a question or wait for your yes. Try it with
   `otto eval --core new` or `otto set core.agent true`.

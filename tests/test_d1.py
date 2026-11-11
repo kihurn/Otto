@@ -80,3 +80,20 @@ def test_similarly_named_playlist_is_not_a_matching_song():
                                is_visible=lambda: True, is_enabled=lambda: True)
     dialog = SimpleNamespace(descendants=lambda **kw: [playlist])
     assert play_candidates(dialog, 'The Hills', 'The Weeknd') == []
+
+
+def test_swap_goes_to_the_output_that_is_not_playing(provider):
+    del provider.active['second']                       # two outputs: headphones (playing) and speakers
+    result = audio.swap_output()
+    assert result.ok and provider.roles == {0: 'speaker', 1: 'speaker'} and 'Speakers (USB)' in result.say
+    assert audio.undo_output().ok and provider.roles == {0: 'headset', 1: 'headset'}
+
+
+def test_swap_with_three_outputs_asks_which_without_the_current_one(provider):
+    result = audio.swap_output()
+    assert not result.ok and 'Headphones' not in result.say and 'Speakers (USB)' in result.say
+
+
+def test_setting_the_current_output_says_nothing_changed(provider):
+    result = audio.set_output('Headphones')
+    assert result.ok and 'already' in result.say

@@ -258,3 +258,24 @@ def test_save_as_window_asks_for_a_name(monkeypatch):
     c = _live_notepad(monkeypatch, "Save as")
     r = agent.run("save this", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved.")), c)
     assert not r.ok and "file name" in r.say
+
+
+def test_named_apps_are_spelled_out_for_qwen(monkeypatch):
+    from core import agent
+    from hands import apps
+    monkeypatch.setattr(apps.INDEX, "apps", apps.INDEX.apps + [{"name": "Windows PowerShell", "id": "ps"},
+                                                               {"name": "Anaconda Prompt", "id": "ap"}])
+    assert agent.named_apps("run pip install requests in powershell") == {"powershell": "Windows PowerShell"}
+    assert agent.named_apps("open google chrome please") == {"google chrome": "Google Chrome"}
+    assert agent.named_apps("what's the word for happy") == {}
+    assert agent.named_apps("type hello in word") == {"word": "Word"}
+
+
+def test_chrome_window_found_when_its_title_ends_in_a_profile_name(monkeypatch):
+    from hands import win
+    monkeypatch.setattr(win, "windows", lambda: [
+        {"hwnd": 7, "exe": "WindowsTerminal.exe", "title": "Windows PowerShell"},
+        {"hwnd": 8, "exe": "chrome.exe", "title": "banana - Google Search - Google Chrome - Ki"}])
+    assert win.find_window("Google Chrome")["hwnd"] == 8
+    assert win.find_window("chrome")["hwnd"] == 8
+    assert win.find_window("Microsoft Word") is None

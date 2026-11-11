@@ -34,6 +34,9 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
 - Use exactly one tool per reply. After each call you get its result.
 - To act inside a window, use read_window first and refer to controls by their number. Use look (a screenshot)
   when read_window shows nothing useful, and click by x,y from that image only then.
+- Open exactly the app the user named, never a similar one (Anaconda Prompt is not PowerShell).
+- Control numbers come only from your latest read_window in this request. "The 4th video" means the fourth
+  video in that list, not control 4.
 - Do only the newest request. Earlier requests are finished; never repeat their steps unless the user asks.
 - If a detail is missing (which device, which file, which person), use ask_user with the real options you found.
   If the whole request is one or two unclear words (like "clear" or "do it"), ask what the user means.
@@ -44,6 +47,28 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
 - Never type into password, card or code fields. Never try to get around a "waiting_for_yes".
 - When the request is complete (or cannot be done), call done with one short, casual sentence for the user.
   Say honestly if something could not be confirmed."""
+
+
+PLACE = r"\b(?:open|launch|start|close|switch to|go to|in|on|into|from|use|using)\s+(?:my |the |a new )?"
+
+
+def named_apps(request: str) -> dict[str, str]:
+    """Installed apps the request names, as {"what the user said": "the installed app's name"}, so Qwen opens
+    that exact app (11 Nov live log: "run pip install in powershell" opened Anaconda Prompt)."""
+    try:
+        from hands import apps
+        index = apps.INDEX
+        low = request.lower()
+        spoken = {n.lower() for n in index.names()} | set(index.aliases)
+        found = {}
+        for name in sorted((n for n in spoken if len(n) >= 4), key=len, reverse=True):
+            if re.search(PLACE + rf"{re.escape(name)}(?![\w-])", low) and not any(name in k for k in found):
+                app = index.match_exact(name)
+                if app:
+                    found[name] = app["name"]
+        return found
+    except Exception:
+        return {}
 
 
 class Stopper:
@@ -91,7 +116,9 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     agent_safety.back_to_user_window(ctx)
     messages = [{"role": "system", "content": system_prompt(brain, request, ctx.dry_run)}]
     messages += [m for m in conversation if m.get("role") in ("user", "assistant") and m.get("content")]
-    messages.append({"role": "user", "content": request})
+    named = named_apps(request)
+    note = ("\n(Apps named here: " + "; ".join(f"{k} = {v}" for k, v in named.items()) + ")") if named else ""
+    messages.append({"role": "user", "content": request + note})
     state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(),
              "max_steps": max_steps, "max_seconds": max_seconds, "stop_after": stop_after, "request": request,
              "stop": stop or Stopper()}

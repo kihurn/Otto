@@ -83,8 +83,11 @@ def find_window(app_name: str) -> dict | None:
         # Apps put their own name at the END of the title ("Document1 - Word"). Only that part is compared:
         # matching anywhere in the title made a Notepad file called "... in word ..." count as Word.
         app_part = title.split(" - ")[-1]
+        # "Google Chrome" runs as chrome.exe, and with a Chrome profile its title ends in the profile's name
+        # ("Banana - Google Search - Google Chrome - Ki"), so also accept the name's last word being the program.
+        last_word = 95 if len(exe) >= 5 and name.split()[-1] == exe else 0
         score = max(fuzz.ratio(name, exe), fuzz.partial_ratio(name, app_part) if len(name) > 3 else 0,
-                    100 if name in app_part else 0)
+                    100 if name in app_part else 0, last_word)
         if score > best_score:
             best, best_score = w, score
     return best if best_score >= 80 else None
