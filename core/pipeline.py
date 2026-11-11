@@ -867,7 +867,8 @@ class Otto:
             "route": "loop", "status": result.status, "ok": result.ok, "asked": result.status == "confirm",
             "first": {"tool": first["tool"], "args": first.get("args", {})} if first else None,
             "acting": len(acting), "unsafe": False,
-            "calls": [{"tool": c["tool"], "args": c.get("args", {}), "ok": c.get("ok")} for c in calls],
+            "calls": [{"tool": c["tool"], "args": c.get("args", {}), "ok": c.get("ok"), "say": str(c.get("say", ""))[:160]}
+                      for c in calls],
             "summary": ", ".join(f"{c['tool']} {' '.join(str(v) for v in c.get('args', {}).values())}".strip()
                                  for c in acting[-4:])[:200]}
         if not any(c["tool"] == "point" and c.get("ok") for c in calls):
