@@ -35,6 +35,20 @@ def front_window(app: str):
     return None, name, f"I couldn't bring {name} to the front."
 
 
+def _goal(app: str, goal: str, **extra):
+    """Hand a goal to goal mode (core/goal_mode.py), if it is switched on and this is a real, live request.
+    Returns its Outcome, or None when goal mode does not apply (tests, dry runs, or switched off)."""
+    from core.action_runtime import current
+    from core.config import load_settings
+    state = current.get()
+    if not state or state[0].mode != 'live':
+        return None
+    if not load_settings().get('app_control', {}).get('goal_mode', True):
+        return None
+    from core import goal_mode
+    return goal_mode.pursue(app, goal, end=state[2], **extra)
+
+
 def _same(a: dict, b: dict) -> bool:
     return (a['type'], a['name'], a['automation_id']) == (b['type'], b['name'], b['automation_id'])
 
@@ -68,6 +82,12 @@ def type_in_app(app: str, text: str) -> Outcome:
     except Exception:
         return Outcome(OutcomeStatus.FAILED, f"I couldn't read {name}'s window, so I didn't type anything.")
     if not target:
+        if reason != 'protected':
+            # No obvious place to type (for example Word's start screen): work out how to get to one.
+            worked_out = _goal(app, 'get to a blank document or text area where text can be typed', text=text,
+                               key='a place to type')
+            if worked_out:
+                return worked_out
         return Outcome(OutcomeStatus.NEEDS_INPUT, NO_TARGET[reason].format(app=name))
     before = ui_probe.read_text(target)
     check()
@@ -129,6 +149,12 @@ def click_named(app: str, button: str) -> Outcome:
     from hands.apps import RISKY_WORDS
 
     window, name, controls, target, problem = _find(app, button, CLICKABLE, 'button')
+    if problem and window and "can't see" in problem.say and not RISKY_WORDS.search(button):
+        # Not on screen right now (for example Save lives inside the File menu): work out how to reach it.
+        worked_out = _goal(app, f'press the control called "{button}"; it may be inside a menu or tab '
+                                'that has to be opened first', target_name=button, key=f'click {button}')
+        if worked_out:
+            return worked_out
     if problem:
         return problem
     if RISKY_WORDS.search(target['name']) and not RISKY_WORDS.search(button):
@@ -230,3 +256,13 @@ def toggle(app: str, name: str, state: str) -> Outcome:
                            side_effect_possible=True)
     return Outcome(OutcomeStatus.UNCERTAIN, f"I flipped {target['name']}, but it doesn't show as {word}.",
                    side_effect_possible=True)
+
+
+@action('app_goal', UNDOABLE, {'app': 'app name', 'goal': "what the user wants done in that app, in their words"},
+        lambda app, goal: f'work out how to {goal} in {app}', for_brain=False)
+def app_goal(app: str, goal: str) -> Outcome:
+    """A request inside an app that no fixed rule covers: let goal mode work out the steps."""
+    worked_out = _goal(app, goal)
+    if worked_out:
+        return worked_out
+    return Outcome(OutcomeStatus.NEEDS_INPUT, f"I don't know how to do that in {app} yet.")

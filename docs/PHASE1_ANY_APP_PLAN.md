@@ -1,7 +1,7 @@
 # Phase 1 plan: control any app
 
-Written 11 November 2026 (Claude Code). Status: **slices 1 and 2 are built and tested with fakes (not yet
-run live); slices 3–5 are planned, not started.** Ki reviews this plan after the fact, so each later slice still stops for a yes
+Written 11 November 2026 (Claude Code). Status: **slices 1–3 are built (1–2 confirmed by Ki on Windows, 3 tested with
+fakes plus a hands-off trial with real Qwen); slice 5 is started (save and replay); slice 4 is not started.** Ki reviews this plan after the fact, so each later slice still stops for a yes
 before it is switched on by default.
 
 ## The goal
@@ -75,7 +75,11 @@ in Protected View, and a login page (must refuse).
   on/off)` (checkboxes and switches, read the state back), `pick_menu(app, path)` (File > Export).
 - Rules for "click X in Y", "tick X in Y", "set X to Y in Z".
 
-### Slice 3: let the brain choose the next step from the list
+### Slice 3: let the brain choose the next step from the list (built as `core/goal_mode.py`, on by default)
+
+As built it differs from the outline below in three ways Ki asked for: it is on by default, it only uses
+the local Qwen models (never cloud, because the window's contents are in the prompt), and a screenshot with
+the control numbers drawn on it is attached when the list is short or a step got nowhere.
 
 For requests rules can't map ("export this as a PDF"):
 
@@ -106,6 +110,18 @@ verified successes and Ki's approval; one wrong target quarantines it; two misse
 Slice 1 fixes something Ki hit today and builds the reader every later slice needs. Slice 2 is still
 rule-driven, so it is fast and predictable. Slice 3 is the real "Jarvis" step and the first place a model
 chooses, so it comes after the guards exist and are tested. Slices 4 and 5 build on 3.
+
+## Acceptance list for goal mode (run on Windows)
+
+| Type | Expected |
+|---|---|
+| `type hello there in word` with Word on its start screen | Opens a blank document, types, "Typed it in Word." then offers "save that" |
+| `save that` | "Saved. Next time I'll go straight through …" |
+| The same typing request again from the start screen | Works without the Qwen pause |
+| `click view then click status in notepad` | Both clicks happen in Notepad |
+| `click view in notepad` then `click zoom` | "zoom" is understood as in Notepad |
+| `click save in notepad` | File, then Save; the Save dialog appears |
+| `delete this page in word` | Asks "Just checking…" first |
 
 ## Acceptance list for slice 2 (run on Windows)
 

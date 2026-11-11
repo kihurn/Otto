@@ -157,7 +157,11 @@ def play_playlist(step, task, end, progress):
         from core.action_runtime import ActionInterrupted
         if isinstance(error, ActionInterrupted):
             raise
-        return Outcome(OutcomeStatus.UNCERTAIN, 'I could not read the Spotify window.', side_effect_possible=True)
+        from core import log
+        log.write({'type': 'spotify_playlist', 'result': 'stopped', 'error_class': type(error).__name__,
+                   'error': str(error)[:200]})
+        return Outcome(OutcomeStatus.UNCERTAIN, f'I could not read the Spotify window ({type(error).__name__}).',
+                       {'error_code': type(error).__name__}, side_effect_possible=True)
     return Outcome(OutcomeStatus.CANCELLED if task.cancel.is_set() else OutcomeStatus.UNCERTAIN,
                    'Cancelled.' if task.cancel.is_set() else 'I pressed Play on the playlist, but could not confirm it started.',
                    side_effect_possible=True)

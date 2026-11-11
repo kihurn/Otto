@@ -11,6 +11,9 @@ Otto includes ideas and small adapted pieces from the projects below. Each is us
   - `hands/ui_probe.py`: the name-matching scores (`name_score`) and the "smallest control under a point"
     rule are ported from `companion/src/win/probe.ps1`. The overall approach (a bounded list of interactive,
     on-screen controls from Windows UI Automation) follows that file; the code itself is new Python.
+  - `core/goal_mode.py`: the contract of having the model pick one control by number from a list of real
+    controls follows `companion/src/guide/pointing.js`; `core/methods.py` follows the save / replay by name /
+    retire-after-two-misses idea of `companion/src/guide/walkthroughs.js`. Both are new Python code.
 - No Nus branding, mascot ("Knot"), prompts, models or training data are used.
 
 Full licence text:

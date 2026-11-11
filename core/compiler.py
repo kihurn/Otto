@@ -25,6 +25,12 @@ def compile_request(text, apps, brain):
     parts = clauses(text)
     if not 2 <= len(parts) <= 4 or any(not p for p in parts):
         return planner.Plan([], 'none', error='Please give me between two and four complete tasks.')
+    # "click view then click status in notepad": the app named at the end applies to every part.
+    tail = re.search(r'\s+(?:in|on)\s+([\w .]+?)\s*[.!?]*$', parts[-1])
+    acts = r'(?:click|press|tap|hit|tick|untick|check|uncheck|turn on|turn off|type)\b'
+    if tail and apps is not None and apps.match_exact(' '.join(tail[1].lower().split())) and re.match(acts, details._t(parts[-1])):
+        parts = [p if not re.match(acts, details._t(p)) or re.search(r'\s(?:in|on)\s+[\w .]+$', details._t(p))
+                 else f'{p} in {tail[1]}' for p in parts[:-1]] + [parts[-1]]
     steps = []
     typing_into = None   # the app opened by the previous part, if any
     volume_seen = False  # an earlier part was about the volume

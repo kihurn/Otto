@@ -14,6 +14,37 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Goal mode, method saving, app context (11 Nov 2026, Claude Code, branch claude/any-app-control)
+- User feedback after testing slices 1-2: fixed single clicks are too shallow (Word start screen, Save inside
+  File, two clicks in one sentence). Approved direction: Qwen-heavy at first, learn and get faster with use.
+- `core/goal_mode.py` (slice 3): loop of read controls -> Qwen picks {action, id, why} from a numbered list ->
+  validate -> act -> re-read. Actions: click, type (the user's text only), done, stop. Limits: 8 steps, 45 s,
+  two no-progress steps. Typing is still a code check first (no model when a text area is obvious). "done" from
+  Qwen counts only after at least one step changed the window; `target_name` gives a code-checked finish for
+  "click X". Risky names are never pressed from goal mode. Local models only (screen content never goes to cloud).
+- Entry points: `type_in_app` with no place to type, `click_button` when the name isn't on screen, and the new
+  `app_goal` action from the rule "<anything else> in <exactly installed app>" (apps area only). All skip goal
+  mode unless there is a live task (so tests and dry runs never call a model). Setting `app_control.goal_mode`
+  (default true).
+- Live, hands-off trial with the real qwen3-vl:8b on the user's PC (nothing pressed): Notepad "press save" ->
+  picked MenuItem File in 1.5 s (2.5 s with screenshot); Spotify "open the settings page" -> picked the profile
+  button in 1.2 s (2.9 s with screenshot). Same picks with and without the image, so the marked screenshot
+  (numbers drawn on the window, "set-of-marks" style) is only sent when fewer than 8 controls are listed or a
+  step got nowhere. Research note: one web search confirmed 0-1000 normalised coordinates are the common
+  convention for Qwen-based GUI models (already what core/computer_use.py uses); goal mode avoids coordinates
+  entirely by having Qwen choose a control number.
+- `core/methods.py` (slice 5 start, R7): otto-data/methods.json keyed app::goal, saved only on "save that",
+  replayed by exact button name with no model call, two misses retire it. Not yet: several-success promotion,
+  app-version binding.
+- Context: pipeline remembers the last app acted in for 120 s; "click/press/tick/turn on/type ..." without an app
+  gets it appended. Compiler: an app named at the end of a compound applies to earlier click-type parts.
+- Voice "play my playlist called For the Rat" -> "could not read the Spotify window": NOT reproduced (matching
+  works on the live window, from a thread too, and with single-threaded COM). Added per-thread COM start-up in
+  ui_probe and the error's class in the reply and log so the next occurrence can be diagnosed. Also seen live:
+  the expanded library shows a "Play <playlist>" button per row, which play_playlist already uses directly.
+- Not run live: any goal-mode press or typing, "save that" replay. Slice 4 (pure-pixel clicking for apps with
+  no listed controls) not built. 366 tests pass.
+
 ### Any-app control slice 2, playlists, now-playing (11 Nov 2026, Claude Code, branch claude/any-app-control)
 - Slice 2: `click_button` now runs `app_control.click_named` (ui_probe list, unique-name rule, risky real-name
   stop, success only if the control list/title/foreground changed within 2 s). New rule-only actions `toggle`

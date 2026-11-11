@@ -37,6 +37,7 @@ ACTIONS = {
         "type_in_app": "type the user's words into a named app",
         "toggle": "turn a named switch or tick box on or off in an app",
         "set_field": "fill in a named box in an app",
+        "app_goal": "do something else inside a named app, working out the steps",
     },
     "media": {
         "play_music": "play a specific song, artist, album or playlist",

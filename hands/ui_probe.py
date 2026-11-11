@@ -16,13 +16,22 @@ TEXT_TYPES = {'Edit', 'Document'}        # where typing can go
 MAX_CONTROLS = 150                       # small lists keep a model accurate and the prompt short
 
 
+def _uia():
+    """Windows UI Automation, ready for the thread we are on (voice mode works on a background thread)."""
+    try:
+        import comtypes
+        comtypes.CoInitialize()
+    except Exception:
+        pass
+    from pywinauto.uia_defines import IUIA
+    return IUIA()
+
+
 def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     """The interactive, on-screen controls of one window, in reading order, each as a plain dict:
     id, name, type, automation_id, rect (left, top, right, bottom), password, enabled, focused, read_only, checked.
     'element' holds the live Windows handle for acting on it and must never be sent to a model."""
-    from pywinauto.uia_defines import IUIA
-
-    uia = IUIA()
+    uia = _uia()
     ids = uia.UIA_dll
     types = None
     for code in INTERACTIVE:
