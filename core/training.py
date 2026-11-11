@@ -28,7 +28,14 @@ def artifact_digest(directory):
     return fingerprint.hexdigest()
 
 
-def gate(baseline, candidate, threshold):
+GATE_VERSION = 2   # 2 = each calibration judged at the bar it will really use (review finding R2)
+
+
+def gate(baseline, candidate, threshold, candidate_threshold=None):
+    """Approve a candidate only if, at the bar it will actually act on, it is at least as precise as the
+    current calibration at *its* bar (and at least 95%). `threshold` is the current calibration's serving
+    bar; `candidate_threshold` the candidate's (defaults to the same bar)."""
+    candidate_threshold = threshold if candidate_threshold is None else candidate_threshold
     before, after = baseline['preds'], candidate['preds']
     if len(before) < 20 or len(before) != len(after):
         return False, 'Need at least 20 checked examples scored by both calibrations.'
@@ -39,7 +46,7 @@ def gate(baseline, candidate, threshold):
     if candidate['accuracy'] < baseline['accuracy']:
         return False, 'Candidate accuracy regressed.'
     old_acted = [row for row in before if row['prob'] >= threshold]
-    new_acted = [row for row in after if row['prob'] >= threshold]
+    new_acted = [row for row in after if row['prob'] >= candidate_threshold]
     if min(len(old_acted), len(new_acted)) < 8:
         return False, 'Need at least eight confident decisions in both evaluations.'
     old_precision = sum(row['right'] for row in old_acted) / len(old_acted)
@@ -80,7 +87,12 @@ def stage_candidate(router, say=print):
         candidate.agent.save_calibration(str(directory))
         candidate.agent.load_calibration(str(directory))
         scores = candidate.score(checked)
-        eligible, reason = gate(baseline, scores, router.bars()[0])
+        from core.router import serving_bars
+        zones = router.settings.get('zones', {})
+        baseline_bar = router.bars()[0]
+        candidate_bar = serving_bars(zones, scores['bars'])[0]
+        eligible, reason = gate(baseline, scores, baseline_bar, candidate_bar)
+        report.update(gate_version=GATE_VERSION, serving_bars={'baseline': baseline_bar, 'candidate': candidate_bar})
         meta = {'hash':_rows_hash(rows), 'n_rows':len(rows), 'device':router.device,
                 'saved':datetime.now().isoformat(timespec='seconds'),
                 'score':{key:scores[key] for key in ('accuracy','n','checked','per_area')}, 'bars':scores['bars']}
@@ -126,6 +138,8 @@ def promote(router, identity):
         report = load_json(directory/'report.json', {})
         if report.get('state') != 'complete' or not report.get('eligible'):
             raise ValueError('This candidate has not passed evaluation.')
+        if report.get('gate_version') != GATE_VERSION:
+            raise ValueError('This candidate was approved by an older check. Run  otto candidate  to evaluate a fresh one.')
         from core.router import Router
         active = Router(router.settings)
         rows, tests = dataset()
@@ -134,6 +148,16 @@ def promote(router, identity):
                 or report.get('zone_hash') != digest(router.settings.get('zones', {}))
                 or report.get('artifact') != artifact_digest(directory)):
             raise ValueError('The evaluation inputs or calibration changed. Train and score a fresh candidate.')
+        # Re-check with the same policy: the bar the candidate will serve with must be the one it was judged at.
+        from core.router import META, serving_bars
+        zones = router.settings.get('zones', {})
+        served = serving_bars(zones, load_json(directory / META, {}).get('bars'))[0]
+        bars = report.get('serving_bars') or {}
+        if served != bars.get('candidate') or active.bars()[0] != bars.get('baseline'):
+            raise ValueError('The confidence bars changed since evaluation. Run  otto candidate  again.')
+        ok, why = gate(report['baseline'], report['candidate_scores'], bars['baseline'], bars['candidate'])
+        if not ok:
+            raise ValueError(f'The candidate no longer passes: {why}')
         previous = active.calibration.name if active.calibration != CURRENT else None
         save_json(CURRENT.parent / 'active.json', {'candidate':identity, 'previous':previous})
     return directory

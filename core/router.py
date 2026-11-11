@@ -26,20 +26,57 @@ def _rows_hash(rows: list[dict]) -> str:
 
 def measure_bars(preds: list[dict], act_precision: float = 0.95, guess_precision: float = 0.6,
                  min_count: int = 8) -> dict:
-    """Find the lowest confidence where Laya is right often enough. preds: [{prob, right}]."""
+    """Find the lowest confidence where Laya is right often enough. preds: [{prob, right}].
+
+    Otto acts on every request with confidence >= the bar, so requests with the *same* confidence are
+    judged together as one group: a bar is only accepted if everything at or above it, including the
+    whole group at that exact confidence, meets the precision. The bar is stored exactly (not rounded),
+    so it can never slip down into a group that wasn't checked. The result doesn't depend on row order.
+    """
     out = {"act_bar": None, "guess_bar": None}
-    ordered = sorted(preds, key=lambda p: -p["prob"])
-    right = 0
-    for i, p in enumerate(ordered, 1):
-        right += p["right"]
-        precision = right / i
-        if i >= min_count and precision >= act_precision:
-            out["act_bar"] = round(p["prob"], 3)
-        if i >= min_count and precision >= guess_precision:
-            out["guess_bar"] = round(p["prob"], 3)
+    groups: dict[float, list[int]] = {}
+    for p in preds:
+        prob = float(p["prob"])
+        g = groups.setdefault(prob, [0, 0])
+        g[0] += 1
+        g[1] += 1 if p["right"] else 0
+    seen = right = 0
+    for prob in sorted(groups, reverse=True):
+        seen += groups[prob][0]
+        right += groups[prob][1]
+        precision = right / seen
+        if seen >= min_count and precision >= act_precision:
+            out["act_bar"] = prob
+        if seen >= min_count and precision >= guess_precision:
+            out["guess_bar"] = prob
     if out["act_bar"] is not None and out["guess_bar"] is not None and out["guess_bar"] > out["act_bar"]:
         out["guess_bar"] = out["act_bar"]
     return out
+
+
+def precision_at(preds: list[dict], bar: float) -> tuple[int, float | None]:
+    """How many requests Otto would act on alone at this bar, and how often those are right."""
+    acted = [p for p in preds if float(p["prob"]) >= bar]
+    if not acted:
+        return 0, None
+    return len(acted), sum(1 for p in acted if p["right"]) / len(acted)
+
+
+def serving_bars(zones: dict, measured: dict | None) -> tuple[float, float]:
+    """(act_bar, guess_bar) exactly as Otto will use them: measured on the test set when allowed, but never
+    bolder than the floors. Used both while running and when approving a newly trained Laya, so a candidate
+    is always judged at the bar it will really act on."""
+    zones = zones or {}
+    act, guess = float(zones.get("act_bar", 0.85)), float(zones.get("guess_bar", 0.40))
+    if zones.get("use_measured", True):
+        m = measured or {}
+        if m.get("act_bar") is not None:
+            act = max(float(m["act_bar"]), float(zones.get("act_bar_floor", 0.70)))
+        if m.get("guess_bar") is not None:
+            guess = float(m["guess_bar"])
+    gap = float(zones.get("ask_zone_min", 0.20))
+    guess = max(0.15, min(guess, act - gap))
+    return float(act), float(guess)
 
 
 class Router:
@@ -93,17 +130,7 @@ class Router:
     def bars(self) -> tuple[float, float]:
         """(act_bar, guess_bar). Measured on the test set when possible, but never bolder than the floors:
         a 100-request exam is small, so Otto stays a little cautious and always keeps an 'ask you' zone."""
-        z = self.settings.get("zones", {})
-        act, guess = float(z.get("act_bar", 0.85)), float(z.get("guess_bar", 0.40))
-        if z.get("use_measured", True):
-            m = self.meta.get("bars") or {}
-            if m.get("act_bar") is not None:
-                act = max(float(m["act_bar"]), float(z.get("act_bar_floor", 0.70)))
-            if m.get("guess_bar") is not None:
-                guess = float(m["guess_bar"])
-        gap = float(z.get("ask_zone_min", 0.20))
-        guess = max(0.15, min(guess, act - gap))
-        return float(act), float(guess)
+        return serving_bars(self.settings.get("zones", {}), self.meta.get("bars"))
 
     def zone(self, prob: float) -> str:
         act, guess = self.bars()

@@ -1,4 +1,4 @@
-# Otto 1.1
+# Otto 1.2 (in development)
 
 Otto is your desktop assistant. You talk or type; **Laya** decides what you want in a fraction of a
 second; plain Python does it; the **brain** (Gemma 4 in the cloud, Qwen on your PC, through C0RE) only
@@ -9,23 +9,16 @@ Design: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). What changed: [`CHANGELO
 
 ---
 
-## 1. Updating from 1.0
+## 1. Getting updates
 
-1. Paste everything from the zip into `C:\Users\User\OneDrive\Documents\Otto` (replace files when asked).
-2. Delete `tool.cmd` and `tools\voice_test.py` if they're still there; the `otto` command replaces them.
-3. Run setup again (it adds three small packages and puts `otto` on your PATH):
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\setup.ps1
-   ```
-4. **Open a new terminal**, then:
-   ```powershell
-   otto check
-   otto spotify
-   ```
-   `otto spotify` opens Chrome once so you can let Otto control Spotify (click **Agree**).
-
-Your `otto-data` (examples, recipes, test set, Laya's learning) is kept. Your talking speed becomes 1.15
-if you never changed it.
+Otto now lives on GitHub (`kihurn/Otto`); updates arrive with git instead of zips. In the Otto folder:
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\setup.ps1     # only when requirements.txt changed
+otto check
+```
+`otto-data` (your examples, recipes, test set, Laya's learning) and `.env` are never in git and are always kept.
+First time on a new PC: `otto spotify` once to let Otto control Spotify (click **Agree** in Chrome).
 
 ## 2. Keys: the `.env` file
 
@@ -67,6 +60,9 @@ get the **Command-line interface** (ES). Put `es.exe` next to `Everything.exe` (
 | `otto label` | check the test set's labels (do this once, ~10 minutes) |
 | `otto score` | Laya's test score, confidence zones and mistakes |
 | `otto teach` | teach Laya by typing, without doing anything |
+| `otto train --offline --tasks 100 --seed 42` | simulated practice run and report (nothing on your PC is touched) |
+| `otto candidate` | train a separate copy of Laya and test it; your current Laya keeps working |
+| `otto promote ID` / `otto rollback` | switch to a candidate that passed its test / go back to the previous one |
 | `otto help` | this list |
 
 While Otto is running, the same settings work with a colon: `:mic 3`, `:mode push`, `:speed 1.2`, `:voice michael`,
@@ -78,11 +74,12 @@ While Otto is running, the same settings work with a colon: `:mic 3`, `:mode pus
 |---|---|
 | **wake** (default) | Otto listens all the time but only acts on sentences starting with **"Hey Otto"** (a short beep says it heard you). After it replies, you have ~8 seconds to carry on without "Hey Otto". When Otto asks you something, just answer. Saying only "Hey Otto" gets a "Yeah?". |
 | **always** | every sentence is for Otto |
-| **push** | Otto only hears you while you **hold F8** |
+| **push** | Otto only hears you while you **hold Ctrl+Alt** |
 
-- **F8** (hold) = push to talk, in every mode. In wake mode it means "this one's for you" without saying "Hey Otto".
+- **Ctrl+Alt** (hold) = push to talk, in every mode. In wake mode it means "this one's for you" without saying "Hey Otto".
 - **F9** = mute / unmute. Or say "Hey Otto, stop listening" (unmute with F9).
-- Change the keys: `otto set listen.push_to_talk_key f7`, `otto set listen.mute_key f10`.
+- While Otto listens or talks, other apps' sound is turned down to 20% and restored afterwards.
+- Change the keys: `otto set listen.push_to_talk_key f8`, `otto set listen.mute_key f10`.
 - Change the mode for one run: `otto voice --mode push`.
 - In wake mode Whisper hears the room, but nothing is acted on or logged unless it starts with "Hey Otto".
   It all stays on your PC.
@@ -99,7 +96,11 @@ turn it up  ->  more  ->  do that again
 open youtube    google best gaming mouse    write down call the bank tomorrow
 what's 15 percent of 80    who won the last world cup    what's on my screen
 close discord   (asks first)      search for taylor swift in discord, then "save that"
+list audio outputs    which output am I using?    make my speakers the default output    undo that output change
 ```
+**Screen control (opt-in, experimental):** `otto set computer_use.enabled true`, then
+"use Qwen to play The Hills by The Weeknd" or "use Qwen to search what is Otto". Otto looks at the Spotify or
+Chrome window and does one safe step at a time, checking the result itself.
 
 **The grey line** under each reply explains the decision: `laya: apps 94% -> high`, `understood as: "..."`
 for follow-ups, `split into 3 steps` for multi-step requests, `[rules]` or `[brain:...]` for the details,
@@ -111,7 +112,10 @@ and `plan: builtin / recipe / brain:...`. Hide it with `:details`.
 - **"save that"**: if the brain worked out *how* (e.g. searching inside Discord), the steps become a **recipe**
   and next time Otto does it instantly. Otherwise the request becomes a teaching example.
 - **"forget that"** undoes the last thing it learned (asks first).
-- Laya relearns every 20 new examples, and keeps the new version only if it scores at least as well on the test.
+- To improve Laya: `otto candidate` trains a separate copy and tests it on your test set, at the confidence bar it
+  would really use. Only if it's at least as accurate, and right at least 95% of the time when it acts alone, can you
+  `otto promote` it. `otto rollback` goes back.
+- "save that" works for single requests. Multi-step and screen-control tasks can't be saved yet.
 
 ## 8. The Otto brief
 
@@ -142,8 +146,9 @@ Phase 1 pass marks: acting alone ≥ 95% right · ≥ 90% of requests handled ·
 |---|---|
 | `otto` isn't recognised | Open a **new** terminal after setup. Or run `.\otto.cmd` inside the Otto folder |
 | Voice mode hears nothing | `otto mic`, then `otto mic N`, then `otto mic test` |
-| It never reacts to "Hey Otto" | Check the grey `(not for me: ...)` lines to see what it heard; try `otto mode always` or hold F8 |
-| F8/F9 do nothing | Some games block global keys; try other keys with `otto set listen.mute_key f10` |
+| It never reacts to "Hey Otto" | Check the grey `(not for me: ...)` lines to see what it heard; try `otto mode always` or hold Ctrl+Alt |
+| Ctrl+Alt / F9 do nothing | Some games block global keys; try other keys with `otto set listen.mute_key f10` |
+| Spotify plays a live/remix version | Otto says so and offers the original: answer yes, or name the exact version |
 | Spotify: "didn't show up as a player" | Open the Spotify app and make sure it's signed in, then try again |
 | Spotify: "needs Premium" / 403 | In the Spotify developer dashboard, add your Spotify email under **User Management** |
 | "isn't installed, as far as I can see" | Wait a minute after start (the app list refreshes), or `:reload` |
@@ -156,5 +161,7 @@ Phase 1 pass marks: acting alone ≥ 95% right · ≥ 90% of requests handled ·
 - Laya chooses the **area**; the action inside it comes from rules, then Qwen.
 - Timers only run while Otto is open. No talking over Otto to interrupt it yet (Ctrl+C, or F9).
 - Clicking buttons by name often doesn't work inside Spotify/Discord (Chromium apps); Otto uses the
-  Spotify API, links and shortcuts instead.
-- The floating overlay is Phase 2. Training mode with an AI judge is next.
+  Spotify API, links and shortcuts instead. Screen control covers only Spotify and Chrome so far.
+- Saving a *method* Otto worked out on screen (so it can reuse it next time) is postponed to the
+  "control any app" phase.
+- The floating overlay is Phase 2.

@@ -41,9 +41,12 @@ def test_promotion_checks_artifacts_and_rollback_preserves_baseline(tmp_path, mo
     config.save_json(candidate/router.META, {'hash':'candidate'})
     rows, tests = [], []
     monkeypatch.setattr(training, 'dataset', lambda: (rows, tests))
+    good = {'accuracy': 1.0, 'preds': [{'text': str(i), 'gold': 'apps', 'prob': .99, 'right': True} for i in range(20)]}
     report = {'state':'complete', 'eligible':False, 'training_hash':router._rows_hash(rows),
               'test_hash':training.digest(tests),'baseline_artifact':training.artifact_digest(current),
-              'artifact':training.artifact_digest(candidate), 'zone_hash':training.digest({})}
+              'artifact':training.artifact_digest(candidate), 'zone_hash':training.digest({}),
+              'gate_version': training.GATE_VERSION, 'serving_bars': {'baseline': .85, 'candidate': .85},
+              'baseline': good, 'candidate_scores': good}
     config.save_json(candidate/'report.json', report)
     instance = SimpleNamespace(settings={})
     with pytest.raises(ValueError, match='has not passed'):

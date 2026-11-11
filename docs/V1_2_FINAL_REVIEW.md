@@ -2,6 +2,13 @@
 
 11 November 2026. Review and cleanup on `codex/d-f-review`, preserving the inherited uncommitted implementation.
 
+## Resolution (11 November 2026, Claude Code, branch `claude/review-fixes`)
+
+R1–R6 are fixed, each with regression tests in `tests/test_review_fixes.py` that reproduce the original failure
+(279 tests pass on Linux). R7 is postponed by the user's decision to the Phase 1 any-app control work.
+Still required before release: the live Windows acceptance runs listed at the end of this document and in
+`docs/V1_2_VOICE_TESTS.md`, and re-evaluating any Laya candidate staged before the R2 fix.
+
 ## Verdict
 
 Not release-ready. D and E have useful implementations but unresolved correctness issues. F implements a narrow offline evaluator and staged Laya calibration. The recovery-recipe extension agreed in the recovery design is still absent. A passing unit suite does not establish the Phase 1 desktop or voice success rates.

@@ -50,34 +50,61 @@ class SessionCaps:
                           and all(type(value) in (float, int) and 0 <= value <= 1 for value in record.values())}
         self.update(False)
 
+    # Errors that mean "this one app's audio session went away or is busy", which is normal on Windows.
+    # One session failing must never stop the others from being restored (review finding R5).
+    @staticmethod
+    def _session_errors():
+        errors = [OSError, AttributeError, ValueError]
+        try:
+            from comtypes import COMError
+            errors.append(COMError)
+        except Exception:
+            pass
+        return tuple(errors)
+
     def update(self, active):
         endpoint, sessions = self.provider.snapshot()
+        errors = self._session_errors()
+        self.failed = set()                    # sessions that errored this round; retried next round
         for key, record in list(self.owned.items()):
             if key not in sessions:
                 continue  # A disconnected session can return with the same identity.
             device, volume = sessions[key]
-            now = volume.GetMasterVolume()
-            if abs(now - record['applied']) > .001:
-                self.relinquished.add(key)
-            elif active and device == endpoint:
-                continue
-            else:
-                volume.SetMasterVolume(record['original'], None)
-                if abs(volume.GetMasterVolume() - record['original']) > .001:
+            try:
+                now = volume.GetMasterVolume()
+                if abs(now - record['applied']) > .001:
+                    self.relinquished.add(key)          # the user changed it; leave it alone
+                elif active and device == endpoint:
                     continue
+                else:
+                    volume.SetMasterVolume(record['original'], None)
+                    if abs(volume.GetMasterVolume() - record['original']) > .001:
+                        continue
+            except errors:
+                self.failed.add(key)                    # keep the receipt; try again later
+                continue
             del self.owned[key]
             self.save()
         if not active:
             self.relinquished.clear()
             return
         for key, (device, volume) in sessions.items():
-            if device != endpoint or key in self.owned or key in self.relinquished or volume.GetMute():
+            if device != endpoint or key in self.owned or key in self.relinquished:
                 continue
-            original = volume.GetMasterVolume()
+            try:
+                if volume.GetMute():
+                    continue
+                original = volume.GetMasterVolume()
+            except errors:
+                self.failed.add(key)
+                continue
             if original > self.cap:
                 self.owned[key] = {'original': original, 'applied': self.cap}
-                self.save()  # Persist the receipt before the mutation.
-                volume.SetMasterVolume(self.cap, None)
+                self.save()  # Persist the receipt before the mutation (a journal failure stops here).
+                try:
+                    volume.SetMasterVolume(self.cap, None)
+                except errors:
+                    self.failed.add(key)   # unchanged volume; the next round sees it and drops the receipt
 
 
 class AudioFocus:
@@ -141,23 +168,36 @@ class AudioFocus:
             msvcrt.locking(ownership.fileno(), msvcrt.LK_NBLCK, 1)
             locked = True
             caps.recover()
+            misses = 0
             while not self.closed:
                 with self.lock:
                     now = time.monotonic()
                     self.leases = {key:end for key,end in self.leases.items() if end > now}
                     active = bool(self.leases)
                 if active or caps.owned:
-                    caps.update(active)
+                    try:
+                        caps.update(active)
+                        misses = 0
+                    except OSError:
+                        # Listing sessions failed (device change, Windows busy). Retry a few times before giving up.
+                        misses += 1
+                        if misses >= 10:
+                            raise
                 self.wake.wait(.4)
                 self.wake.clear()
         except Exception as error:
             warn(f'Audio ducking stopped ({type(error).__name__}).')
         finally:
-            try:
-                if caps.owned:
+            for _ in range(3):                       # restore everything we can before exiting
+                try:
+                    if not caps.owned:
+                        break
                     caps.update(False)
-            except Exception:
-                pass  # The next startup can restore an unchanged session from the journal.
+                    if not getattr(caps, 'failed', None):
+                        break
+                except Exception:
+                    pass  # The next startup can restore an unchanged session from the journal.
+                time.sleep(.2)
             if ownership:
                 if locked:
                     ownership.seek(0)

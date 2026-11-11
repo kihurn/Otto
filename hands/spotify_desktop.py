@@ -17,6 +17,36 @@ def matches(label, query, artist=''):
             (not artist or ' ' + normalized(artist) + ' ' in label))
 
 
+# Words that mean a *different recording* than the one asked for. "The Hills (Live)" is not "The Hills".
+VERSION_WORDS = {'live', 'remix', 'remixed', 'mix', 'acoustic', 'instrumental', 'karaoke', 'cover', 'demo',
+                 'sped', 'slowed', 'reverb', 'nightcore', 'edit', 'version', 'reprise', 'extended', 'unplugged',
+                 'session', 'radio', 'mashup', 'bootleg', 'rework', 'flip', 'vip', '8d', 'clean', 'explicit'}
+# Extra title parts that are still the same recording.
+_SAME = re.compile(r'^(?:feat|ft|featuring|with|from)\b|remaster', re.I)
+
+
+def song_title(title: str) -> str:
+    """The comparable part of a playing title: drops 'feat. X', 'with X' and 'Remastered 2011', but keeps
+    version words like Live, Remix or Sped Up so a different recording never counts as the right one."""
+    parts = re.split(r'\s+-\s+|\s*[\(\[]\s*|\s*[\)\]]\s*', title or '')
+    main, extras = parts[0], [p for p in parts[1:] if p.strip()]
+    kept = [e for e in extras if not _SAME.search(e.strip())]
+    return normalized(' '.join([main] + kept))
+
+
+def same_recording(playing_title: str, query: str) -> bool:
+    """Exact match on the song (ignoring featured artists and remaster notes)."""
+    return song_title(playing_title) == song_title(query)
+
+
+def different_version(playing_title: str, query: str) -> bool:
+    """Same song name but a version the user didn't ask for, e.g. a live recording or remix."""
+    playing, wanted = song_title(playing_title), song_title(query)
+    if playing == wanted or not playing.startswith(wanted + ' '):
+        return False
+    return bool(set(playing[len(wanted):].split()) & VERSION_WORDS)
+
+
 def play_candidates(dialog, query, artist):
     candidates = []
     for ctrl in dialog.descendants(control_type='Button'):
@@ -114,9 +144,16 @@ def play(step, task, end, progress):
             evidence = Evidence('windows.spotify_session', target={'query': query, 'artist': artist},
                                 expected={'playing': True}, observed=dict(session))
             observations.append(evidence)
-            if (session.get('status') == media.PLAYING and matches(session.get('title', ''), query)
-                    and (not artist or normalized(artist) == normalized(session.get('artist', '')))
-                    and not task.cancel.is_set()):
+            artist_ok = not artist or normalized(artist) == normalized(session.get('artist', ''))
+            if (session.get('status') == media.PLAYING and artist_ok
+                    and different_version(session.get('title', ''), query) and not task.cancel.is_set()):
+                # Something with the right name is playing, but it's a live/remix/sped-up version.
+                return Outcome(OutcomeStatus.NEEDS_INPUT,
+                               f"Spotify is playing \"{session.get('title')}\", which looks like a different version. "
+                               "Want me to look for the original?", evidence=observations + [evidence],
+                               side_effect_possible=True)
+            if (session.get('status') == media.PLAYING and same_recording(session.get('title', ''), query)
+                    and artist_ok and not task.cancel.is_set()):
                 target = {'backend': 'desktop', 'query': query, 'artist': artist}
                 return Outcome(OutcomeStatus.VERIFIED, f'Playing {query}' + (f' by {artist}.' if artist else '.'),
                                {'playback_target': target}, observations, side_effect_possible=True)

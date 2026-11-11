@@ -145,10 +145,10 @@ class Otto:
                 try:
                     if self.playback_target.get('backend') == 'desktop':
                         from hands import media
-                        from hands.spotify_desktop import matches
+                        from hands.spotify_desktop import matches, same_recording
                         target = self.playback_target
                         observed = [s for s in media.sessions() or [] if 'spotify' in s.get('app', '').lower()]
-                        ok = any(s.get('status') == media.PLAYING and matches(s.get('title', ''), target['query'])
+                        ok = any(s.get('status') == media.PLAYING and same_recording(s.get('title', ''), target['query'])
                                  and matches(s.get('artist', ''), target.get('artist', '')) for s in observed)
                         return Reply('Windows reports the requested song playing; can you hear it?' if ok else
                                      'Windows does not confirm the requested song. I will not press play again automatically.')
@@ -601,6 +601,11 @@ class Otto:
         if cmd == "save":
             if not last["ok"]:
                 return Reply("The last thing didn't work, so I won't save it. Want to try again?")
+            if i is None:
+                # Multi-step, screen-control (visual) and audio-output tasks have no single area/action, and we
+                # must never invent a label for Laya to learn. Learning these is planned with any-app control (R7).
+                self.trace["memory"] = "save_unsupported"
+                return Reply("I can't save that kind of task yet; I can only save single requests for now.")
             self._learn(last["text"], i.area, i.action, "saved")
             plan = last.get("plan")
             if plan and plan.source.startswith("brain") and plan.key:
