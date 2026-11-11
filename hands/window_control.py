@@ -16,6 +16,40 @@ def visual_task(app, goal, query, artist=''):
     return run(app, goal, query, artist)
 
 
+# Chrome's own toolbar controls Otto may use. Only these exact control types count, and only when they are
+# part of Chrome itself: anything inside a web page (a "Document") is page content, even if a page names a
+# button "New tab" or "Address and search bar" (review finding R1).
+CHROME_CONTROLS = {'address and search bar': {'Edit'}, 'new tab': {'Button'}}
+
+
+def inside_web_page(control, limit: int = 40) -> bool:
+    """True if the control is (inside) a web page rather than part of the browser's own window frame.
+    Unknown/unreadable ancestry counts as 'inside a page', so we fail safe."""
+    node = control
+    for _ in range(limit):
+        if node is None:
+            return False
+        try:
+            if node.element_info.control_type == 'Document':
+                return True
+            node = node.parent()
+        except Exception:
+            return True
+    return True
+
+
+def chrome_control_ok(control) -> bool:
+    try:
+        name = (control.element_info.name or '').casefold()
+        kind = control.element_info.control_type
+    except Exception:
+        return False
+    return kind in CHROME_CONTROLS.get(name, set()) and not inside_web_page(control)
+
+
+OUTSIDE_CAPABILITY = 'Visual target is outside the allowed capability'
+
+
 class WindowProvider:
     def __init__(self, app, goal=None):
         from hands import apps, win
@@ -105,7 +139,7 @@ class WindowProvider:
                 control = Desktop(backend='uia').from_point(x,y)
                 label = (control.element_info.name or '').casefold()
                 if goal['app'].casefold() == 'chrome':
-                    eligible = label in {'address and search bar', 'new tab', 'search google or type a url'}
+                    eligible = chrome_control_ok(control)
                 else:
                     eligible = label in {'search', 'what do you want to play?'}
                     if not eligible:
@@ -115,15 +149,20 @@ class WindowProvider:
                         eligible = any(c.rectangle().left <= x <= c.rectangle().right and c.rectangle().top <= y <= c.rectangle().bottom
                                        for c in play_candidates(dialog, goal['query'], goal['artist']))
                 if not eligible:
-                    raise ValueError('Visual target is outside the allowed capability')
+                    raise ValueError(OUTSIDE_CAPABILITY)
             check()
+            if action_name == 'click' and goal['app'].casefold() == 'chrome':
+                # Re-check right before clicking: the page may have changed under the pointer.
+                from pywinauto import Desktop
+                if self.identity() != snapshot['identity'] or not chrome_control_ok(Desktop(backend='uia').from_point(x,y)):
+                    raise ValueError(OUTSIDE_CAPABILITY)
             if action_name == 'click':
                 mouse.click(coords=(x,y))
             else:
                 mouse.scroll(coords=(x,y), wheel_dist=-3)
         elif action_name == 'play_match':
             if not snapshot.get('song_target') or goal['app'].casefold() != 'spotify':
-                raise ValueError('Visual target is outside the allowed capability')
+                raise ValueError(OUTSIDE_CAPABILITY)
             controls = self.song_controls(goal)
             if (not controls or self.identity() != snapshot['identity'] or
                     (controls[0].element_info.name, tuple(controls[0].rectangle())) != snapshot['song_target']):
@@ -138,7 +177,8 @@ class WindowProvider:
             labels = ('what do you want to play',) if goal['app'].casefold() == 'spotify' else ('address and search bar',)
             candidates = [c for kind in ('ComboBox','Edit') for c in dialog.descendants(control_type=kind)
                           if c.is_visible() and c.is_enabled() and not c.element_info.element.CurrentIsPassword
-                          and any(label in (c.element_info.name or '').casefold() for label in labels)]
+                          and any(label in (c.element_info.name or '').casefold() for label in labels)
+                          and (goal['app'].casefold() == 'spotify' or chrome_control_ok(c))]
             if len(candidates) != 1:
                 raise ValueError('No uniquely identified query field')
             control = candidates[0]
@@ -171,10 +211,10 @@ class WindowProvider:
         self.identity()
         if goal['app'].casefold() == 'spotify':
             from hands import media
-            from hands.spotify_desktop import normalized
+            from hands.spotify_desktop import normalized, same_recording
             for session in media.sessions() or []:
                 if ('spotify' in session.get('app','').casefold() and session.get('status') == media.PLAYING
-                        and normalized(session.get('title','')) == normalized(goal['query'])
+                        and same_recording(session.get('title',''), goal['query'])
                         and (not goal['artist'] or normalized(session.get('artist','')) == normalized(goal['artist']))):
                     return Evidence('windows.spotify_session', target=goal, observed=dict(session))
         else:
@@ -182,7 +222,7 @@ class WindowProvider:
             from urllib.parse import urlparse, parse_qs
             dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
             for ctrl in dialog.descendants(control_type='Edit'):
-                if 'address and search bar' not in (ctrl.element_info.name or '').casefold():
+                if not chrome_control_ok(ctrl):      # only Chrome's real address bar, never a page's look-alike
                     continue
                 url = ctrl.iface_value.CurrentValue
                 parsed = urlparse(url if '://' in url else 'https://'+url)

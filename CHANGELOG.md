@@ -1,6 +1,19 @@
 # Changelog
 
 ## 1.2 (in development)
+- Review fixes (R1–R6, see docs/V1_2_FINAL_REVIEW.md), each with regression tests (279 tests pass):
+  - Confidence bars judge equal-confidence answers as one group and are stored exactly (R3).
+  - A newly trained Laya is approved at the bar it will really use, and re-checked at promotion. Candidates staged
+    before this fix must be re-evaluated with `otto candidate` (R2).
+  - Visual control in Chrome only uses Chrome's own address bar and New tab button, never look-alike page content,
+    and re-checks right before clicking or typing (R1).
+  - Spotify success needs the exact recording: a live, remix or sped-up version is reported, with an offer to find
+    the original (R4).
+  - Audio ducking restores every app it can even when one app's audio session has ended (R5).
+  - "save that" after multi-step, screen-control or audio-output tasks explains it can't save those yet (R6).
+  - R7 (learning reusable screen-control methods) is postponed to the any-app control phase.
+- Removed the obsolete `tool.cmd`; README updated for git updates, Ctrl+Alt push-to-talk, training commands,
+  audio outputs and opt-in screen control.
 - Final D–F review records seven open findings in docs/V1_2_FINAL_REVIEW.md. Release readiness is withheld; recovery-recipe learning remains unimplemented.
 - Cleanup removes unused execution scaffolding/imports and the redundant visual Enter action, consolidates the root architecture link, and clears generated pytest folders. Cleanup validation passes 252 tests with three existing COM warnings.
 - D adds verified media output selection and undo, timer/note/file observations, and fixes for live Qwen Chrome and Spotify control.

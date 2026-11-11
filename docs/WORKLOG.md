@@ -3,13 +3,27 @@
 Shared by every agent (Claude Code, Codex) and the user. Newest first inside each section.
 
 ## In progress
-- [codex] D–F code review and confirmed dead-code/generated-file cleanup – started 2026-11-11 (review report, focused regressions, documentation).
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
 
 ## Next up
-- One final Astra review of D–F, including native acceptance gaps, promotion safeguards and release readiness. Keep the current Laya calibration active until a candidate is explicitly reviewed and promoted.
+- Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
+- Then the realigned roadmap in AGENTS.md section 8 (Phase 1 Jarvis: act while talking, any-app control, R7).
 
 ## Done
+
+### Review fixes R1–R6 and cleanup (11 Nov 2026, Claude Code, branch claude/review-fixes)
+- Reproduced all six findings with fakes before fixing. R3: tie groups evaluated together, exact stored bar,
+  `precision_at()` helper. R2: shared `serving_bars()` policy used by Router and the training gate; candidates judged
+  at their own serving bar against the baseline's; promotion re-checks and refuses pre-fix candidates (gate_version 2).
+  R1: `chrome_control_ok()` accepts only Chrome's toolbar Edit/Button, rejects anything under a web Document, and is
+  re-checked before click/type and in verification; the new-tab page's search box is no longer a browser control.
+  R4: `same_recording()`/`different_version()` (feat./remaster ignored, live/remix/sped-up etc. not); desktop play,
+  visual verify and playback feedback use it; wrong version returns needs-input with an offer. R5: per-session error
+  isolation, failed receipts kept and retried, bounded enumeration retries, three restore passes on exit; journal
+  failure still blocks the change. R6: "save that" without an Intent explains instead of crashing.
+- Cleanup: removed `tool.cmd`; README brought up to date. 279 tests pass (Linux). Not run on Windows: any of the
+  live checks; Chrome's real UIA ancestry for the address bar should be confirmed in the first visual-mode test.
+- R7 postponed (user decision). Roadmap realigned toward a Nūs-style Jarvis + companion (AGENTS.md section 8).
 
 ### D, E and F implementation and validation (11 Nov 2026, Codex/Sol)
 - D: audio output inventory/current output, named switching and stable-ID selection, independent role readback, and undo if the active selection still matches. Windows discovery reported one Realtek speaker endpoint. Two-device switch, ambiguity, disconnect and manual-change-safe undo validated with a fake provider. A physical switch still needs a second active endpoint. Core Audio role readback uses IMMDeviceEnumerator and switching uses installed pycaw SetDefaultDevice.
