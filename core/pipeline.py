@@ -277,6 +277,10 @@ class Otto:
             self.rephrase_of = None
             self.trace['rule'] = 'explicit_web_search'
             return self._do_area(t, 'web', intent=Intent('web', 'web_search', {'query': query}), via='rules')
+        from core.search_goals import new_tab
+        if new_tab(t):
+            self.trace['rule'] = 'new_tab'
+            return self._do_area(t, 'web', intent=Intent('web', 'open_site', {'site': 'new tab'}), via='rules')
         if re.search(r'\b(?:weather|forecast|temperature)\b', t, re.I) and re.match(r"(?:what|how|will|is it|does it)", details._t(t)):
             self.rephrase_of = None
             return self._do_area(t, 'question', via='rules')

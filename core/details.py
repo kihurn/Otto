@@ -239,6 +239,9 @@ def _media(text: str) -> Intent | None:
 
 def _web(text: str) -> Intent | None:
     t = _t(text)
+    from core.search_goals import new_tab
+    if new_tab(text):
+        return Intent("web", "open_site", {"site": "new tab"})
     m = re.search(r"^(?:search|look up|find)\s+(?P<site>youtube|netflix|steam|spotify)\s+for\s+(?P<q>.+)$", t)
     if m:
         return Intent("apps", "search_in_app", {"app": m.group("site"), "query": m.group("q")})

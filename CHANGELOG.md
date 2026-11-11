@@ -1,6 +1,13 @@
 # Changelog
 
 ## 1.2 (in development)
+- Fixes from the first live Windows check (297 tests pass):
+  - Spotify: "Spotify search value did not match." Spotify reports its search text 80–400 ms after it is set;
+    Otto now re-reads for up to ~2 seconds before giving up.
+  - "Open a new tab on chrome and search hello world" no longer searches your files for "new tab chrome"; it is
+    one Google search. "Open a new tab" alone opens Google in a new Chrome tab.
+  - Opening a site or a Google search is confirmed from Chrome's own address bar ("Opened gmail."). If it can't
+    be confirmed Otto says "Opening gmail. I couldn't confirm it loaded." instead of "sent but not verified".
 - Review fixes (R1–R6, see docs/V1_2_FINAL_REVIEW.md), each with regression tests (279 tests pass):
   - Confidence bars judge equal-confidence answers as one group and are stored exactly (R3).
   - A newly trained Laya is approved at the bar it will really use, and re-checked at promotion. Candidates staged

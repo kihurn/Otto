@@ -41,7 +41,16 @@ def search(hwnd, query):
             if win.foreground() != hwnd or control.iface_value.CurrentIsReadOnly:
                 return Result(False, 'Spotify search lost focus.', {'error_code': 'focus_lost'})
             control.iface_value.SetValue(query)
-            if control.iface_value.CurrentValue != query:
+            # Spotify reports the new text a moment after it is set (measured 80-400 ms on the user's PC),
+            # so keep re-reading for up to ~2 seconds before deciding it did not take.
+            for _ in range(40):
+                if control.iface_value.CurrentValue == query:
+                    break
+                check()
+                if win.foreground() != hwnd:
+                    return Result(False, 'Spotify search lost focus.', {'error_code': 'focus_lost'})
+                time.sleep(0.05)
+            else:
                 return Result(False, 'Spotify search value did not match.', {'error_code': 'value_mismatch'})
             check()
             control.set_focus()

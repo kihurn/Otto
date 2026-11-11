@@ -7,9 +7,27 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Next up
 - Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
+  Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
+  volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
 - Then the realigned roadmap in AGENTS.md section 8 (Phase 1 Jarvis: act while talking, any-app control, R7).
 
 ## Done
+
+### 1.2 live-check fixes (11 Nov 2026, Claude Code, branch claude/live-check-fixes)
+- User's first live typed check: "play The Hills by The Weeknd" stopped with "Spotify search value did not match"
+  although the box showed the right text. Measured on the user's Spotify: after SetValue the ComboBox keeps
+  reporting the old text for 80–414 ms. `hands/spotify_search.py` now re-reads for up to ~2 s (40 × 50 ms).
+  Not yet confirmed live: the Enter press and the song-card click that follow (they never ran before).
+- "open a new tab on chrome and search hello world" compiled to find_files("new tab chrome") + web_search.
+  Added `search_goals.new_tab()`; the compiler drops it before a web search, and alone it is open_site "new tab"
+  (rule in `_web` and in the pipeline before Laya). Chrome opens a new *window* for `chrome://newtab` passed on
+  the command line (seen live), so "new tab" opens https://www.google.com, which does open as a tab.
+- open_site/web_search now carry their URL; the executor verifies them with `web.shown_in_chrome()` (Chrome's
+  toolbar address bar via a native UIA FindFirst, ~11 ms live, guarded by `chrome_control_ok`; this also confirms
+  the real UIA ancestry question left open by R1). Chrome need not be the foreground window. Unconfirmed wording
+  is "Opening X. I couldn't confirm it loaded." Live: new-tab open verified True; Gmail/search wording still needs
+  the user's re-run. 297 tests pass on Windows.
+- Still open, found in the same run: the banner says "Otto 1.1" (bump at release).
 
 ### Review fixes R1–R6 and cleanup (11 Nov 2026, Claude Code, branch claude/review-fixes)
 - Reproduced all six findings with fakes before fixing. R3: tie groups evaluated together, exact stored bar,
