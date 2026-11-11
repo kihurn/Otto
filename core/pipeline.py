@@ -502,6 +502,12 @@ class Otto:
 
         if p.kind == "agent_ask":
             self.pending = None
+            if not self._answers_question(t, kind, p):
+                # A new request, not an answer (11 Nov: "can you click the calm down video?" was taken as the
+                # answer six times over). The question is dropped and marked unanswered.
+                if self.history and self.history[-1].get("you") == p.text:
+                    self.history[-1]["cancelled"] = True
+                return None
             return self._agent_resume(p, answer=t)
 
         if p.kind == "heard":
@@ -828,6 +834,20 @@ class Otto:
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
 
+    _NEW_REQUEST = re.compile(r"^(?:you\b|please\b|open|close|play|search|google|type|click|press|send|reply|"
+                              r"what|who|where|when|why|how)\b|\b(?:can|could|would|will) you\b", re.I)
+
+    def _answers_question(self, t: str, kind: str, p) -> bool:
+        """Is this the answer to Otto's question, or a new request? Yes/no, one of the offered options, or a short
+        reply that doesn't read like a new request counts as the answer."""
+        if kind in ("yes", "no"):
+            return True
+        low = t.lower().strip(" .!?")
+        options = [o.lower() for o in (p.agent or {}).get("options", []) if o]
+        if any(o in low or low in o for o in options if len(o) > 1):
+            return True
+        return len(low.split()) <= 6 and not self._NEW_REQUEST.search(low)
+
     CONVERSATION_GAP = 180         # seconds of quiet after which a new request starts a new conversation
     _FRESH = re.compile(r"^(?:new topic|start over|start again|fresh start|new conversation|"
                         r"forget (?:this|the|our) conversation)[.!]*$", re.I)
@@ -918,7 +938,7 @@ class Otto:
         self.trace["agent"] = {
             "route": "loop", "status": result.status, "ok": result.ok, "asked": result.status == "confirm",
             "first": {"tool": first["tool"], "args": first.get("args", {})} if first else None,
-            "acting": len(acting), "unsafe": False,
+            "acting": len(acting), "unsafe": False, "named": agent.named_apps(t),
             "calls": [{"tool": c["tool"], "args": c.get("args", {}), "ok": c.get("ok"), "say": str(c.get("say", ""))[:160]}
                       for c in calls],
             "summary": ", ".join(f"{c['tool']} {' '.join(str(v) for v in c.get('args', {}).values())}".strip()

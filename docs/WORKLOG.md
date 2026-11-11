@@ -33,7 +33,15 @@ the save check caught a false "saved"; the send block and box readback worked (t
 - Mute toggled 16 times: `_back_and_forth` stops after A, B, A, B.
 - Qwen still opened Anaconda PowerShell Prompt for "powershell": `_wrong_app` refuses other installed apps when
   the request named one. Whether "Windows PowerShell" is in the user's app index is unconfirmed.
-- An agent_ask answer that is really a new request is still treated as the answer (seen twice); not changed yet.
+- A pending ask_user swallowed new requests (six times). `pipeline._answers_question`: yes/no, an offered
+  option, or a short reply that doesn't read like a request ("can you", "open", "what", "you ...") is the answer;
+  anything else drops the question (marked unanswered) and runs as a new request.
+- Advisor review of this batch: dedupe only in chat boxes holding little more than the text; claims checked only
+  when the request asked for that action; an invented control number (no read yet) stays refused, only a stale
+  one is retryable; flip-flop guard only for media/audio_output; explicit mute/unmute via `set_mute` (verified
+  with GetMute); `_wrong_app` refuses only look-alikes sharing a word; `named` apps in the trace; `look_up` refused
+  when the request says search/google; `web_search` kept as an alias for saved examples; position clicks on Send
+  ask with the text and person.
 
 ### New core: fixes from the first live run (11 Nov 2026, Claude Code, main)
 The user's live log (core.agent true) showed: a WhatsApp message sent after a click from a screenshot with no

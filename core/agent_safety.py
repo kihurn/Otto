@@ -285,6 +285,9 @@ def check(name: str, args: dict, ctx) -> str | None:
         if label is None:
             return "click there (I couldn't check what is under that spot)"
         if label and RISKY_WORDS.search(label):
+            w = front(ctx)
+            if re.search(r"\bsend\b", label, re.I) and _is_message(w):
+                return _send_question(ctx, w, _last_typed(ctx))
             return f'press "{label}"'
         if not label and RISKY_WORDS.search(ctx.why or ""):
             return f"click there ({ctx.why.strip()})"

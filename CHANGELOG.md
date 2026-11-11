@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.2 (in development)
-- New core, fixes from the second live run (614 tests pass; not yet re-run live):
+- New core, fixes from the second live run (630 tests pass; not yet re-run live):
   - Web: full addresses open as they are (they were being Googled); unknown words are no longer quietly Googled
     by "open"; a new `google` tool shows a search in Chrome, while `look_up` (was web_search) is only for
     answering in words; "read YouTube" reads Chrome's window; browser shortcuts (new tab ctrl+t, ...) are listed.
@@ -15,6 +15,8 @@
   - Opening a different app than the one you named is refused (Anaconda PowerShell Prompt for "powershell").
   - Chat questions ("what's your favourite fruit") get an answer, not a question back; "this chat" means the
     window in front; Otto reads the window before saying something isn't there.
+  - A new request typed while Otto waits for an answer is treated as a new request, not as the answer.
+  - Mute and unmute are separate steps, checked with Windows.
   - Seven sentences from the live runs added to the eval set.
 - New core, fixes from the first live run (603 tests pass; not yet re-run live):
   - Sending: Otto only offers to send after reading the chat again since the last click, and its question shows

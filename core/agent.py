@@ -120,6 +120,7 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     stop_after: stop after this many tool calls (otto eval uses it to judge only the first decision).
     stop: set stop.cancel from anywhere to make the loop stop."""
     ctx.brain = ctx.brain or brain
+    ctx.request = request
     agent_safety.back_to_user_window(ctx)
     messages = [{"role": "system", "content": system_prompt(brain, request, ctx.dry_run)}]
     messages += [m for m in conversation if m.get("role") in ("user", "assistant") and m.get("content")]
@@ -251,7 +252,7 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         worked = result.ok and (not acted or acted[-1]["ok"])
         say = result.say
         if result.ok:
-            unbacked = _unbacked_claim(say, calls[:-1])
+            unbacked = _unbacked_claim(say, calls[:-1], state.get("request", ""))
             if unbacked:
                 worked, say = False, unbacked
                 calls[-1].update(ok=False, say=say)
@@ -263,7 +264,8 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         return AgentResult("done", say, calls, worked)
     if end == "ask":
         state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
-        return AgentResult("ask", result.say, calls, False, result.observed.get("options", []), state)
+        state["options"] = result.observed.get("options", [])      # the pipeline tells answers from new requests
+        return AgentResult("ask", result.say, calls, False, state["options"], state)
     if result.asks:
         state["waiting"] = call
         state["waiting_front"] = agent_safety.snapshot(state["ctx"])
@@ -281,22 +283,29 @@ SAVE_AS = re.compile(r"^\s*save (?:as|file)\b", re.I)
 
 
 # What Qwen's last sentence claims -> the tool calls that would back the claim up.
-CLAIMS = [(re.compile(r"\b(?:typed|written|wrote|entered)\b", re.I), {"type"}, "I didn't manage to type it."),
-          (re.compile(r"\b(?:sent|send it|posted)\b", re.I), {"keys", "click"}, "Nothing was sent."),
-          (re.compile(r"\b(?:clicked|pressed|tapped)\b", re.I), {"click", "keys"}, "I didn't manage to click it."),
-          (re.compile(r"\b(?:opened|is open|launched)\b", re.I), {"open", "google", "read_window"}, "I didn't manage to open it."),
-          (re.compile(r"\b(?:playing|played)\b", re.I), {"media", "click", "keys"}, "I didn't manage to play it.")]
+# What Qwen's last sentence claims -> what the request must have asked for, and the tools that would back it up.
+_ASKED_TYPE = r"\b(?:type|write|say|reply|text|enter|fill)\b"
+CLAIMS = [(r"\b(?:typed|written|wrote|entered)\b", _ASKED_TYPE, {"type"}, "I didn't manage to type it."),
+          (r"\b(?:sent|posted)\b", r"\b(?:send|reply|say|message|text|post|tell)\b", {"keys", "click"},
+           "Nothing was sent."),
+          (r"\b(?:clicked|pressed|tapped)\b", r"\b(?:click|press|tap|select|choose|hit)\b", {"click", "keys"},
+           "I didn't manage to click it."),
+          (r"\b(?:opened|is open|launched)\b", r"\b(?:open|launch|start|go to|bring up)\b",
+           {"open", "google", "read_window"}, "I didn't manage to open it."),
+          (r"\b(?:playing|played)\b", r"\b(?:play|put on|listen)\b", {"media", "click", "keys"},
+           "I didn't manage to play it.")]
 
 
-def _unbacked_claim(say: str, calls: list[dict]) -> str:
+def _unbacked_claim(say: str, calls: list[dict], request: str) -> str:
     """Qwen sometimes reports what it meant to do (11 Nov: "Message sent to the group chat." with no step at all;
-    "Hi guys has been typed" after every type failed). A claim needs a step of that kind that worked in this
-    request; otherwise the reply says what really happened."""
+    "Hi guys has been typed" after every type failed). When the request asked for that action, the claim needs a
+    step of that kind that worked; otherwise the reply says what really happened. (A plain answer such as
+    "Ellee sent a clip" to "what is on my discord" is not a claim about Otto's own actions.)"""
     done = {c["tool"] for c in calls if c.get("ok") and not c.get("asked")}
-    for pattern, tools_needed, honest in CLAIMS:
-        if pattern.search(say) and not (done & tools_needed):
+    for claim, asked, tools_needed, honest in CLAIMS:
+        if re.search(claim, say, re.I) and re.search(asked, request, re.I) and not (done & tools_needed):
             return honest
-    if re.search(r"\bsent\b", say, re.I):
+    if re.search(r"\bsent\b", say, re.I) and re.search(r"\b(?:send|reply|say|message|text|post|tell)\b", request, re.I):
         sent = [c for c in calls if c.get("ok") and not c.get("asked") and (
             c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) in agent_safety.SEND_KEYS
             or c["tool"] == "click" and re.search(r"\bsend\b", str(c.get("say", "")), re.I))]
@@ -307,6 +316,8 @@ def _unbacked_claim(say: str, calls: list[dict]) -> str:
 
 def _back_and_forth(calls: list[dict], name: str, args: dict) -> str:
     """The same tool flipping between two settings (11 Nov: mute 0, mute 100, mute 0, ... sixteen times)."""
+    if name not in ("media", "audio_output"):
+        return ""                            # tab/space/tab or copy/paste twice can be real work
     same = [c for c in calls if c["tool"] == name][-3:]
     if len(same) == 3 and same[0]["args"] == same[2]["args"] and same[1]["args"] == args != same[0]["args"]:
         return "stop"
@@ -324,7 +335,10 @@ def _wrong_app(state: dict, name: str, args: dict) -> str:
     except Exception:
         return ""
     wanted = set(named.values())
-    if app and app["name"] not in wanted:
+    words = {w for n in wanted for w in re.findall(r"[a-z0-9]+", n.lower()) if len(w) > 2}
+    # Only a look-alike is refused (Anaconda PowerShell Prompt for PowerShell); File Explorer for
+    # "open my resume in word" is a helper, not a mix-up.
+    if app and app["name"] not in wanted and words & set(re.findall(r"[a-z0-9]+", app["name"].lower())):
         return f'The user named {", ".join(sorted(wanted))}, not {app["name"]}: open exactly that.'
     return ""
 

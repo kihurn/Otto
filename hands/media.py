@@ -279,6 +279,24 @@ def set_volume(level) -> Result:
         return Result(True, f"Volume about {level}%.")
 
 
+@action("set_mute", UNDOABLE, {"on": "yes to mute, no to unmute"},
+        lambda on="yes": "mute the sound" if str(on).lower() in ("yes", "true", "1", "on") else "unmute the sound")
+def set_mute(on="yes"):
+    """Mute or unmute for certain (the mute key only flips it, so "put the audio back" could flip it forever)."""
+    from core.tasks import Evidence, Outcome, OutcomeStatus
+    want = str(on).lower() in ("yes", "true", "1", "on")
+    try:
+        ep = _endpoint()
+        ep.SetMute(1 if want else 0, None)
+        now = bool(ep.GetMute())
+    except Exception:
+        return Outcome(OutcomeStatus.UNCERTAIN, "I couldn't reach Windows' volume control.")
+    if now != want:
+        return Outcome(OutcomeStatus.UNCERTAIN, "Windows didn't confirm the mute change.")
+    return Outcome(OutcomeStatus.VERIFIED, "Muted." if want else "Sound is on.", {"muted": now},
+                   [Evidence("windows.mute", expected={"muted": want}, observed={"muted": now})])
+
+
 @action("change_volume", UNDOABLE, {"step": "positive = louder, negative = quieter, in %"},
         lambda step: ("turn it up" if int(float(step)) > 0 else "turn it down"))
 def change_volume(step) -> Result:

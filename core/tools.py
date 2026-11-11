@@ -56,6 +56,7 @@ class ToolContext:
     brain: object | None = None                      # for the look tool
     look: dict = field(default_factory=dict)         # the last screenshot: {"region": (l, t, r, b), "scale": s}
     why: str = ""                                    # the model's reason for the current call (safety reads it)
+    request: str = ""                                # the user's request (some tools check what was asked)
 
 
 @dataclass
@@ -104,9 +105,13 @@ def schemas() -> list[dict]:
     return out
 
 
+# Old tool names that may still appear in saved examples (otto-data/agent_examples.jsonl).
+ALIASES = {"web_search": "look_up"}
+
+
 def validate(name: str, args) -> str | None:
     """None if the call is well formed, otherwise what is wrong with it (shown to the model)."""
-    t = TOOLS.get(name)
+    t = TOOLS.get(ALIASES.get(name, name))
     if not t:
         return f"There is no tool called {name!r}."
     if not isinstance(args, dict):
@@ -143,6 +148,7 @@ ON_FRONT_WINDOW = {"type", "keys", "click", "scroll", "drag", "read_window", "lo
 
 def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
     """Run one tool call. Never raises for ordinary failures; the result says what happened."""
+    name = ALIASES.get(name, name)
     problem = validate(name, args)
     if problem:
         return ToolResult(False, problem)
@@ -172,8 +178,12 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
         if isinstance(error, ActionInterrupted):
             raise
         result = ToolResult(False, f"{name} failed ({type(error).__name__}).")
-    if not result.ok and not had_controls and result.say.startswith("There is no control"):
-        result.observed["blocked"] = True    # a number used before any read_window: fine to retry after one
+    if (not result.ok and not had_controls and result.say.startswith("There is no control")
+            and any(h["tool"] == "read_window" and h["ok"] for h in ctx.history)):
+        result.observed["blocked"] = True    # a number from an earlier read that went stale: fine after a re-read
+    elif not result.ok and not had_controls and result.say.startswith("There is no control"):
+        result = ToolResult(False, "Control numbers come only from read_window. Read the window, then choose the "
+                                   "control by its name in that list.")
     entry = {"tool": name, "args": clean, "ok": result.ok}
     if name == "click":
         entry["name"] = (_control(ctx, clean.get("control")) or {}).get("name", "")
@@ -302,12 +312,12 @@ def _find_files(ctx, query):
 
 MEDIA = {"pause": ("media_key", {"key": "pause"}), "resume": ("media_key", {"key": "play"}),
          "next": ("media_key", {"key": "next"}), "previous": ("media_key", {"key": "previous"}),
-         "mute": ("media_key", {"key": "mute"}), "now_playing": ("now_playing", {}),
+         "mute": ("set_mute", {"on": "yes"}), "unmute": ("set_mute", {"on": "no"}), "now_playing": ("now_playing", {}),
          "liked": ("play_liked", {}), "volume_get": ("get_volume", {})}
 
 
 @tool("media", "music and volume",
-      {"do": "play, pause, resume, next, previous, mute (a switch: mute again to unmute), now_playing, liked, "
+      {"do": "play, pause, resume, next, previous, mute, unmute, now_playing, liked, "
              "volume_get, volume_set, volume_up or volume_down",
        "query": "optional: for play: song, artist, album or playlist", "artist": "optional: for play",
        "level": "optional: for volume_set 0-100, for volume_up/down the step in %"})
@@ -377,6 +387,8 @@ def _google(ctx, query):
       "\"search\" or \"google\" requests, use google for those)", {"query": "what to look up"}, read_only=True)
 def _look_up(ctx, query):
     from core import answers
+    if re.search(r"\b(?:search|google)\b", ctx.request, re.I):
+        return ToolResult(False, "The user asked to search, so they want to see it: use google instead.")
     found = answers.web_search(query)
     if not found:
         return ToolResult(False, "No web results (is local search set up? setting search.searxng_url).")
@@ -550,7 +562,11 @@ def _type(ctx, text, control=None):
     if target is not None and target.get("read_only"):
         return ToolResult(False, "That box can't be typed in.")
     before = ui_probe.read_text(target) if target is not None else _focused_text()
-    if before and len(text.strip()) >= 3 and " ".join(text.split()) in " ".join(before.split()):
+    from core import agent_safety
+    flat, box = " ".join(text.split()), " ".join((before or "").split())
+    if (len(flat) >= 3 and flat in box and len(box) <= 3 * len(flat) + 20
+            and agent_safety._is_message(agent_safety.front(ctx))):
+        # Only in a chat's message box (in a document, the same words may rightly be typed again).
         # 11 Nov: "thank you guys" was typed three times over three tries and then sent like that.
         return ToolResult(True, "That text is already in the box, so I didn't type it again.", {"typed": True})
     if target is not None:

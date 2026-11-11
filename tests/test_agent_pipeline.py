@@ -529,3 +529,25 @@ def test_known_site_opens_the_fast_way(new, monkeypatch):
     no_agent(monkeypatch)
     new.handle("open youtube")
     assert new.trace["rule"] == "whole_sentence" and new.trace["intent"]["action"] == "open_site"
+
+
+def _asked(new):
+    script(new, call("ask_user", question="Which video?", options="1;2;3"), call("done", say="Clicked it."))
+    new.handle("click on the 4th video")
+    assert new.pending.kind == "agent_ask"
+
+
+@pytest.mark.parametrize("text, answer", [
+    ("the second one", True), ("2", True), ("yes click", True), ("Over the Moon", True),
+    ("can you click the calm down video?", False), ("you typed twice", False),
+    ("could you search for banana bread recipe and then click the first one?", False),
+    ("what group chat is this?", False), ("in youtube, can you click the video called calm down?", False),
+])
+def test_answer_or_new_request(new, text, answer):
+    _asked(new)
+    resumed = []
+    from core.pipeline import Reply
+    new._agent_resume = lambda p, answer=None, yes=None: resumed.append(answer) or Reply("ok")
+    new._agent = lambda t: Reply("new")
+    new.handle(text)
+    assert bool(resumed) is answer

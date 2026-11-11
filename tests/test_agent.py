@@ -368,10 +368,8 @@ def test_typed_claim_after_failed_typing_is_corrected(ctx):
     assert not r.ok and r.say == "I didn't manage to type it."
 
 
-def test_a_number_used_before_reading_can_be_retried_after_reading(ctx, monkeypatch):
-    from core import agent, tools
-    ctx.dry_run = False
-    pressed = []
+def _chrome(monkeypatch, pressed):
+    from core import tools
 
     def fake_read(c, app=""):
         c.controls = [{"id": 4, "name": "Video", "type": "Hyperlink", "rect": (0, 0, 9, 9), "enabled": True}]
@@ -382,8 +380,27 @@ def test_a_number_used_before_reading_can_be_retried_after_reading(ctx, monkeypa
                                                              "focused": ""})
     monkeypatch.setattr("hands.indicator.point", lambda *a: None)
     monkeypatch.setattr("hands.ui_probe.press", lambda t: pressed.append(t["name"]) or True)
+
+
+def test_an_invented_number_stays_refused_after_reading(ctx, monkeypatch):
+    """ "click on the 4th video": control 4 before any read was made up (in Chrome it's a toolbar button)."""
+    from core import agent
+    ctx.dry_run, pressed = False, []
+    _chrome(monkeypatch, pressed)
     brain = Scripted(call("click", control=4), call("read_window"), call("click", control=4),
-                     call("done", say="Clicked it."))
+                     call("ask_user", question="Which video?"))
+    r = agent.run("click on the 4th video", [], brain, ctx)
+    assert not pressed and "by its name" in r.calls[0]["say"] and r.status == "ask"
+
+
+def test_a_stale_number_can_be_used_again_after_a_new_read(ctx, monkeypatch):
+    from core import agent
+    ctx.dry_run, pressed = False, []
+    _chrome(monkeypatch, pressed)
+    brain = Scripted(call("read_window"), call("keys", keys="pagedown"), call("click", control=4),
+                     call("read_window"), call("click", control=4), call("done", say="Clicked it."))
+    monkeypatch.setattr("hands.win.hotkey", lambda k: None)
+    monkeypatch.setattr("hands.win.focused_is_password", lambda: False)
     r = agent.run("click the video", [], brain, ctx)
     assert pressed == ["Video"] and r.ok
 
@@ -395,6 +412,7 @@ def test_typing_the_same_text_again_is_skipped(monkeypatch):
                                                              "focused": "Message"})
     monkeypatch.setattr("core.agent_safety.focused_text", lambda: "thank you guys")
     typed = []
+    monkeypatch.setattr("hands.win.focused_is_password", lambda: False)
     monkeypatch.setattr("hands.apps.type_text", lambda t: typed.append(t))
     r = tools.call("type", {"text": "thank you guys"}, tools.ToolContext(dry_run=False))
     assert r.ok and "already in the box" in r.say and not typed
@@ -421,3 +439,49 @@ def test_opening_a_different_app_than_the_one_named_is_refused(ctx, monkeypatch)
                      call("done", say="Opened it."))
     r = agent.run("open powershell please", [], brain, ctx)
     assert "not Anaconda PowerShell Prompt" in r.calls[0]["say"] and r.calls[1]["ok"]
+
+
+def test_same_words_in_a_document_are_typed_again(monkeypatch):
+    from core import tools
+    monkeypatch.setattr("core.agent_safety.otto_in_front", lambda c: False)
+    monkeypatch.setattr("core.agent_safety.front", lambda c: {"hwnd": 1, "exe": "notepad.exe", "title": "notes - Notepad",
+                                                             "focused": "Text editor"})
+    monkeypatch.setattr("core.agent_safety.focused_text", lambda: "hello there")
+    monkeypatch.setattr("hands.win.focused_is_password", lambda: False)
+    typed = []
+    monkeypatch.setattr("hands.apps.type_text", lambda t: typed.append(t))
+    assert tools.call("type", {"text": "hello there"}, tools.ToolContext(dry_run=False)).ok and typed == ["hello there"]
+
+
+def test_answers_are_not_mistaken_for_claims(ctx):
+    from core import agent
+    r = agent.run("what is on my discord right now", [], Scripted(call("done", say="Ellee sent a clip and BearBoi typed lol.")), ctx)
+    assert r.ok and r.say.startswith("Ellee")
+    r = agent.run("who wrote harry potter", [], Scripted(call("done", say="It was written by J.K. Rowling.")), ctx)
+    assert r.ok
+
+
+def test_helper_apps_are_not_refused(ctx):
+    from core import agent
+    brain = Scripted(call("open", what="File Explorer"), call("done", say="Opened it."))
+    r = agent.run("open my resume in word", [], brain, ctx)
+    assert r.calls[0]["ok"]
+
+
+def test_unmute_is_its_own_step(ctx):
+    from core import tools
+    r = tools.call("media", {"do": "unmute"}, ctx)
+    assert r.ok and "unmute" in r.say
+
+
+def test_look_up_refused_when_the_user_asked_to_search(ctx):
+    from core import agent
+    brain = Scripted(call("look_up", query="banana bread"), call("google", query="banana bread"), call("done", say="Searched."))
+    r = agent.run("can you search for banana bread?", [], brain, ctx)
+    assert not r.calls[0]["ok"] and "google" in r.calls[0]["say"] and r.calls[1]["ok"]
+
+
+def test_old_web_search_name_still_works(ctx, monkeypatch):
+    from core import answers, tools
+    monkeypatch.setattr(answers, "web_search", lambda q, max_results=3: [{"title": "T", "url": "u", "content": "c"}])
+    assert tools.call("web_search", {"query": "x"}, ctx).ok
