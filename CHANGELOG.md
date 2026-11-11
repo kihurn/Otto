@@ -1,6 +1,21 @@
 # Changelog
 
 ## 1.2 (in development)
+- New core, fixes from the second live run (614 tests pass; not yet re-run live):
+  - Web: full addresses open as they are (they were being Googled); unknown words are no longer quietly Googled
+    by "open"; a new `google` tool shows a search in Chrome, while `look_up` (was web_search) is only for
+    answering in words; "read YouTube" reads Chrome's window; browser shortcuts (new tab ctrl+t, ...) are listed.
+  - Screenshot clicks: positions are on a 0-1000 grid over the image and must fall inside the window Otto
+    looked at (two clicks had landed on Windows' "Desktop 1" button).
+  - Typing: never into a button or list item; text already in the box isn't typed again; a control number used
+    before any window was read types at the cursor, and can be retried after reading.
+  - Replies: "sent", "typed", "clicked", "opened", "playing" need a step that did it, or Otto says what really
+    happened. A tool flipping between two settings (mute on/off) stops after one round.
+  - Sending: the Send-button question shows the text and the person ("in WhatsApp, to Yusri").
+  - Opening a different app than the one you named is refused (Anaconda PowerShell Prompt for "powershell").
+  - Chat questions ("what's your favourite fruit") get an answer, not a question back; "this chat" means the
+    window in front; Otto reads the window before saying something isn't there.
+  - Seven sentences from the live runs added to the eval set.
 - New core, fixes from the first live run (603 tests pass; not yet re-run live):
   - Sending: Otto only offers to send after reading the chat again since the last click, and its question shows
     the message box's real text and the chat's title (left-over text from an earlier try shows up). After a "no",

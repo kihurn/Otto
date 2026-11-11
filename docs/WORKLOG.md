@@ -17,6 +17,24 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### New core: fixes from the second live run (11 Nov 2026, Claude Code, main)
+Log after pulling the first batch: audio swap works both ways; Chrome opens ("already open, brought to front");
+the save check caught a false "saved"; the send block and box readback worked (the question showed
+"thank you guysthank you guysthank you guys", and the user still said yes). New failures and causes:
+- `web.site_url` rejected full `https://` addresses, so open_site Googled them (YouTube links opened Google).
+- `open` Googled any unknown text ("a new tab in Chrome"); Qwen then pressed a "Plus Button" described in
+  Google's AI overview. Now refused, with a ctrl+t hint; `google` tool added; `web_search` renamed `look_up`.
+- Two look-based clicks hit "Desktop 1" (the taskbar). Likely cause: Qwen3-VL gives positions on a 0-1000 grid,
+  not pixels (not confirmed). Positions are now asked for and read on that grid and must be inside the window.
+- Qwen invents control numbers before reading; the failure blocked the same call after a read. Such failures
+  are now `blocked` (retryable), and `type` with an unknown number and no read types at the cursor.
+- `type` into control 1 (a server icon) "worked": typing is refused into non-text control types.
+- Unbacked claims ("Message sent" with no step, "typed" after failed typing): `agent._unbacked_claim`.
+- Mute toggled 16 times: `_back_and_forth` stops after A, B, A, B.
+- Qwen still opened Anaconda PowerShell Prompt for "powershell": `_wrong_app` refuses other installed apps when
+  the request named one. Whether "Windows PowerShell" is in the user's app index is unconfirmed.
+- An agent_ask answer that is really a new request is still treated as the answer (seen twice); not changed yet.
+
 ### New core: fixes from the first live run (11 Nov 2026, Claude Code, main)
 The user's live log (core.agent true) showed: a WhatsApp message sent after a click from a screenshot with no
 re-read of the chat; "ok sure" typed three times into Discord's box across runs; "what is on my discord" redoing

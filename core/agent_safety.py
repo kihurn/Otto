@@ -133,7 +133,7 @@ def blocked(name: str, args: dict, ctx) -> str | None:
     if _is_command(w) or not _is_message(w) or _read_since_moved(ctx):
         return None
     return ("Not sent. First use read_window (or look) to check that the right chat is open and what the message "
-            "box holds, then press enter again.")
+            "box holds, then press enter again without clicking anything in between.")
 
 
 def _read_since_moved(ctx) -> bool:
@@ -159,6 +159,9 @@ def _send_question(ctx, w: dict, typed: str) -> str:
     else:
         shown = box if len(box) <= 300 else ""
     place = re.sub(r"\(\d+\+?\)\s*", "", w.get("title", "")).strip() or _app_name(w)   # no unread counts
+    to = re.search(r"\b(?:message|reply|write) to (.+)$", w.get("focused") or "", re.I)
+    if to and to[1].strip().lower() not in place.lower():
+        place = f"{place}, to {to[1].strip()}"          # WhatsApp names the person only in its message box
     if len(shown) > 200:
         shown = shown[:200] + "..."
     return f'send "{shown}" in {place}' if shown else f"send the message in {place}"
@@ -241,7 +244,7 @@ def _selected_all(ctx) -> bool:
 
 def check(name: str, args: dict, ctx) -> str | None:
     """None = go ahead. Otherwise the question to ask (the call waits for a yes)."""
-    if ctx.confirmed or name in ("read_window", "find_files", "web_search", "ask_user", "done", "look", "point",
+    if ctx.confirmed or name in ("read_window", "find_files", "look_up", "google", "ask_user", "done", "look", "point",
                                  "scroll"):
         return None
     if name == "keys":
@@ -291,6 +294,9 @@ def check(name: str, args: dict, ctx) -> str | None:
         target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None)
         label = " ".join(str((target or {}).get(k) or "") for k in ("name", "automation_id")).strip()
         if label and RISKY_WORDS.search(label):
+            w = front(ctx)
+            if re.search(r"\bsend\b", label, re.I) and _is_message(w):
+                return _send_question(ctx, w, _last_typed(ctx))      # what is sent and where, not just "Send"
             return f'press "{(target or {}).get("name") or label}"'
         if label and RUN_BUTTONS.match((target or {}).get("name", "").strip()):
             w = front(ctx)

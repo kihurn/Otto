@@ -41,6 +41,8 @@ def sites() -> dict[str, str]:
 
 def site_url(name: str) -> str | None:
     """'youtube' -> https://www.youtube.com, 'github.com' -> https://github.com, else None."""
+    if re.fullmatch(r"https?://\S+", name.strip(), re.I):
+        return name.strip()                  # already a full address: open it as it is, never Google it
     n = name.lower().strip().removeprefix("the ").removesuffix(" website").removesuffix(" site").strip()
     known = sites()
     if n in known:

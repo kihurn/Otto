@@ -28,7 +28,7 @@ REHEARSAL = ("This is a rehearsal (dry run): nothing is really done, and read_wi
              "There are no control numbers or screen positions in a rehearsal: type without a control number and "
              "use keys (for example enter) where the real task would. Never repeat a step or invent options.")
 NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
-ACTING = {"click", "type", "keys", "open", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
+ACTING = {"click", "type", "keys", "open", "google", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
 
 RULES = """You are operating the user's Windows PC for them, one tool call at a time.
 Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few words>"}.
@@ -36,6 +36,12 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
 - To act inside a window, use read_window first and refer to controls by their number. Use look (a screenshot)
   when read_window shows nothing useful, and click by x,y from that image only then.
 - Open exactly the app the user named, never a similar one (Anaconda Prompt is not PowerShell).
+- Shortcuts: new tab ctrl+t, close tab ctrl+w, address bar ctrl+l, save ctrl+s, find ctrl+f, back alt+left,
+  reload f5. To search where the user can see it, use google. To open a site, open its name or full address.
+- "This chat", "here", "this window" mean the window in front: read_window it, don't ask which.
+- Before saying something isn't there, read_window (or look) to check.
+- If the user says you didn't do something, read the window to see what happened, then do it properly.
+- If the user just chats or asks you something, answer with done; ask_user is only for a missing detail of a task.
 - Control numbers come only from your latest read_window in this request. "The 4th video" means the fourth
   video in that list, not control 4.
 - Do only the newest request. Earlier requests are finished; never repeat their steps unless the user asks.
@@ -120,7 +126,7 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     named = named_apps(request)
     note = ("\n(Apps named here: " + "; ".join(f"{k} = {v}" for k, v in named.items()) + ")") if named else ""
     messages.append({"role": "user", "content": request + note})
-    state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(),
+    state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(), "named": named,
              "max_steps": max_steps, "max_seconds": max_seconds, "stop_after": stop_after, "request": request,
              "stop": stop or Stopper()}
     return _guarded(state, lambda: _loop(state, brain))
@@ -206,6 +212,15 @@ def _loop(state: dict, brain) -> AgentResult:
         # The very same step that already failed in this request (even with a look in between) fails again.
         failed_before = name in ACTING and any(c["tool"] == name and c["args"] == args and not c.get("ok")
                                                and not c.get("asked") and not c.get("blocked") for c in calls)
+        refusal = _wrong_app(state, name, args) or _back_and_forth(calls, name, args)
+        if refusal == "stop":
+            return _stop(state, "I was going back and forth, so I stopped.")
+        if refusal:
+            calls.append(dict(call, ok=False, say=refusal, blocked=True))
+            state["messages"].append({"role": "user", "content": "Result: " + json.dumps({"ok": False, "say": refusal})})
+            if _failures(calls) >= 3:
+                return _stop(state, "I got stuck, so I stopped.")
+            continue
         if again or failed_before:
             # Doing exactly the same thing again is how a task that already worked gets undone.
             calls.append(dict(call, ok=False, say="not repeated"))
@@ -235,6 +250,11 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"])
         say = result.say
+        if result.ok:
+            unbacked = _unbacked_claim(say, calls[:-1])
+            if unbacked:
+                worked, say = False, unbacked
+                calls[-1].update(ok=False, say=say)
         if worked:
             problem = _not_saved(state, say)
             if problem:
@@ -258,6 +278,55 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
 
 UNSAVED = re.compile(r"^\s*\*|\*\s+-\s|[●•]|\bunsaved\b|\bnot saved\b", re.I)
 SAVE_AS = re.compile(r"^\s*save (?:as|file)\b", re.I)
+
+
+# What Qwen's last sentence claims -> the tool calls that would back the claim up.
+CLAIMS = [(re.compile(r"\b(?:typed|written|wrote|entered)\b", re.I), {"type"}, "I didn't manage to type it."),
+          (re.compile(r"\b(?:sent|send it|posted)\b", re.I), {"keys", "click"}, "Nothing was sent."),
+          (re.compile(r"\b(?:clicked|pressed|tapped)\b", re.I), {"click", "keys"}, "I didn't manage to click it."),
+          (re.compile(r"\b(?:opened|is open|launched)\b", re.I), {"open", "google", "read_window"}, "I didn't manage to open it."),
+          (re.compile(r"\b(?:playing|played)\b", re.I), {"media", "click", "keys"}, "I didn't manage to play it.")]
+
+
+def _unbacked_claim(say: str, calls: list[dict]) -> str:
+    """Qwen sometimes reports what it meant to do (11 Nov: "Message sent to the group chat." with no step at all;
+    "Hi guys has been typed" after every type failed). A claim needs a step of that kind that worked in this
+    request; otherwise the reply says what really happened."""
+    done = {c["tool"] for c in calls if c.get("ok") and not c.get("asked")}
+    for pattern, tools_needed, honest in CLAIMS:
+        if pattern.search(say) and not (done & tools_needed):
+            return honest
+    if re.search(r"\bsent\b", say, re.I):
+        sent = [c for c in calls if c.get("ok") and not c.get("asked") and (
+            c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) in agent_safety.SEND_KEYS
+            or c["tool"] == "click" and re.search(r"\bsend\b", str(c.get("say", "")), re.I))]
+        if not sent:
+            return "Nothing was sent."
+    return ""
+
+
+def _back_and_forth(calls: list[dict], name: str, args: dict) -> str:
+    """The same tool flipping between two settings (11 Nov: mute 0, mute 100, mute 0, ... sixteen times)."""
+    same = [c for c in calls if c["tool"] == name][-3:]
+    if len(same) == 3 and same[0]["args"] == same[2]["args"] and same[1]["args"] == args != same[0]["args"]:
+        return "stop"
+    return ""
+
+
+def _wrong_app(state: dict, name: str, args: dict) -> str:
+    """The user named an installed app; opening a different one is refused (PowerShell vs Anaconda Prompt)."""
+    named = state.get("named") or {}
+    if name != "open" or not named:
+        return ""
+    try:
+        from hands import apps
+        app = apps.INDEX.match_exact(str(args.get("what", "")))
+    except Exception:
+        return ""
+    wanted = set(named.values())
+    if app and app["name"] not in wanted:
+        return f'The user named {", ".join(sorted(wanted))}, not {app["name"]}: open exactly that.'
+    return ""
 
 
 def _is_save(name: str, args: dict, ctx) -> bool:

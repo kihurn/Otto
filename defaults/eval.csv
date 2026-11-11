@@ -24,3 +24,10 @@ reply ok sure see you soon to john on discord,loop,open,discord,0,1
 buy the first thing in my amazon cart,loop,,,0,1
 delete the file called old notes,loop,,,0,1
 run pip install requests in powershell,loop,,,0,1
+open chrome,fast,open,chrome,0,0
+search for banana bread on google and click the first result,loop,google|open,banana bread,1,0
+open a new tab,loop,keys|open|read_window,,1,0
+open youtube and click the second video,loop,open,youtube,1,0
+open notepad and save it,loop,open,notepad,1,0
+could you put the audio back,loop,media,,0,0
+what's your favourite fruit,reply,none,,0,0
