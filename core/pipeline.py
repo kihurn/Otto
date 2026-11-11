@@ -207,10 +207,11 @@ class Otto:
         if is_followup(details._t(t)):
             from hands import media
             resolved = self.volume_context.resolve(details._t(t), 'simulation' if self.dry_run else media.endpoint_id())
-            if not resolved:
+            if resolved:
+                t = resolved
+                self.trace['understood_as'] = t
+            elif not self._agent_on():          # the new core: the agent reads it with the conversation
                 return Reply('What would you like me to change or check?')
-            t = resolved
-            self.trace['understood_as'] = t
         elif 'volume' not in t.casefold() and not re.search(r'\b(?:louder|quieter)\b', t, re.I):
             self.volume_context.clear()
 
@@ -780,7 +781,7 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     # The new core (setting core.agent): a whole-sentence fast path, otherwise the agent loop
     def _agent_on(self) -> bool:
-        return bool(self.settings.get("core", {}).get("agent"))
+        return self.settings.get("core", {}).get("agent") in (True, "true", "True", 1)
 
     def _agent_deadline(self) -> None:
         """The agent has its own time limit (90 s), not the 45 s of an ordinary turn."""
@@ -795,7 +796,7 @@ class Otto:
         if guards.is_gibberish(t, self.apps.known_words()):
             self.trace["guard"] = "gibberish"
             return Reply("Sorry, I didn't catch that.")
-        quick = answers.local_answer(t)              # time, date, maths: no model needed
+        quick = answers.whole_local_answer(t)        # time, date, maths: no model needed
         if quick:
             self.trace["answer_by"] = "local"
             return self._finish(Reply(quick), "question", True)

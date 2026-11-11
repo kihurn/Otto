@@ -94,6 +94,46 @@ def test_maths_answered_locally(new, monkeypatch):
     assert "12" in new.handle("what's 15 percent of 80").text
 
 
+@pytest.mark.parametrize("text", ["what's the time in tokyo", "google what time is it in london",
+                                  "type 2+2 in notepad", "open 7-zip"])
+def test_only_whole_questions_are_answered_locally(new, text):
+    s = script(new, call("done", say="agent"))
+    assert new.handle(text).text in ("agent", "") or new.trace.get("rule") == "whole_sentence"
+    assert new.trace.get("answer_by") != "local"
+
+
+def test_time_question_answered_locally(new, monkeypatch):
+    no_agent(monkeypatch)
+    assert new.handle("what time is it?").text.startswith("It's")
+
+
+def test_youtube_video_by_someone_is_not_spotify(new):
+    s = script(new, call("open", what="youtube"), call("done", say="On it."))
+    new.handle("play the latest video by mrbeast on youtube")
+    assert s.seen and new.trace["agent"]["first"]["tool"] == "open"
+
+
+def test_unbound_volume_followup_reaches_the_agent(new):
+    s = script(new, call("done", say="Which one?"))
+    new.handle("increase it to 70")
+    assert len(s.seen) == 1
+
+
+def test_off_switch_as_text_is_off(otto, monkeypatch):  # noqa: F811
+    otto.settings.setdefault("core", {})["agent"] = "false"
+    no_agent(monkeypatch)
+    assert "would open Spotify" in otto.handle("open spotify").text
+
+
+def test_answer_clears_stale_screen_reads(new):
+    s = script(new, call("ask_user", question="Which one?"), call("done", say="Done."))
+    new.handle("swap my audio output")
+    ctx = new.pending.agent["ctx"]
+    ctx.controls, ctx.look = [{"id": 1, "name": "Old"}], {"region": (0, 0, 1, 1), "scale": 1}
+    new.handle("the first")
+    assert ctx.controls == [] and ctx.look == {}
+
+
 def test_old_supervisor_is_off_with_the_new_core(new, monkeypatch):
     from core import interpreter
     monkeypatch.setattr(interpreter, "review", lambda *a, **k: (_ for _ in ()).throw(AssertionError("old layer")))

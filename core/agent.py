@@ -95,6 +95,8 @@ def resume(pending: dict, brain, answer: str | None = None, yes: bool | None = N
         if after is not None:
             return after
     elif answer is not None:
+        # The screen may have changed while you thought: earlier control numbers and screenshot positions are stale.
+        state["ctx"].controls, state["ctx"].look = [], {}
         agent_safety.back_to_user_window(state["ctx"])
         state["messages"].append({"role": "user", "content": f"The user answered: {answer}"})
     return _loop(state, brain)

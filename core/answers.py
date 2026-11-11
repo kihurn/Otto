@@ -20,6 +20,23 @@ _NEEDS_WEB = re.compile(r"\b(who is|who's|who won|current|currently|latest|news|
                         r"convert|exchange rate|usd|myr|sgd|eur|gbp|bitcoin|crypto|open now|near me)\b", re.I)
 
 
+_WHOLE_LOCAL = re.compile(
+    r"(?:what(?:'s| is)? the time|what time is it|time|current time|what(?:'s| is)? (?:the )?date|what(?:'s| is)? today|"
+    r"what day is it|today's date|what(?:'s| is)? today's date|what year is it|how many days (?:until|till|to) christmas)"
+    r"(?: (?:right )?now| today)?")
+
+
+def whole_local_answer(text: str) -> str | None:
+    """Like local_answer, but only when the WHOLE sentence is that question ("what time is it", "15% of 80").
+    "what's the time in tokyo" or "google what time it is" are not answered from this PC's clock."""
+    t = re.sub(r"\bwhats\b", "what's", text.lower()).strip()
+    t = re.sub(r"^(?:(?:hey )?otto[, ]+)?(?:(?:can|could) you (?:please )?(?:tell me )?|please |tell me )", "", t)
+    t = re.sub(r"\s*(?:please|pls|thanks|thank you)?[?.!\s]*$", "", t)
+    if _WHOLE_LOCAL.fullmatch(t):
+        return local_answer(t)
+    return maths(t)
+
+
 def local_answer(text: str) -> str | None:
     t = re.sub(r"\bwhats\b", "what's", text.lower())
     now = datetime.now()

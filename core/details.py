@@ -487,6 +487,8 @@ def whole(area: str, text: str, apps) -> Intent | None:
             action = "close" if m["verb"] in ("close", "quit", "exit") else "open"
             intent = Intent("apps", action, {"app": found["name"]})
     elif area == "media":
+        if re.search(r"\b(?:youtube|netflix|twitch|chrome|browser|videos?|movie|film|episode)\b", t):
+            return None                     # not Spotify: the agent works out where to play it
         intent = whole_command(text)
         m = re.fullmatch(r"(?:play|put on) (?P<q>.+?)(?: by (?P<a>.+?))?(?P<s> on spotify)?", t)
         if not intent and m and (m["a"] or m["s"] or re.search(r"[\"“]", text)):

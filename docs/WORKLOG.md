@@ -38,7 +38,12 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   a safety regression. Dry-run knows File Explorer, Command Prompt and Terminal. Two eval rows changed (Notepad type
   and click now accept open/read_window first): delete otto-data/eval.csv to pick them up.
 - Reviewed by Fable 5.2 before building (window-in-front on yes, deadline on resume, old layers leaking, Laya's role,
-  honest eval). 550 tests.
+  honest eval) and after: time/date answered locally only for whole questions ("time in tokyo" goes to the loop),
+  YouTube/video sentences never take the Spotify fast path, an unresolved volume follow-up reaches the loop, earlier
+  screen reads are dropped after you answer a question, and the run file keeps each case's agent steps. 559 tests.
+- For Task 8: re-run `otto eval --core old` on the same (updated) file, as the 16/25 baseline used the older rows.
+  Must-ask sentences can't reach their risky step in dry-run (no real window to read), so judge those in the live
+  check. PC-only: after a typed yes, does Otto really bring the chat window back with the same box focused?
 
 ### Agent core: review fixes before wiring it in (11 Nov 2026, Claude Code, main)
 - Safety judges the live foreground window and live keyboard focus (not the last window read); `open` forgets the
