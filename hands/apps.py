@@ -191,7 +191,9 @@ def open_app(app: str) -> Result:
         return Result(True, f"Opening {name}.", {"app": name})
     for _ in range(24):                      # check for its window for up to ~6 seconds
         time.sleep(0.25)
-        if win.find_window(name):
+        window = win.find_window(name)
+        if window:
+            win.focus(window['hwnd'])
             return Result(True, f"Opened {name}.", {"app": name})
     return Result(True, f"I asked Windows to open {name}; it's still loading.", {"app": name})
 

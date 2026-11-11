@@ -47,7 +47,7 @@ def describe(steps: list[dict]) -> str:
     return ", then ".join(parts)
 
 
-def run_plan(steps: list[dict], confirmed: bool = False, dry_run: bool = False, why: str = "", task=None, progress=lambda message: None) -> Result:
+def run_plan(steps: list[dict], confirmed: bool = False, dry_run: bool = False, why: str = "", task=None, progress=lambda message: None, evaluation_backend=None) -> Result:
     # Validate every step before risk checks or any effect, including legacy recipes.
     from core.planner import validate_steps
     from hands.registry import InvalidPlan
@@ -59,4 +59,5 @@ def run_plan(steps: list[dict], confirmed: bool = False, dry_run: bool = False, 
     if risk >= ASK and not confirmed:
         raise NeedsConfirm(describe(steps))
     from core import executor
-    return executor.run(steps, dry_run=dry_run, why=why, task=task, progress=progress)
+    return executor.run(steps, dry_run=dry_run, why=why, task=task, progress=progress,
+                        evaluation_backend=evaluation_backend)

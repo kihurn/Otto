@@ -3,15 +3,23 @@
 Shared by every agent (Claude Code, Codex) and the user. Newest first inside each section.
 
 ## In progress
+- [codex] D–F code review and confirmed dead-code/generated-file cleanup – started 2026-11-11 (review report, focused regressions, documentation).
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
 
 ## Next up
-- Finish D on Sol: audio output selection and undo, Spotify/Chrome live validation and fixes, and remaining app, timer, note and file verifiers.
-- Finish E on Sol: audio ducking and restoration, including cancellation and output changes.
-- Finish F on Sol: offline evaluation, candidate learning and reports with promotion safeguards.
-- Run one final Astra review after D, E and F. Review live results, release readiness and candidate promotion together.
+- One final Astra review of D–F, including native acceptance gaps, promotion safeguards and release readiness. Keep the current Laya calibration active until a candidate is explicitly reviewed and promoted.
 
 ## Done
+
+### D, E and F implementation and validation (11 Nov 2026, Codex/Sol)
+- D: audio output inventory/current output, named switching and stable-ID selection, independent role readback, and undo if the active selection still matches. Windows discovery reported one Realtek speaker endpoint. Two-device switch, ambiguity, disconnect and manual-change-safe undo validated with a fake provider. A physical switch still needs a second active endpoint. Core Audio role readback uses IMMDeviceEnumerator and switching uses installed pycaw SetDefaultDevice.
+- D: timers now verify the scheduled entry/thread, notes reserve unique names and verify written contents, and file search checks returned paths exist. Newly opened app windows are focused before the runner checks foreground identity. Arbitrary document launches remain dispatched where no exact-path observer is available.
+- D: live Qwen diagnosis found invalid action arguments, UIA wrapper text differing from accessible names, repeated query entry, coordinate scale errors and similarly named playlists. Added structured Ollama output schema, direct named field readback/submission, explicit 0–1000 model coordinates, and matching-song controls. Live Chrome verified the requested Google URL. Live Spotify dispatched a click and Windows verified The Hills. Spotify started from an already displayed search, so fresh-start acceptance remains outstanding. D passed 242 tests before E.
+- E: per-session 20% cap worker with push-to-talk and spoken reply leases, original-value restoration, user override protection, endpoint changes, and an interrupted-process journal. Verified the actual cap and restoration on three real Windows sessions, plus simulated muted/quiet/new sessions and output change. E passed 247 tests before F. A complete microphone-to-reply run and physical endpoint change still need user acceptance.
+- F: `otto train --offline --tasks N --seed S [--baseline ID]` runs the real rules and executor with injected simulated effects. Generates review-only example proposals and manifest, scenarios, metrics and Markdown report. Initial coverage is seeded volume/timer requests, compounds, invalid plans and first-step failure. No model generates or judges these cases. Two matching 100-task runs passed 100/100 with zero regressions. Reports are under otto-data/training.
+- F: startup restores saved calibration even when examples changed. Candidate training fits a separate agent and evaluates the same checked rows before/after. It saves and reloads a versioned artifact, checks confident decision precision and individual regressions, and stages without activation. Explicit promote validates artifact/dataset/baseline/zone fingerprints under a writer lock, then changes an atomic pointer. Rollback restores the previous artifact. Real candidate training scored 96% before and after on 100 checked requests, with 323 training examples. No model was promoted.
+- Final suite: 251 tests passed, three existing COM warnings. Promotion/rollback exercised with isolated artifacts. No final Astra review or release was performed.
+- Final live candidate `7c9d9c295f0146cb9287c261cca58d37` has matching artifact and zone fingerprints. Active calibration digest still matches the evaluated baseline. Comparable offline report: `otto-data/training/af9a69c5d93b419693b3ae4778655413/REPORT.md`.
 
 ### Visual-mode live failure diagnosis (11 Nov 2026, Codex/Sol)
 - Local logs confirmed correct routing. Several failed requests ended after about eight seconds with NoBrainAvailable, consistent with the inference deadline. A later Chrome request logged ValueError with its cause discarded. The exact historical reasons are unavailable.

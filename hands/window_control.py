@@ -17,7 +17,7 @@ def visual_task(app, goal, query, artist=''):
 
 
 class WindowProvider:
-    def __init__(self, app):
+    def __init__(self, app, goal=None):
         from hands import apps, win
         opened = apps.open_app('Spotify' if app.casefold() == 'spotify' else 'Google Chrome')
         window = win.find_window('Spotify' if app.casefold() == 'spotify' else 'Google Chrome')
@@ -26,7 +26,15 @@ class WindowProvider:
         self.hwnd = window['hwnd']
         self.exe = 'spotify.exe' if app.casefold() == 'spotify' else 'chrome.exe'
         self.bound = self.identity()
-        self.query_control = None
+        self.query_submitted = False
+        self.goal = goal
+
+    def song_controls(self, goal):
+        from pywinauto import Application
+        from hands.spotify_desktop import play_candidates
+        dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
+        controls = play_candidates(dialog, goal['query'], goal['artist'])
+        return sorted(controls, key=lambda control: (control.rectangle().top, control.rectangle().left))
 
     def identity(self):
         from hands import win
@@ -61,8 +69,11 @@ class WindowProvider:
         image.thumbnail((1280, 1280))
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG', quality=80)
+        songs = self.song_controls(self.goal) if self.query_submitted and self.exe == 'spotify.exe' and self.goal else []
+        song_target = (songs[0].element_info.name, tuple(songs[0].rectangle())) if songs else None
         return {'id': uuid.uuid4().hex, 'identity': target, 'time': time.monotonic(),
-                'image': base64.b64encode(buffer.getvalue()).decode(), 'pixels': full}
+                'image': base64.b64encode(buffer.getvalue()).decode(), 'pixels': full,
+                'query_submitted': self.query_submitted, 'song_target': song_target}
 
     def fresh(self, snapshot, point):
         from PIL import ImageChops, ImageStat
@@ -75,17 +86,6 @@ class WindowProvider:
             diff = ImageChops.difference(image.crop(region), snapshot['pixels'].crop(region))
             return max(ImageStat.Stat(diff).mean) < 8
         return True
-
-    def edit(self, goal):
-        from pywinauto.uia_defines import IUIA
-        field = IUIA().get_focused_element()
-        if field.CurrentProcessId != self.bound[0] or field.CurrentIsPassword or field.CurrentControlType not in (50003,50004):
-            raise ValueError('No safe edit')
-        name = (field.CurrentName or '').casefold()
-        labels = ('what do you want to play', 'search') if goal['app'].casefold() == 'spotify' else ('address and search bar',)
-        if not any(label in name for label in labels):
-            raise ValueError('Unrelated edit')
-        return field
 
     def act(self, action_name, target, snapshot, goal):
         from hands import win
@@ -103,7 +103,7 @@ class WindowProvider:
             if action_name == 'click':
                 from pywinauto import Desktop
                 control = Desktop(backend='uia').from_point(x,y)
-                label = control.window_text().casefold()
+                label = (control.element_info.name or '').casefold()
                 if goal['app'].casefold() == 'chrome':
                     eligible = label in {'address and search bar', 'new tab', 'search google or type a url'}
                 else:
@@ -121,13 +121,24 @@ class WindowProvider:
                 mouse.click(coords=(x,y))
             else:
                 mouse.scroll(coords=(x,y), wheel_dist=-3)
+        elif action_name == 'play_match':
+            if not snapshot.get('song_target') or goal['app'].casefold() != 'spotify':
+                raise ValueError('Visual target is outside the allowed capability')
+            controls = self.song_controls(goal)
+            if (not controls or self.identity() != snapshot['identity'] or
+                    (controls[0].element_info.name, tuple(controls[0].rectangle())) != snapshot['song_target']):
+                raise ValueError('Stale target')
+            check()
+            controls[0].invoke()
         elif action_name == 'type_query':
+            if self.query_submitted:
+                raise ValueError('Search was already submitted')
             from pywinauto import Application
             dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
             labels = ('what do you want to play',) if goal['app'].casefold() == 'spotify' else ('address and search bar',)
             candidates = [c for kind in ('ComboBox','Edit') for c in dialog.descendants(control_type=kind)
                           if c.is_visible() and c.is_enabled() and not c.element_info.element.CurrentIsPassword
-                          and any(label in c.window_text().casefold() for label in labels)]
+                          and any(label in (c.element_info.name or '').casefold() for label in labels)]
             if len(candidates) != 1:
                 raise ValueError('No uniquely identified query field')
             control = candidates[0]
@@ -136,17 +147,22 @@ class WindowProvider:
             if self.identity() != snapshot['identity'] or control.iface_value.CurrentIsReadOnly:
                 raise ValueError('Query target changed')
             control.iface_value.SetValue(expected)
-            if control.iface_value.CurrentValue != expected:
+            for _ in range(12):
+                check()
+                if self.identity() != snapshot['identity']:
+                    raise ValueError('Query target changed')
+                if control.iface_value.CurrentValue == expected:
+                    break
+                time.sleep(.1)
+            else:
                 raise ValueError('Query readback mismatch')
-            self.query_control = control
             control.set_focus()
-        elif action_name == 'enter':
-            expected = goal['query'] + (' '+goal['artist'] if goal['artist'] else '')
-            control = self.query_control
-            if (control is None or not control.has_keyboard_focus() or
-                    control.element_info.element.CurrentIsPassword or control.iface_value.CurrentValue != expected):
+            check()
+            if (self.identity() != snapshot['identity'] or not control.has_keyboard_focus()
+                    or control.iface_value.CurrentValue != expected):
                 raise ValueError('Search text changed before submission')
             win.hotkey('enter')
+            self.query_submitted = True
         else:
             raise ValueError('Unsupported effect')
 
@@ -166,7 +182,7 @@ class WindowProvider:
             from urllib.parse import urlparse, parse_qs
             dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
             for ctrl in dialog.descendants(control_type='Edit'):
-                if 'address and search bar' not in ctrl.window_text().casefold():
+                if 'address and search bar' not in (ctrl.element_info.name or '').casefold():
                     continue
                 url = ctrl.iface_value.CurrentValue
                 parsed = urlparse(url if '://' in url else 'https://'+url)

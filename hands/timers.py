@@ -8,6 +8,8 @@ import time
 from datetime import datetime, timedelta
 
 from hands.registry import READ, UNDOABLE, Result, action
+from core.tasks import Outcome, OutcomeStatus, Evidence
+from core.action_runtime import check
 
 _timers: dict[int, dict] = {}
 _next_id = [1]
@@ -53,6 +55,7 @@ def _fire(tid: int) -> None:
 
 
 def _start(seconds: float, kind: str, label: str, length: str) -> dict:
+    check()
     tid = _next_id[0]
     _next_id[0] += 1
     th = threading.Timer(seconds, _fire, args=(tid,))
@@ -63,6 +66,13 @@ def _start(seconds: float, kind: str, label: str, length: str) -> dict:
     return t
 
 
+def _confirmed_timer(timer, say):
+    if _timers.get(timer['id']) is not timer or not timer['thread'].is_alive():
+        return Outcome(OutcomeStatus.UNCERTAIN, 'I could not confirm that the timer is running.', side_effect_possible=True)
+    data = {'timer_id': timer['id'], 'ends': timer['ends']}
+    return Outcome(OutcomeStatus.VERIFIED, say, data, [Evidence('timers.schedule', observed=data)])
+
+
 @action("set_timer", UNDOABLE, {"seconds": "length in seconds", "label": "optional, what it's for"},
         lambda seconds, label="": f"set a {human(float(seconds))} timer" + (f" for {label}" if label else ""))
 def set_timer(seconds, label: str = "") -> Result:
@@ -70,10 +80,10 @@ def set_timer(seconds, label: str = "") -> Result:
     if seconds <= 0 or seconds > 7 * 86400:
         return Result(False, "That timer length doesn't look right.")
     kind = "reminder" if label else "timer"
-    _start(seconds, kind, label, human(seconds))
+    timer = _start(seconds, kind, label, human(seconds))
     if label:
-        return Result(True, f"I'll remind you to {label} in {human(seconds)}.")
-    return Result(True, f"Timer set for {human(seconds)}.")
+        return _confirmed_timer(timer, f"I'll remind you to {label} in {human(seconds)}.")
+    return _confirmed_timer(timer, f"Timer set for {human(seconds)}.")
 
 
 @action("set_alarm", UNDOABLE, {"at": "time as HH:MM (24-hour)", "label": "optional"},
@@ -85,27 +95,28 @@ def set_alarm(at: str, label: str = "") -> Result:
     if when <= now:
         when += timedelta(days=1)
     seconds = (when - now).total_seconds()
-    _start(seconds, "reminder" if label else "alarm", label or f"it's {when:%H:%M}", human(seconds))
+    timer = _start(seconds, "reminder" if label else "alarm", label or f"it's {when:%H:%M}", human(seconds))
     day = "tomorrow" if when.date() > now.date() else "today"
-    return Result(True, f"Alarm set for {when:%I:%M %p} {day}".replace(" 0", " ") + (f", to {label}." if label else "."))
+    return _confirmed_timer(timer, f"Alarm set for {when:%I:%M %p} {day}".replace(" 0", " ") + (f", to {label}." if label else "."))
 
 
 @action("time_left", READ, {}, lambda: "check your timers")
 def time_left() -> Result:
-    if not _timers:
-        return Result(True, "You don't have any timers running.")
+    snapshot = list(_timers.values())
     lines = []
-    for t in sorted(_timers.values(), key=lambda t: t["ends"]):
+    for t in sorted(snapshot, key=lambda t: t["ends"]):
         left = human(max(0, t["ends"] - time.time()))
         lines.append(f"{t['label'] or t['length'] + ' timer'}: {left} left")
-    return Result(True, "; ".join(lines) + ".")
+    return Outcome(OutcomeStatus.VERIFIED, ', '.join(lines) + '.' if lines else "You don't have any timers running.",
+                   evidence=[Evidence('timers.schedule', observed={'timer_ids':[t['id'] for t in snapshot]})])
 
 
 @action("cancel_timers", UNDOABLE, {}, lambda: "cancel your timers")
 def cancel_timers() -> Result:
+    check()
     n = len(_timers)
     for t in list(_timers.values()):
         t["thread"].cancel()
     _timers.clear()
-    return Result(True, "Cancelled your timer." if n == 1 else f"Cancelled {n} timers." if n else
-                  "There weren't any timers to cancel.")
+    return Outcome(OutcomeStatus.VERIFIED, f'Cancelled {n} timers.' if n else 'There were no timers to cancel.',
+                   evidence=[Evidence('timers.schedule', observed={'remaining':len(_timers)})])

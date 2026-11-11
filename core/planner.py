@@ -94,6 +94,10 @@ def builtin_steps(i: Intent) -> list[dict] | None:
                 return [_step("search_in_app", app=app, query=p["query"])]
             return None  # needs a recipe or a brain plan
     if i.area == "media":
+        if a[1] in {'list_audio_outputs', 'get_audio_output', 'undo_audio_output'}:
+            return [_step(a[1])]
+        if a[1] == 'set_audio_output':
+            return [_step(a[1], device=p.get('device'))]
         if a[1] == 'get_volume':
             return [_step('get_volume')]
         keys = {"play_pause": "play_pause", "play": "play", "pause": "pause", "next": "next",

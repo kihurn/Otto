@@ -1,5 +1,17 @@
 # Voice acceptance checks for 1.2
 
+## D–F handoff
+
+- D: “List audio outputs”, “Which output am I using?”, “Make my speakers the default output”,
+  and “Undo that output change”. Connect a second output to verify a real switch and restoration.
+  Re-run the Qwen Spotify and Chrome tests from a freshly opened app.
+- E: Start audio in another app, then run `.\otto.cmd voice --mode push`. Hold Ctrl+Alt and speak.
+  Verify the app session is capped at 20% and returns to its original setting after the reply.
+  Try cancellation, a muted app and adjusting the app slider while Otto is speaking.
+- F: Run `.\otto.cmd train --offline --tasks 100 --seed 42`. Read the printed report path. To compare
+  another run, use the same options plus `--baseline RUN_ID`. `otto candidate` trains a separate
+  Laya calibration and prints its report. Candidate activation is an explicit `otto promote ID`.
+
 ## Qwen window-controller prototype — opt-in
 
 Start `.\otto.cmd` for typing, or `.\otto.cmd voice --mode push` for voice. Enter the console

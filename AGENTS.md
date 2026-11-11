@@ -97,7 +97,8 @@ so the code imports and tests run on Linux/macOS. Keep it that way.
   `core/planner.builtin_steps()`, an entry in `core/areas.ACTIONS`, rules in `details.py`, tests.
 - **New area for Laya:** add to `core/areas.AREAS` (short description), add ~20 examples to
   `defaults/examples.csv` **and** tell the user to add them to `otto-data/examples.csv` (defaults only seed
-  missing files), add test-set lines, keep total areas ≤ ~15. Laya relearns automatically (hash change).
+  missing files), add test-set lines, keep total areas ≤ ~15. Changed examples require separate candidate
+  training (`otto candidate` or `:retrain`) and explicit promotion. Startup retains the active calibration.
 - **New setting:** add to `defaults/settings.json`; read with `settings[...]` (merged). If existing users need a
   changed value, migrate in `core/config._migrate()` and bump `SETTINGS_VERSION`.
 - **Prompts:** every brain call starts with `otto-data/brief.md` (user-editable). Job prompts must ask for JSON
@@ -117,6 +118,11 @@ python -m pytest -q tests
   control, Everything, notifications. Say so when you hand over.
 
 ## 7. Status (as of 10 November 2026)
+
+**11 November review update:** 1.2 remains in development. Read `docs/V1_2_FINAL_REVIEW.md` before
+expanding D–F. Confidence gating, native visual target identity, song-version verification, audio
+restoration and task saving have open findings. Recovery-recipe candidate learning is not implemented.
+The figures below describe the earlier handover, not current release acceptance.
 
 - **Phase 0 (checks): done.** **Phase 1 (1.0): delivered and used.** **1.1: delivered, not yet confirmed on Windows.**
 - User feedback on 1.0 that 1.1 addresses: Spotify search showed "lofi+beats"; "play music" said "Done." but

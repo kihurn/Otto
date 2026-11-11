@@ -127,17 +127,17 @@ class Brain:
         except TimeoutError:
             raise BrainError("timeout", f"no answer in {timeout:.0f}s") from None
 
-    def _chat_once(self, model: str, messages: list[dict], want_json: bool, timeout: float) -> str:
+    def _chat_once(self, model: str, messages: list[dict], want_json: bool | dict, timeout: float) -> str:
         body = {"model": model, "messages": messages, "stream": False,
                 "options": {"temperature": 0.2 if want_json else 0.6}}
         if want_json:
-            body["format"] = "json"
+            body["format"] = want_json if isinstance(want_json, dict) else "json"
         out = self._post("/api/chat", body, timeout)
         return ((out.get("message") or {}).get("content") or "").strip()
 
     # ---- what the rest of Otto uses -------------------------------------------------------
     def ask(self, job: str, prompt: str, system: str | None = None, images: list[str] | None = None,
-            want_json: bool = False, required: tuple[str, ...] = (), timeout: float | None = None) -> BrainReply:
+            want_json: bool | dict = False, required: tuple[str, ...] = (), timeout: float | None = None) -> BrainReply:
         """Ask the first working model for this job. Raises NoBrainAvailable if all fail."""
         chain = self.settings.get("brains", {}).get(job) or self.settings["brains"]["decide"]
         messages = []

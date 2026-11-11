@@ -31,7 +31,6 @@ def temp_data(tmp_path, monkeypatch):
                 monkeypatch.setattr(m, name, getattr(config, name))
     from core import router
     monkeypatch.setattr(router, "CURRENT", config.LAYA_DIR / "current")
-    monkeypatch.setattr(router, "HISTORY", config.LAYA_DIR / "history")
     config.ensure_data()
     from hands import apps
     monkeypatch.setattr(apps.INDEX, "apps", [{"name": n, "id": n} for n in FAKE_APPS])

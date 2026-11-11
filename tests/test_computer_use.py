@@ -10,6 +10,7 @@ from core.computer_use import model_failure
 @pytest.mark.parametrize('proposal', [None, {},
     {'version':1,'snapshot_id':'old','action':'done','target':{}},
     {'version':1,'snapshot_id':'s','action':'shell','target':{}},
+    {'version':1,'snapshot_id':'s','action':'enter','target':{}},
     {'version':1,'snapshot_id':'s','action':'click','target':{'x':float('nan'),'y':.5}},
     {'version':1,'snapshot_id':'s','action':'click','target':{'x':2,'y':.5}},
     {'version':1,'snapshot_id':'s','action':'type_query','target':{'text':'invented'}},

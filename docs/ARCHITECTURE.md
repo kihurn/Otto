@@ -1,5 +1,16 @@
 # Otto: Architecture
 
+D–F implementation checkpoint: `hands/audio_devices.py` handles media output selection and undo;
+timer, note and file-search actions supply action-specific observations. `core/audio_focus.py`
+caps competing audio sessions during voice interactions and restores unchanged values. `core/offline_eval.py`
+uses the real planner and a simulated executor backend for seeded reports. `core/training.py`
+fits isolated Laya candidates and uses an explicit atomic active pointer with evaluation and artifact
+checks. The [final D–F review](V1_2_FINAL_REVIEW.md) found unresolved release blockers in
+visual target identity, confidence gating and Spotify recording verification, plus audio restoration
+and task-saving errors. Recovery-recipe candidate learning is not implemented. See WORKLOG for
+measured results and live acceptance gaps. The historical 1.1 design below is superseded by this
+checkpoint and the review where behavior differs.
+
 Approved window-controller prototype: `core/computer_use.py` runs the local-Qwen observation/action
 loop; `hands/window_control.py` provides guarded native effects and domain observations. Registry
 action `visual_task` is available only through explicit “use Qwen to…” commands and the opt-in
@@ -14,20 +25,23 @@ volume amounts support tens plus ones, including hyphenated variants.
 Initial D2 recovery is implemented in `core/recovery.py`: local Qwen selects snapshot-bound UIA
 controls for Spotify search focus or matching song playback. No arbitrary pixel clicks are enabled;
 missing safe controls still stop. This user's recovery flag is enabled for live acceptance, while
-the new-install default stays disabled. D1 audio-device control is still pending.
+the new-install default stays disabled. D1 audio-device control is implemented with physical
+two-device acceptance still pending.
 
-The [recovery/audio design checkpoint](V1_2_RECOVERY_DESIGN.md) specifies the next D0–D2 work:
+The [recovery/audio design checkpoint](V1_2_RECOVERY_DESIGN.md) specifies D0–D2 contracts:
 explicit-window bounded Spotify recovery, typed volume context and verified audio-output control.
-These additions are designed, not implemented. Candidate recipe promotion requires a later review.
+These additions have initial implementations. Candidate recovery-recipe promotion remains missing.
 D0 is now implemented: `core/audio_context.py` binds volume follow-ups to a recent endpoint;
 `core/action_runtime.py` guards dispatch against cancellation, revision changes and deadline expiry;
 `hands/spotify_search.py` polls and diagnoses the focused edit before typing. The executor no longer
-promotes arbitrary READ successes to verified. D1/D2 and candidate promotion remain planned.
+promotes arbitrary READ successes to verified. Named audio output operations and bounded recovery
+are implemented. Laya candidate promotion is separate from recovery-recipe promotion.
 
 User-requested follow-up: `spotify.playback_backend=desktop` selects bounded named-control playback
 in `hands/spotify_desktop.py`, verified through Spotify's Windows media session rather than the API.
-Only a unique matching visible Play button is invoked; missing controls stop. Qwen pixel clicking
-and desktop collection playback remain deferred. `core/search_goals.py` routes explicit web searches
+The normal path requires a unique matching visible Play button; missing controls stop. Opt-in
+visual control can propose pixel clicks, with eligibility gaps identified in the final review.
+Desktop collection playback remains deferred. `core/search_goals.py` routes explicit web searches
 before Laya; `core/answers.py` can use `search.searxng_url` for internal current-information queries.
 Filler-only utterances are ignored before confidence checks. C3 task compilation is described below.
 
@@ -39,7 +53,11 @@ C1 compiles narrow Spotify goals; C2 introduced observed Spotify playback. C3 no
 compound requests in `core/compiler.py` into one validated named-action plan, never re-routing
 model-generated prose. All plans enter `core/executor.py` through safety checks. Only verified
 steps advance live dependencies; simulation can advance simulated steps but cannot save success.
-Legacy unverified actions stop dependencies until their domain verifier is added in D.
+Legacy unverified actions still stop dependencies where domain verification is unavailable.
+
+Runtime task records are `Task`, `Step`, `Outcome` and `Evidence`. Pending replies use the pipeline's
+`Pending` record. Unused draft lifecycle/prepare/pending types were removed during review because
+no execution path used them. The design documents describe those earlier proposed interfaces.
 
 `core/context.py` separates requested actions from observed outcomes. Plan approvals hold a task,
 revision and snapshot fingerprint; changed, expired or replaced approvals cannot execute. Brain

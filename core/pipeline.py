@@ -24,7 +24,7 @@ from core.areas import ACTIONS, AREA_PHRASES, AREAS
 from core.brain import Brain, NoBrainAvailable
 from core.details import Intent
 from core.router import Router
-from hands import apps, files, registry, timers
+from hands import apps, files, registry
 
 OTTO_PERSONA = ("You're chatting as Otto: friendly, upbeat, a bit playful. Reply in ONE short casual sentence "
                 "(under 15 words).")
@@ -251,6 +251,10 @@ class Otto:
             self.trace["guard"] = "gibberish"
             return Reply("Sorry, I didn't catch that.")
         from core.music_goals import compile_music, unbound_music_reference
+        if re.search(r'\boutputs?\b', t, re.I) and not self._is_multi_step(t):
+            output = details._media(t)
+            if output and output.action in {'list_audio_outputs', 'get_audio_output', 'set_audio_output', 'undo_audio_output'}:
+                return self._do_area(t, 'media', intent=output, via='rules')
         if re.search(r'\bvolume\b', t, re.I):
             volume = details._media(t)
             if volume and volume.action in {'get_volume', 'set_volume', 'volume_up', 'volume_down'} and not self._is_multi_step(t):
@@ -351,6 +355,14 @@ class Otto:
         p = self.pending
         kind = guards.reply_kind(t)
         self.trace["answering"] = p.kind
+        if p.kind == 'audio_pick':
+            self.pending = None
+            match = re.fullmatch(r'(?:option |number )?(\d+)[.!]?', t, re.I)
+            if match and 1 <= int(match[1]) <= len(p.files):
+                endpoint, label = p.files[int(match[1])-1]
+                plan = planner.Plan([{'do':'set_audio_output_id', 'with':{'device':endpoint}}], 'builtin')
+                return self._run(plan, None, f'Select audio output {label}')
+            return None
         if guards.is_cancel(t) and p.kind != "rephrase":
             if p.task:
                 p.task.cancel.set()
@@ -502,6 +514,9 @@ class Otto:
             recipes.record(plan.key, res.ok)
 
         found = res.data.get("files")
+        if res.data.get('audio_candidates'):
+            self._set_pending('audio_pick', text=t, files=res.data['audio_candidates'])
+            return Reply(res.say)
         if found is not None and plan.steps and plan.steps[0]["do"] == "find_files":
             if intent and intent.action == "open" and found and (intent.params.get("first") or len(found) == 1):
                 return self._run(planner.Plan([{"do": "open_path", "with": {"path": found[0]}}], "builtin"),

@@ -20,12 +20,15 @@ def matches(label, query, artist=''):
 def play_candidates(dialog, query, artist):
     candidates = []
     for ctrl in dialog.descendants(control_type='Button'):
-        name = (ctrl.window_text() or '').strip()
+        name = (getattr(getattr(ctrl, 'element_info', None), 'name', '') or ctrl.window_text() or '').strip()
         if not ctrl.is_visible() or not ctrl.is_enabled():
             continue
-        if name.casefold().startswith('play ') and matches(name, query, artist):
+        title = normalized(query)
+        label = normalized(name)
+        exact_play = f'play {title}'
+        if label == (f'{exact_play} by {normalized(artist)}' if artist else exact_play):
             candidates.append(ctrl)
-        elif name.casefold() == 'play' or name.casefold().startswith('play '):
+        elif label in {'play', exact_play}:
             # Spotify's icon may be labelled only Play; bind it to a small song card.
             parent = ctrl.parent()
             for _ in range(3):
@@ -34,7 +37,7 @@ def play_candidates(dialog, query, artist):
                 bounds = parent.rectangle()
                 if bounds.width() > 1600 or bounds.height() > 320:
                     break
-                texts = [(c.window_text() or '') for kind in ('Text', 'Hyperlink')
+                texts = [(getattr(getattr(c, 'element_info', None), 'name', '') or c.window_text() or '') for kind in ('Text', 'Hyperlink')
                          for c in parent.descendants(control_type=kind)]
                 text = ' '.join(texts)
                 if len(texts) <= 12 and len(text) <= 600 and matches(text, query, artist):

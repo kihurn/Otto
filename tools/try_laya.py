@@ -1,7 +1,8 @@
-"""Type requests to Laya only (no actions), correct it, and watch it learn.
+"""Type requests to Laya only (no actions) and save labelled examples.
 
 Every answer you confirm or correct is saved to otto-data/examples.csv, the same examples Otto
-learns from. Laya relearns every 20 new examples, or when you type :retrain.
+learns from. After 20 new examples Otto suggests candidate training. Type :retrain to stage
+a separate calibration for review; explicit promotion and a restart activate it.
 
 Run:  python -m tools.try_laya
 """

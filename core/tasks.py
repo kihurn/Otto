@@ -1,23 +1,10 @@
-"""Execution records for 1.2. The task runner is integrated in the next batch."""
+"""Task, step and observation records used by the execution runner."""
 
 from dataclasses import dataclass, field
 from enum import StrEnum
 from threading import Event
 from time import time
 from uuid import uuid4
-from typing import Protocol
-
-
-class ActionLifecycle(Protocol):
-    """Code-owned hooks; a model cannot supply observations or retry policy."""
-    def prepare(self, step: 'Step', task: 'Task') -> 'PreparedStep': ...
-    def dispatch(self, prepared: 'PreparedStep', task: 'Task') -> 'Outcome': ...
-    def verify(self, prepared: 'PreparedStep', task: 'Task') -> 'Outcome': ...
-
-
-class RecoveryPolicy(StrEnum):
-    NEVER = 'never'
-    OBSERVE_FIRST = 'observe_first'
 
 
 class OutcomeStatus(StrEnum):
@@ -76,28 +63,6 @@ class Step:
     args: dict = field(default_factory=dict)
     source: str = "builtin"
     status: str = "planned"
-    output_bindings: dict = field(default_factory=dict)
-
-
-@dataclass
-class PreparedStep:
-    step_id: str
-    args: dict
-    target: dict = field(default_factory=dict)
-    expectation: dict = field(default_factory=dict)
-    authorization_scope: dict = field(default_factory=dict)
-    before: dict = field(default_factory=dict)
-
-
-@dataclass
-class PendingQuestion:
-    kind: str
-    task_id: str
-    revision: int
-    step_id: str
-    expires: float
-    candidates: list[str] = field(default_factory=list)
-    approval_scope: dict = field(default_factory=dict)
 
 
 @dataclass

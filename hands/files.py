@@ -70,14 +70,18 @@ def search(query: str, limit: int = 8) -> tuple[list[str], str | None]:
 
 @action("find_files", READ, {"query": "words from the file name"}, lambda query: f"search your files for \"{query}\"")
 def find_files(query: str) -> Result:
+    from core.tasks import Outcome, OutcomeStatus, Evidence
     found, err = search(query)
     if err:
         return Result(False, err)
+    found = [path for path in found if Path(path).exists()]
+    data = {'files': found}
+    evidence = [Evidence('files.search_and_existence', target={'query':query}, observed={'count':len(found)})]
     if not found:
-        return Result(True, f"I couldn't find any files matching {query}.", {"files": []})
+        return Outcome(OutcomeStatus.VERIFIED, f"I couldn't find any files matching {query}.", data, evidence)
     lines = "\n".join(f"  {i + 1}. {Path(p).name}   ({Path(p).parent})" for i, p in enumerate(found))
-    return Result(True, f"Here's what I found:\n{lines}\nSay \"open 1\" (or another number) to open one.",
-                  {"files": found})
+    return Outcome(OutcomeStatus.VERIFIED, f"Here's what I found:\n{lines}\nSay \"open 1\" (or another number) to open one.",
+                   data, evidence)
 
 
 def open_risk(path: str) -> int:

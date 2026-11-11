@@ -107,13 +107,15 @@ def music_step(step, task, end, progress):
     return outcome
 
 
-def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: None):
+def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: None, evaluation_backend=None):
     from connectors import spotify as sp
     task = task or Task(why, [Step(s.get('id', f's{i}'), s['do'], deepcopy(s.get('with', {})))
                              for i, s in enumerate(steps)], mode='dry_run' if dry_run else 'live')
     if [(s.action, s.args) for s in task.steps] != [(s['do'], s.get('with', {})) for s in steps]:
         return Result(False, 'The task changed; please ask again.', {'error_code': 'task_mismatch'})
-    dry_run = dry_run or task.mode in {'dry_run', 'evaluation'}
+    if evaluation_backend is not None and task.mode != 'evaluation':
+        raise ValueError('An evaluation backend requires evaluation mode')
+    dry_run = dry_run or task.mode == 'dry_run' or (task.mode == 'evaluation' and evaluation_backend is None)
     task.transition(TaskStatus.RUNNING)
     end = task.deadline_at or time.monotonic() + 45
     started_at = time.monotonic()
@@ -150,6 +152,8 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
             elif dry_run:
                 outcome = Outcome(OutcomeStatus.SIMULATED,
                                   f'[dry run] would {ACTIONS[step.action].describe(**step.args)}.')
+            elif evaluation_backend is not None:
+                outcome = evaluation_backend(executing)
             elif step.action in {'play_music', 'play_liked'}:
                 check()
                 outcome = music_step(executing, task, end, progress)
@@ -190,9 +194,10 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
             task.results[step.id] = outcome
             combined_data.update(outcome.data)
             from core import log
-            log.write({'type': 'task_step', 'task_id': task.id, 'revision': task.revision,
-                       'step_id': step.id, 'action': step.action, 'outcome_status': outcome.status.value,
-                       'mode': task.mode, 'evidence_count': len(outcome.evidence)})
+            if task.mode != 'evaluation':
+                log.write({'type': 'task_step', 'task_id': task.id, 'revision': task.revision,
+                           'step_id': step.id, 'action': step.action, 'outcome_status': outcome.status.value,
+                           'mode': task.mode, 'evidence_count': len(outcome.evidence)})
             step.status = outcome.status.value
             texts.append(outcome.say)
             if outcome.status not in {OutcomeStatus.VERIFIED, OutcomeStatus.SIMULATED}:

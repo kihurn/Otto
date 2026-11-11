@@ -1,24 +1,19 @@
 """Laya: decides which area a request belongs to, and how sure it is.
 
-Uses Laya's trainable engine. Its learning lives in otto-data/laya/current/, older versions in
-otto-data/laya/history/. A newly taught Laya only replaces the current one if it scores at least as
-well on the test set.
+Uses Laya's trainable engine. The original calibration lives in otto-data/laya/current/.
+Candidate calibrations are staged separately and selected through an explicit active pointer.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
-import shutil
 import time
-from datetime import datetime
 
 from core import learning
 from core.areas import AREA_QUESTION, AREAS
-from core.config import LAYA_DIR, load_json, save_json
+from core.config import LAYA_DIR, load_json
 
 CURRENT = LAYA_DIR / "current"
-HISTORY = LAYA_DIR / "history"
 META = "otto_meta.json"
 
 
@@ -52,7 +47,11 @@ class Router:
         self.settings = settings
         self.agent = None
         self.device = None
-        self.meta: dict = load_json(CURRENT / META, {})
+        pointer = load_json(CURRENT.parent / 'active.json', {})
+        name = pointer.get('candidate', '') if isinstance(pointer, dict) else ''
+        candidate = CURRENT.parent / 'candidates' / name if isinstance(name, str) and len(name) == 32 and name.isalnum() else CURRENT
+        self.calibration = candidate if (candidate / META).is_file() else CURRENT
+        self.meta: dict = load_json(self.calibration / META, {})
         self.new_examples = 0
 
     # ---- loading ---------------------------------------------------------------------------
@@ -69,15 +68,17 @@ class Router:
         say(f"  Laya loaded on {self.device.upper()} in {time.perf_counter() - t0:.0f}s")
 
         rows = learning.training_rows(set(AREAS))
-        if (CURRENT / META).exists() and self.meta.get("hash") == _rows_hash(rows):
+        if (self.calibration / META).exists():
             try:
-                self.agent.load_calibration(str(CURRENT))
+                self.agent.load_calibration(str(self.calibration))
                 say(f"  Laya's learning restored ({self.meta.get('n_rows')} examples, "
                     f"test score {self._score_text(self.meta)})")
+                if self.meta.get('hash') != _rows_hash(rows):
+                    say('  New examples are ready for candidate training with :retrain.')
                 return
-            except Exception as e:  # damaged or from another Laya version: just relearn
-                say(f"  ! Couldn't restore Laya's learning ({type(e).__name__}); relearning.")
-        self.retrain(say=say, force=True)
+            except Exception as e:
+                say(f"  ! Couldn't restore Laya's learning ({type(e).__name__}).")
+        say('  No usable saved calibration. Use :retrain to create a reviewable candidate.')
 
     # ---- deciding --------------------------------------------------------------------------
     def predict(self, text: str) -> dict:
@@ -109,8 +110,8 @@ class Router:
         return "high" if prob >= act else ("middle" if prob >= guess else "low")
 
     # ---- testing and learning --------------------------------------------------------------
-    def score(self) -> dict:
-        tests = [r for r in learning.load_test() if r["area"] in AREAS]
+    def score(self, tests=None) -> dict:
+        tests = [r for r in (learning.load_test() if tests is None else tests) if r['area'] in AREAS]
         preds = []
         for r in tests:
             p = self.predict(r["text"])
@@ -132,36 +133,13 @@ class Router:
         return f"{s.get('accuracy', 0):.0%} on {s.get('n', 0)} test requests" if s else "not measured"
 
     def retrain(self, say=print, force: bool = False) -> dict:
-        """Teach Laya every example, test it, and keep it only if it's at least as good."""
-        rows = learning.training_rows(set(AREAS))
-        say(f"  Teaching Laya {len(rows)} examples...")
-        t0 = time.perf_counter()
-        old_score = (self.meta.get("score") or {}).get("accuracy")
-        self.agent.fit(rows, questions=AREA_QUESTION)
-        result = self.score()
-        took = time.perf_counter() - t0
-        better = force or old_score is None or result["accuracy"] >= old_score
-        if better:
-            if CURRENT.exists():
-                HISTORY.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(CURRENT), str(HISTORY / datetime.now().strftime("%Y%m%d-%H%M%S")))
-            self.agent.save_calibration(str(CURRENT))
-            self.meta = {"hash": _rows_hash(rows), "n_rows": len(rows), "device": self.device,
-                         "saved": datetime.now().isoformat(timespec="seconds"),
-                         "score": {k: result[k] for k in ("accuracy", "n", "checked", "per_area")},
-                         "bars": result["bars"]}
-            save_json(CURRENT / META, self.meta)
-            say(f"  Done in {took:.0f}s. Test score {self._score_text(self.meta)}"
-                + (f" (was {old_score:.0%})" if old_score is not None else "")
-                + f". Confidence zones: act above {self.bars()[0]:.0%}, ask between, brain below {self.bars()[1]:.0%}.")
-        else:
-            say(f"  New learning scored {result['accuracy']:.0%}, worse than the current {old_score:.0%}; "
-                f"keeping the current one.")
-            self.agent.load_calibration(str(CURRENT))
+        """Stage a separate candidate. The active calibration is never fitted in place."""
+        from core.training import stage_candidate
+        result = stage_candidate(self, say)
         self.new_examples = 0
         return result
 
     def note_new_example(self, say=print) -> None:
         self.new_examples += 1
-        if self.new_examples >= int(self.settings.get("laya", {}).get("retrain_every", 20)):
-            self.retrain(say=say)
+        if self.new_examples == int(self.settings.get('laya', {}).get('retrain_every', 20)):
+            say('  New examples are ready. Use :retrain to evaluate a separate candidate.')

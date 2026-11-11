@@ -1,6 +1,11 @@
 # Changelog
 
 ## 1.2 (in development)
+- Final D–F review records seven open findings in docs/V1_2_FINAL_REVIEW.md. Release readiness is withheld; recovery-recipe learning remains unimplemented.
+- Cleanup removes unused execution scaffolding/imports and the redundant visual Enter action, consolidates the root architecture link, and clears generated pytest folders. Cleanup validation passes 252 tests with three existing COM warnings.
+- D adds verified media output selection and undo, timer/note/file observations, and fixes for live Qwen Chrome and Spotify control.
+- E adds per-app audio ducking with leases and recovery of unchanged session volumes. Verified cap and restore on three Windows sessions.
+- F adds offline simulated practice and baseline reports, isolated Laya candidates, explicit fingerprint-checked promotion and rollback. Active calibration remains unchanged pending review.
 - Visual mode reports model and target failures separately and allows up to 18 seconds for the first image within the task deadline. 234 tests pass.
 - Added opt-in local-Qwen Spotify/Chrome window controller with one-action screenshot loop, bounded native controls, independent result checks and explicit “use Qwen to…” routing. 230 tests pass; live acceptance pending.
 - Added a reviewable Qwen window computer-use implementation proposal; controller implementation remains pending scope approval.

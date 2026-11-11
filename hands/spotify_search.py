@@ -33,7 +33,7 @@ def search(hwnd, query):
         dialog = Application(backend='uia').connect(handle=hwnd).window(handle=hwnd)
         controls = [c for c in dialog.descendants(control_type='ComboBox')
                     if c.is_visible() and c.is_enabled()
-                    and 'what do you want to play' in c.window_text().casefold()
+                    and 'what do you want to play' in (getattr(c.element_info, 'name', '') or c.window_text()).casefold()
                     and not c.element_info.element.CurrentIsPassword]
         if len(controls) == 1:
             control = controls[0]

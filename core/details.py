@@ -188,6 +188,17 @@ def music_intent(text: str) -> Intent | None:
 
 def _media(text: str) -> Intent | None:
     t = _t(text)
+    if re.fullmatch(r'(?:list|show)(?: me)? (?:my |the |available )?(?:audio |sound )?outputs?(?: devices)?', t):
+        return Intent('media', 'list_audio_outputs')
+    if re.fullmatch(r"(?:which|what)(?: is| are|'s)? (?:the |my |current |default )*(?:audio |sound )?output(?: device)?(?: am i using)?", t):
+        return Intent('media', 'get_audio_output')
+    if re.fullmatch(r'undo (?:that |the |my )?(?:audio )?output(?: change)?', t):
+        return Intent('media', 'undo_audio_output')
+    device = re.fullmatch(r'make (?:my |the )?(.+?) (?:as )?(?:the )?default (?:audio |sound )?output', t)
+    if not device:
+        device = re.fullmatch(r'(?:set|switch|change) (?:my |the )?(?:default )?(?:audio |sound )?output to (.+)', t)
+    if device:
+        return Intent('media', 'set_audio_output', {'device': device[1]})
     # Whisper often spells amounts: normalize numeric phrases only after to/at/by.
     def spoken_amount(match):
         value = _num(match[2])

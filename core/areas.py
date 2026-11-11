@@ -48,6 +48,10 @@ ACTIONS = {
         "volume_down": "quieter",
         "set_volume": "set volume to a number",
         "get_volume": "read the current volume without changing it",
+        "list_audio_outputs": "list available audio outputs",
+        "get_audio_output": "read the default audio output",
+        "set_audio_output": "switch the default media output",
+        "undo_audio_output": "restore the previous media output",
         "mute": "mute or unmute",
     },
     "web": {

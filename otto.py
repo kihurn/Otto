@@ -11,6 +11,9 @@
   otto spotify            connect Spotify (once)
   otto check              check keys, C0RE, GPU, Everything, Spotify, microphone
   otto label | score | teach      test-set labels, Laya's score, teach Laya by typing
+  otto train --offline --tasks 100 --seed 42   simulated practice and report
+  otto candidate                   fit and evaluate a separate Laya calibration
+  otto promote ID | otto rollback  explicitly activate a passing candidate or restore the previous calibration
 """
 
 from __future__ import annotations
@@ -322,11 +325,17 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
             out(f"  ! The microphone isn't available ({type(e).__name__}: {e}). Switching to typing.", YELLOW)
             live["ears"] = None
     mouth, ears = live["mouth"], live["ears"]
+    from core.audio_focus import AudioFocus
+    duck_settings = settings.get('audio_duck', {})
+    duck = AudioFocus(bool(ears and not dry_run and duck_settings.get('enabled', True)),
+                      cap=max(0, min(100, float(duck_settings.get('cap_percent', 20)))) / 100,
+                      idle_seconds=max(1, float(duck_settings.get('idle_timeout_s', 30))), warn=dim)
 
     def speak_text(text: str) -> None:
         if live["mouth"] and text:
             try:
-                live["mouth"].say(text)
+                with duck.hold():
+                    live["mouth"].say(text)
             except Exception as e:
                 dim(f"  (couldn't speak: {type(e).__name__})")
 
@@ -358,6 +367,7 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
             out(f"{GREEN}(listening again){RESET}")
         else:
             ears.muted.set()
+            duck.release('push')
             ears.flush()
             out(f"{YELLOW}(muted: press {settings['listen']['mute_key'].upper()} to unmute){RESET}")
 
@@ -369,6 +379,8 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
             if otto.active_task:
                 otto.active_task.cancel.set()
             force.set()
+            if not ears.muted.is_set():
+                duck.acquire('push')
             ears.push_down()
 
         ok = keys.start(lk["push_to_talk_key"], lk["mute_key"], down, ears.push_up, toggle_mute)
@@ -384,92 +396,99 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
     else:
         out("Type to Otto. :help for commands and ideas.", GREEN)
 
-    awake_until = 0.0
-    while True:
-        conf = None
-        try:
-            if ears:
-                text, conf, secs = ears.listen()
-                forced = force.is_set()
-                force.clear()
-                lk = settings["listen"]
-                rest = wake_rest(text, lk.get("wake_words", []))
-                if ears.mode == "wake" and not forced and rest is None and time.time() > awake_until and not otto.pending:
-                    if settings.get("show_details"):
-                        dim(f"  (not for me: {text[:60]})")
-                    continue
-                if rest is not None:
-                    text = rest
-                if not text:
-                    beep()
-                    speak_text("Yeah?")
-                    awake_until = time.time() + float(lk.get("follow_up_s", 8))
-                    continue
-                if ears.mode == "wake":
-                    beep()
-                out(f"{BOLD}you:{RESET} {text}  {DIM}({secs:.1f}s, sure {conf:.2f}){RESET}")
-                import re
-                if re.fullmatch(r"(?:stop listening|mute(?: yourself)?|go to sleep|be quiet)[.!]*", text.strip(), re.I):
-                    toggle_mute()
-                    continue
-            else:
-                text = input(f"{BOLD}you>{RESET} ").strip()
-        except (KeyboardInterrupt, EOFError):
-            out("\nBye!", DIM)
-            break
-        if not text:
-            continue
-
-        if text.startswith(":"):
-            parts = text[1:].split()
-            cmd, args = (parts[0].lower(), parts[1:]) if parts else ("", [])
-            if cmd in ("quit", "q", "exit"):
-                break
-            if cmd == "help":
-                out(HELP_RUNNING)
-            elif cmd in SETTING_COMMANDS:
-                if cmd == "mic" and args and args[0] == "test":
-                    out("Stop Otto first, then run  otto mic test")
+    try:
+        awake_until = 0.0
+        while True:
+            conf = None
+            try:
+                if ears:
+                    text, conf, secs = ears.listen()
+                    forced = force.is_set()
+                    force.clear()
+                    lk = settings["listen"]
+                    rest = wake_rest(text, lk.get("wake_words", []))
+                    if ears.mode == "wake" and not forced and rest is None and time.time() > awake_until and not otto.pending:
+                        if settings.get("show_details"):
+                            dim(f"  (not for me: {text[:60]})")
+                        continue
+                    if rest is not None:
+                        text = rest
+                    if not text:
+                        duck.release('push')
+                        beep()
+                        speak_text("Yeah?")
+                        awake_until = time.time() + float(lk.get("follow_up_s", 8))
+                        continue
+                    if ears.mode == "wake":
+                        beep()
+                    out(f"{BOLD}you:{RESET} {text}  {DIM}({secs:.1f}s, sure {conf:.2f}){RESET}")
+                    import re
+                    if re.fullmatch(r"(?:stop listening|mute(?: yourself)?|go to sleep|be quiet)[.!]*", text.strip(), re.I):
+                        toggle_mute()
+                        continue
                 else:
-                    SETTING_COMMANDS[cmd](settings, args, live)
-            elif cmd == "mute":
-                toggle_mute()
-            elif cmd == "retrain":
-                otto.router.retrain(say=dim)
-            elif cmd == "score":
-                from tools.score import show
-                show(otto.router)
-            elif cmd == "timers":
-                out(timers.time_left().say)
-            elif cmd == "details":
-                settings["show_details"] = not settings.get("show_details", True)
-                dim(f"Details {'on' if settings['show_details'] else 'off'}.")
-            elif cmd == "reload":
-                settings.clear()
-                settings.update(config.load_settings())
-                otto.apps.refresh()
-                dim(f"Settings reloaded; {len(otto.apps.apps)} apps known.")
-            else:
-                dim("Unknown command. :help shows them.")
-            continue
+                    text = input(f"{BOLD}you>{RESET} ").strip()
+            except (KeyboardInterrupt, EOFError):
+                out("\nBye!", DIM)
+                break
+            if not text:
+                continue
 
-        try:
-            reply = otto.handle(text, heard_conf=conf)
-        except KeyboardInterrupt:
-            dim("(cancelled)")
-            continue
-        except Exception as e:  # never crash the whole assistant on one bad request
-            out(f"Something went wrong: {type(e).__name__}: {e}", RED)
-            continue
-        if reply.text:
-            out(f"{CYAN}otto:{RESET} {reply.text}")
-        if reply.details and settings.get("show_details", True):
-            dim(f"      {reply.details}")
-        speak_text(reply.speak if reply.speak is not None else reply.text)
-        awake_until = time.time() + float(settings["listen"].get("follow_up_s", 8))
+            if text.startswith(":"):
+                parts = text[1:].split()
+                cmd, args = (parts[0].lower(), parts[1:]) if parts else ("", [])
+                if cmd in ("quit", "q", "exit"):
+                    break
+                if cmd == "help":
+                    out(HELP_RUNNING)
+                elif cmd in SETTING_COMMANDS:
+                    if cmd == "mic" and args and args[0] == "test":
+                        out("Stop Otto first, then run  otto mic test")
+                    else:
+                        SETTING_COMMANDS[cmd](settings, args, live)
+                elif cmd == "mute":
+                    toggle_mute()
+                elif cmd == "retrain":
+                    otto.router.retrain(say=dim)
+                elif cmd == "score":
+                    from tools.score import show
+                    show(otto.router)
+                elif cmd == "timers":
+                    out(timers.time_left().say)
+                elif cmd == "details":
+                    settings["show_details"] = not settings.get("show_details", True)
+                    dim(f"Details {'on' if settings['show_details'] else 'off'}.")
+                elif cmd == "reload":
+                    settings.clear()
+                    settings.update(config.load_settings())
+                    otto.apps.refresh()
+                    dim(f"Settings reloaded; {len(otto.apps.apps)} apps known.")
+                else:
+                    dim("Unknown command. :help shows them.")
+                continue
 
-    if ears:
-        ears.close()
+            with duck.hold():
+                duck.release('push')
+                try:
+                    reply = otto.handle(text, heard_conf=conf)
+                except KeyboardInterrupt:
+                    dim("(cancelled)")
+                    continue
+                except Exception as e:  # never crash the whole assistant on one bad request
+                    out(f"Something went wrong: {type(e).__name__}: {e}", RED)
+                    continue
+                if reply.text:
+                    out(f"{CYAN}otto:{RESET} {reply.text}")
+                if reply.details and settings.get("show_details", True):
+                    dim(f"      {reply.details}")
+                speak_text(reply.speak if reply.speak is not None else reply.text)
+                awake_until = time.time() + float(settings["listen"].get("follow_up_s", 8))
+    finally:
+        duck.close()
+        if ears:
+            from senses import keys
+            keys.stop()
+            ears.close()
 
 
 def main() -> int:
@@ -480,11 +499,29 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="say what would happen, don't do it")
     ap.add_argument("--mode", choices=["wake", "always", "push"], help="listening mode for this run")
     ap.add_argument("--voice", action="store_true", help=argparse.SUPPRESS)   # old style: otto --voice
+    ap.add_argument('--offline', action='store_true', help='run isolated simulated training evaluation')
+    ap.add_argument('--tasks', type=int, default=100, help='number of offline scenarios')
+    ap.add_argument('--seed', type=int, default=42, help='offline scenario seed')
+    ap.add_argument('--baseline', help='previous offline run ID for comparison')
     a = ap.parse_args()
+
+    cmd = a.command.lower()
+    if cmd == 'train':
+        if not a.offline or a.args:
+            out('Use otto train --offline --tasks 100 --seed 42.')
+            return 1
+        from core.offline_eval import run as evaluate
+        try:
+            directory, metrics = evaluate(a.tasks, a.seed, a.baseline)
+        except ValueError as error:
+            out(str(error), RED)
+            return 1
+        out(f'Simulated tasks passed {metrics["passed"]}/{metrics["total"]}.')
+        out(str(directory/'REPORT.md'))
+        return int(metrics['passed'] != metrics['total'])
 
     config.ensure_data()
     settings = config.load_settings()
-    cmd = a.command.lower()
 
     if cmd in ("", "type", "text"):
         run(settings, voice=a.voice, speak=a.speak, dry_run=a.dry_run, mode=a.mode)
@@ -503,6 +540,28 @@ def main() -> int:
     elif cmd == "score":
         from tools import score
         score.main()
+    elif cmd == 'candidate' and not a.args:
+        from core.router import Router
+        router = Router(settings)
+        router.load()
+        router.retrain()
+    elif cmd == 'promote' and len(a.args) == 1:
+        from core.router import Router
+        from core.training import promote
+        try:
+            directory = promote(Router(settings), a.args[0])
+        except (ValueError, OSError) as error:
+            out(str(error), RED)
+            return 1
+        out(f'Active calibration is now {directory.name}. Restart Otto to load it.')
+    elif cmd == 'rollback' and not a.args:
+        from core.training import rollback
+        try:
+            target = rollback()
+        except (ValueError, OSError) as error:
+            out(str(error), RED)
+            return 1
+        out(f'Restored {target.name}. Restart Otto to load it.')
     elif cmd in ("teach", "try_laya"):
         from tools import try_laya
         try_laya.main()
