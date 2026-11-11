@@ -136,6 +136,12 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
         return ToolResult(False, problem)
     t = TOOLS[name]
     clean = {k: (int(float(v)) if k in NUMBER_PARAMS else str(v).strip()) for k, v in args.items()}
+    if name == "type":
+        clean["text"] = str(args["text"])                 # keep the user's exact words, new lines included
+    from core import agent_safety
+    question = agent_safety.check(name, clean, ctx)
+    if question:
+        return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)
     from core.safety import NeedsConfirm
     try:
         result = t.run(ctx, **clean)
@@ -146,7 +152,10 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
         if isinstance(error, ActionInterrupted):
             raise
         result = ToolResult(False, f"{name} failed ({type(error).__name__}).")
-    ctx.history.append({"tool": name, "args": clean, "ok": result.ok})
+    entry = {"tool": name, "args": clean, "ok": result.ok}
+    if name == "click":
+        entry["name"] = (_control(ctx, clean.get("control")) or {}).get("name", "")
+    ctx.history.append(entry)
     ctx.confirmed = False
     return result
 
@@ -194,6 +203,9 @@ def _open(ctx, what):
 @tool("close", "close or minimise an app (if it shows a message, Otto asks you instead of answering it)",
       {"app": "app name", "how": "optional: close (default) or minimise"})
 def _close(ctx, app, how="close"):
+    # Design decision (11 Nov 2026): a plain close just happens. If the app shows a message (unsaved changes?),
+    # its window stays open, the result says so, and the agent asks the user instead of answering it.
+    ctx.confirmed = True
     return _action(ctx, "minimise" if how.lower().startswith("min") else "close_app", app=app)
 
 

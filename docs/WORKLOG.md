@@ -17,6 +17,13 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## Done
 
+### Agent core, task 4: safety rules for tool calls (11 Nov 2026, Claude Code, main)
+- `core/agent_safety.check(name, args, ctx)` runs inside `tools.call` before every call: send keys / typed new lines in
+  message boxes and messaging apps, Enter/Run/OK for typed commands (terminals, Run box, Explorer address bar, VS
+  Code terminal), select-all then Delete/Backspace, Delete in Explorer/mail/chat, risky button names. A yes lets
+  exactly the next call through. Plain close is free in the new core (the old pipeline's close still asks); AGENTS.md
+  rule 4 updated. 16 tests.
+
 ### Agent core, task 3: the tool menu (11 Nov 2026, Claude Code, main)
 - PC results: native Ollama tool calling works through C0RE with qwen3-vl:8b (0.8 s, `open("youtube")`); graphics
   memory 9.7/12 GB at 32k with Laya + Qwen (no Whisper; re-check when voice is used); `otto eval` baseline for the

@@ -115,5 +115,5 @@ def test_ask_user_and_done_end_the_turn(ctx):
 
 def test_risky_registry_action_asks_instead_of_running(ctx):
     from core import tools
-    r = tools.call("close", {"app": "Word"}, ctx)
+    r = tools.call("open", {"what": "C:\\Downloads\\setup.exe"}, ctx)      # running a program asks first
     assert r.asks and not r.ok
