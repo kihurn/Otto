@@ -120,7 +120,7 @@ python -m pytest -q tests
 ## 7. Status (as of 11 November 2026)
 
 **1.2 is in development, waiting for Windows acceptance.** The D–F review findings R1–R6 in
-`docs/V1_2_FINAL_REVIEW.md` are fixed with regression tests (branch `claude/review-fixes`, 279 tests).
+`docs/V1_2_FINAL_REVIEW.md` are fixed with regression tests and merged into `main` (PR #2, 279 tests).
 R7 (learning reusable screen-control methods) is **postponed** to the any-app control work in Phase 1 below.
 Open before release: the live checks in `docs/V1_2_VOICE_TESTS.md` (fresh-start Spotify and Chrome visual
 control, voice ducking, a second audio output). Any Laya candidate staged before the R2 fix must be re-evaluated
@@ -139,6 +139,13 @@ with `otto candidate` (promotion refuses old ones). The figures below describe t
 The goal for Phases 1–2: a voice "Jarvis" that can operate the whole PC, plus an on-screen companion, in the
 spirit of the Nūs app (github.com/potlakai/nus-desktop, MIT; use as a reference, credit any copied code in a
 THIRD_PARTY_NOTICES file, and keep Otto's own name and mascot, never their "Knot" branding).
+Checked 11 Nov 2026 (commit 592e30f, 27 Oct): the repo has **no Jev/Laya code and no training data**; the
+"JARVIS" tool from the reels isn't in it. Worth studying (Electron/JS, so port ideas, not files):
+`companion/src/win/probe.ps1` + `probe.js` (a PowerShell sidecar listing UI Automation controls, control under a
+point, find by name, foreground/click watching, DPI-aware), `companion/src/guide/pointing.js` (asks a model to pick
+from listed controls and validates the reply), `verify.js` (matching model boxes to real controls, screen-change
+hashing, click hit checks), `sensitive.js` (refuses password-type fields), `session.js`/`walkthroughs.js`
+(step-by-step guidance, saved replays).
 
 1. **Finish 1.2:** the live acceptance checks above; fix what they find.
 2. **Phase 1, "Jarvis": control any app by voice.**
