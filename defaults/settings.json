@@ -54,7 +54,7 @@
       "otto"
     ],
     "follow_up_s": 8,
-    "push_to_talk_key": "f8",
+    "push_to_talk_key": "ctrl+alt",
     "mute_key": "f9",
     "beep": true
   },
@@ -74,8 +74,12 @@
     "speed": 1.15
   },
   "spotify": {
-    "enabled": true
+    "enabled": true,
+    "playback_backend": "api"
   },
+  "search": {"searxng_url": null},
+  "recovery": {"enabled": false},
+  "computer_use": {"enabled": false},
   "routing": {
     "play_game_apps": ["VALORANT", "League of Legends"]
   },

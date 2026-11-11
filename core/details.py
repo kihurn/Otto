@@ -16,7 +16,7 @@ WORD_NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 
             "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
             "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
             "twenty five": 25, "thirty": 30, "forty": 40, "forty five": 45, "fifty": 50, "sixty": 60,
-            "ninety": 90, "couple": 2, "few": 3}
+            "seventy": 70, "eighty": 80, "ninety": 90, "one hundred": 100, "couple": 2, "few": 3}
 
 
 @dataclass
@@ -41,10 +41,17 @@ def _t(text: str) -> str:
 # ---------------------------------------------------------------------------------------------
 
 def _num(s: str) -> float | None:
-    s = s.strip().lower()
+    s = s.strip().lower().replace('-', ' ')
     if re.fullmatch(r"\d+(?:\.\d+)?", s):
         return float(s)
-    return float(WORD_NUM[s]) if s in WORD_NUM else None
+    if s in WORD_NUM:
+        return float(WORD_NUM[s])
+    parts = s.split()
+    if len(parts) == 2 and parts[0] in WORD_NUM and parts[1] in WORD_NUM:
+        tens, ones = WORD_NUM[parts[0]], WORD_NUM[parts[1]]
+        if tens in range(20, 100, 10) and 1 <= ones <= 9:
+            return float(tens + ones)
+    return None
 
 
 _UNIT = {"s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1, "m": 60, "min": 60, "mins": 60,
@@ -181,6 +188,21 @@ def music_intent(text: str) -> Intent | None:
 
 def _media(text: str) -> Intent | None:
     t = _t(text)
+    # Whisper often spells amounts: normalize numeric phrases only after to/at/by.
+    def spoken_amount(match):
+        value = _num(match[2])
+        return match[1] + ' ' + str(int(value)) if value is not None else match[0]
+    amounts = r'(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[ -](?:one|two|three|four|five|six|seven|eight|nine)|' + '|'.join(sorted(WORD_NUM, key=len, reverse=True))
+    t = re.sub(r'\b(to|at|by)\s+(' + amounts + r')\b', spoken_amount, t)
+    relative = re.search(r'\b(?:volume|sound)\b.*?\bby\s+(\d{1,3})(?:\s*(?:percent|%))?$', t)
+    if relative and re.search(r'\b(?:increase|raise|lower|decrease|turn)\b', t):
+        down = bool(re.search(r'\b(?:lower|decrease|down)\b', t))
+        return Intent('media', 'volume_down' if down else 'volume_up', {'step': -int(relative[1]) if down else int(relative[1])})
+    if re.search(r"\b(?:what|how|current|check|tell)\b.*\b(?:volume|sound level)\b", t):
+        return Intent('media', 'get_volume')
+    target = re.search(r'\b(?:volume|sound)\b.*?\b(?:to|at)\s+(\d{1,3})(?:\s*(?:percent|%))?$', t)
+    if target:
+        return Intent('media', 'set_volume', {'level': int(target[1])})
     m = re.search(r"(?:volume|sound)\s*(?:to|at|=)?\s*(\d{1,3})\s*%?|(\d{1,3})\s*(?:%|percent)\s*(?:volume)?", t)
     if m and ("volume" in t or "%" in t or "percent" in t or "sound" in t):
         return Intent("media", "set_volume", {"level": int(m.group(1) or m.group(2))})

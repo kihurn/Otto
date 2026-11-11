@@ -7,6 +7,7 @@ the request, e.g. {"do": "type_text", "with": {"text": "{query}"}}.
 from __future__ import annotations
 
 import copy
+import re
 from datetime import datetime
 
 from core.config import RECIPES_FILE, load_json, save_json
@@ -34,9 +35,13 @@ def fill(steps: list[dict], params: dict) -> list[dict]:
     for s in out:
         for k, v in list(s.get("with", {}).items()):
             if isinstance(v, str):
-                for pk, pv in params.items():
-                    v = v.replace("{" + pk + "}", str(pv))
-                s["with"][k] = v
+                from hands.registry import InvalidPlan
+                def replace(match):
+                    key = match[1]
+                    if key not in params:
+                        raise InvalidPlan('The recipe contains an unresolved parameter.')
+                    return str(params[key])
+                s["with"][k] = re.sub(r'\{(app|query|artist|kind|text|title|path|seconds|level|label)\}', replace, v)
     return out
 
 

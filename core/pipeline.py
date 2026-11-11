@@ -11,6 +11,13 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
+from copy import deepcopy
+import hashlib
+import json
+
+
+def plan_scope(steps):
+    return hashlib.sha256(json.dumps(steps, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 from core import answers, details, guards, learning, log, planner, recipes, safety
 from core.areas import ACTIONS, AREA_PHRASES, AREAS
@@ -50,6 +57,9 @@ class Pending:
     plan: planner.Plan | None = None
     files: list = field(default_factory=list)
     expires: float = 0.0
+    task: object | None = None
+    scope: str = ''
+    revision: int = 0
 
 
 class Otto:
@@ -65,7 +75,17 @@ class Otto:
         self.last: dict | None = None
         self.trace: dict = {}
         self.history: deque = deque(maxlen=8)   # recent exchanges, for follow-ups and the brief
-        self.queue: list[str] = []              # remaining steps of a multi-step request
+        self.queue: list[str] = []              # empty compatibility view; no sentence queue is executed
+        self.active_task = None
+        self.progress = lambda message: None
+        self.playback_target = None
+        self.playback_target_at = 0.0
+        self.last_web_query = None
+        self.turn_deadline = None
+        from core.context import ActionContext
+        self.action_context = ActionContext()
+        from core.audio_context import VolumeContext
+        self.volume_context = VolumeContext()
         self.brain.context_fn = self.context
         files.configure(settings)
         registry.load_all()
@@ -81,21 +101,11 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     def handle(self, text: str, heard_conf: float | None = None) -> Reply:
         t0 = time.perf_counter()
+        self.turn_deadline = time.monotonic() + 45
+        self.brain.deadline = self.turn_deadline
         self.trace = {"text": text}
         reply = self._handle(text, heard_conf)
         self._log_turn(reply, t0)
-        # Multi-step requests: carry on with the remaining steps (stops if Otto needs to ask you something)
-        while self.queue and not self.pending:
-            step = self.queue.pop(0)
-            t1 = time.perf_counter()
-            self.trace = {"text": step, "step": True}
-            r = self._process(step, from_split=True)
-            self._log_turn(r, t1)
-            reply.text = f"{reply.text} {r.text}".strip()
-            if r.details:
-                reply.details = f"{reply.details}  ||  {r.details}"
-        if self.pending and self.queue:
-            reply.text += f" (Then I'll {', then '.join(self.queue)}.)"
         return reply
 
     def _log_turn(self, reply: Reply, t0: float) -> None:
@@ -115,33 +125,96 @@ class Otto:
             return Reply("")
         t, _ = guards.strip_wake(t)
         self.trace["text"] = t
+        if guards.filler_only(t):
+            self.trace['guard'] = 'filler_only'
+            return Reply('')
+        if re.fullmatch(r"how do you know (?:it is|it's|its) (?:tonight|night|morning|afternoon|evening)[?.!]*", t, re.I):
+            return Reply("Your PC's local time is in my context, but that was just a greeting.")
 
+        if re.fullmatch(r"(?:it was not played|it (?:didn't|did not) play|you (?:didn't|did not) play it)(?: on spotify)?[.!?]*", t, re.I):
+            self.pending = None
+            self.queue.clear()
+            self.rephrase_of = None
+            if self.last:
+                self.last['ok'] = False
+            if self.dry_run:
+                return Reply("This is dry-run mode; no playback command was sent.")
+            if self.playback_target and time.time() - self.playback_target_at < 120:
+                from core.executor import observe_playback
+                from connectors import spotify
+                try:
+                    if self.playback_target.get('backend') == 'desktop':
+                        from hands import media
+                        from hands.spotify_desktop import matches
+                        target = self.playback_target
+                        observed = [s for s in media.sessions() or [] if 'spotify' in s.get('app', '').lower()]
+                        ok = any(s.get('status') == media.PLAYING and matches(s.get('title', ''), target['query'])
+                                 and matches(s.get('artist', ''), target.get('artist', '')) for s in observed)
+                        return Reply('Windows reports the requested song playing; can you hear it?' if ok else
+                                     'Windows does not confirm the requested song. I will not press play again automatically.')
+                    ok, evidence = observe_playback(spotify, self.playback_target)
+                    self.trace['playback_feedback'] = evidence.observed
+                    if ok:
+                        return Reply("Spotify reports the requested music playing; can you hear audio from this PC?")
+                except Exception:
+                    pass
+                return Reply("I can't confirm it is playing. Please ask me to play the title again; I won't retry automatically.")
+            return Reply("Which song failed to play? Please tell me its title and artist.")
+
+        if self.pending and heard_conf is not None and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9)):
+            return Reply('I did not catch that clearly. Please repeat your answer.')
         if self.pending and time.time() < self.pending.expires:
             r = self._answer_pending(t)
             if r is not None:
                 return r
         elif self.pending and self.pending.kind == "rephrase":
             self.rephrase_of = None
+        if self.pending and self.pending.task:
+            self.pending.task.cancel.set()
         self.pending = None
+        if guards.reply_kind(t) in {'yes', 'no'}:
+            return Reply('There is no current question to answer. Please tell me what to do.')
 
         # A full corrected command stands alone; don't ask the model to invent its target.
         corrected = re.sub(r"^(?:no[, ]+|actually[, ]+|i meant[, ]+)", "", t, flags=re.I)
         explicit_correction = corrected != t and bool(re.match(
-            r"(?:(?:can|could|would) you\s+)?(?:play|open|set|find|pause|google|search)\b", corrected, re.I))
+            r"(?:(?:(?:can|could|would) you|i (?:want|need) you to)\s+)?(?:play|open|set|find|pause|google|search)\b", corrected, re.I))
         if explicit_correction:
             self.queue.clear()
             self.rephrase_of = None
             t = corrected
             self.trace["understood_as"] = t
+        # A new concrete Spotify goal must not inherit a pending request's training label
+        # or be rewritten into playback from a search-only instruction.
+        from core.music_goals import compile_music
+        explicit_music_goal = compile_music(t)
+        if explicit_music_goal:
+            self.rephrase_of = None
+        from core.audio_context import is_followup
+        if is_followup(details._t(t)):
+            from hands import media
+            resolved = self.volume_context.resolve(details._t(t), 'simulation' if self.dry_run else media.endpoint_id())
+            if not resolved:
+                return Reply('What would you like me to change or check?')
+            t = resolved
+            self.trace['understood_as'] = t
+        elif 'volume' not in t.casefold() and not re.search(r'\b(?:louder|quieter)\b', t, re.I):
+            self.volume_context.clear()
 
         # "do that again"
         if re.fullmatch(r"(?:(?:do|play|say) (?:that|it) again|again|one more time|repeat that|same again)[.!?]*", t, re.I):
-            prev = next((h["you"] for h in reversed(self.history) if h["you"] and h.get("did")), None)
+            prev = (self.last.get('text') if self.last and self.last.get('ok') and self.last.get('plan')
+                    and self.last.get('task_id') == self.action_context.observed.get('task_id')
+                    and self.action_context.recent() else None)
             if prev:
                 t = prev
                 self.trace["understood_as"] = t
+            else:
+                return Reply('There is no verified action to repeat yet.')
         # Follow-ups like "its called student resume" or "turn it up more": make them a full request
-        elif not explicit_correction and self._looks_like_followup(t):
+        elif not explicit_correction and not explicit_music_goal and self._looks_like_followup(t):
+            if re.fullmatch(r'(?:(?:can|could) you\s+)?(?:play|open|close|type|search for) (?:it|that|this)[?.!]*', t, re.I):
+                return Reply('Please name the song, app or text you mean.')
             full = self._rewrite_followup(t)
             if full and full.lower() != t.lower():
                 self.trace["understood_as"] = full
@@ -156,21 +229,64 @@ class Otto:
 
     # ------------------------------------------------------------------------------------------
     def _process(self, t: str, from_split: bool = False) -> Reply:
+        visual = re.match(r'^(?:use qwen|use computer use) to\s+(.+)$', t, re.I)
+        if visual:
+            request = visual[1]
+            music = details.music_intent(request)
+            from core.search_goals import web_query
+            query = web_query(request)
+            if music and music.action == 'play_music':
+                args = {'app':'Spotify', 'goal':'play', 'query':music.params['query'], 'artist':music.params.get('artist','')}
+            elif query:
+                args = {'app':'Chrome', 'goal':'search', 'query':query, 'artist':''}
+            else:
+                return Reply('Visual mode currently supports playing Spotify songs and searching in Chrome.')
+            plan = planner.Plan([{'do':'visual_task','with':args}], 'builtin')
+            self.trace['plan'] = {'source':plan.source,'steps':plan.steps}
+            return self._run(plan, None, t)
         mem = guards.memory_command(t)
         if mem:
             return self._memory(mem)
         if guards.is_gibberish(t, self.apps.known_words()):
             self.trace["guard"] = "gibberish"
             return Reply("Sorry, I didn't catch that.")
+        from core.music_goals import compile_music, unbound_music_reference
+        if re.search(r'\bvolume\b', t, re.I):
+            volume = details._media(t)
+            if volume and volume.action in {'get_volume', 'set_volume', 'volume_up', 'volume_down'} and not self._is_multi_step(t):
+                return self._do_area(t, 'media', intent=volume, via='rules')
+        goal = compile_music(t)
+        if goal:
+            if goal.action == 'play_music' and unbound_music_reference(goal.params['query']):
+                return Reply("Which song do you mean? Tell me its title and artist.")
+            self.trace['rule'] = 'music_goal'
+            return self._do_area(t, goal.area, intent=goal, via='rules')
+        from core.search_goals import web_query
+        query = web_query(t)
+        if not query and re.search(r'\blook at (?:my|the) screen\b', t, re.I) and re.search(r'\bsearch (?:on|in) (?:google )?chrome\b', t, re.I):
+            if not self.last_web_query or time.time() - self.last_web_query[1] > 120:
+                self.queue.clear()
+                return Reply('What would you like me to search for in Chrome?')
+            query = self.last_web_query[0]
+        if query:
+            self.last_web_query = (query, time.time())
+            self.rephrase_of = None
+            self.trace['rule'] = 'explicit_web_search'
+            return self._do_area(t, 'web', intent=Intent('web', 'web_search', {'query': query}), via='rules')
+        if re.search(r'\b(?:weather|forecast|temperature)\b', t, re.I) and re.match(r"(?:what|how|will|is it|does it)", details._t(t)):
+            self.rephrase_of = None
+            return self._do_area(t, 'question', via='rules')
         if not from_split and self._is_multi_step(t):
             r = self._split(t)
             if r is not None:
                 return r
             return Reply("I couldn't separate those steps. Could you ask one at a time?")
-        if re.search(r"\bqueue(?: up)?\b", t, re.I):
+        if re.search(r"\bqueue(?: up)?\b", re.sub(r'"[^"]*"|“[^”]*”', '', t), re.I):
             return Reply("I can't add songs to the queue yet. You can ask me to play one.")
         music = self._clear_music(t)
         if music:
+            if music.action == 'play_music' and unbound_music_reference(music.params['query']):
+                return Reply("Which song do you mean? Tell me its title and artist.")
             self.trace["rule"] = "music"
             return self._do_area(t, music.area, intent=music, via="rules")
         p = self.router.predict(t)
@@ -224,6 +340,11 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     def _set_pending(self, kind: str, **kw) -> None:
         timeout = float(self.settings.get("zones", {}).get("clarify_timeout_s", 30))
+        if kw.get('plan'):
+            kw['plan'] = deepcopy(kw['plan'])
+            kw['scope'] = plan_scope(kw['plan'].steps)
+        if kw.get('task'):
+            kw['revision'] = kw['task'].revision
         self.pending = Pending(kind, expires=time.time() + timeout, **kw)
 
     def _answer_pending(self, t: str) -> Reply | None:
@@ -231,6 +352,8 @@ class Otto:
         kind = guards.reply_kind(t)
         self.trace["answering"] = p.kind
         if guards.is_cancel(t) and p.kind != "rephrase":
+            if p.task:
+                p.task.cancel.set()
             self.pending = None
             return Reply("Okay, cancelled.")
 
@@ -258,7 +381,11 @@ class Otto:
         if p.kind == "confirm_plan":
             self.pending = None
             if kind == "yes":
-                return self._run(p.plan, p.intent, p.text, confirmed=True)
+                if (not p.task or p.task.cancel.is_set() or p.task.revision != p.revision or p.scope != plan_scope(p.plan.steps)):
+                    return Reply('That plan changed or expired. Please ask again.')
+                return self._run(p.plan, p.intent, p.text, confirmed=True, task=p.task)
+            if p.task:
+                p.task.cancel.set()
             if kind == "no":
                 return Reply("Okay, I won't.")
             return None
@@ -341,13 +468,37 @@ class Otto:
             return self._finish(Reply(plan.error), area, False)
         return self._run(plan, intent, t)
 
-    def _run(self, plan: planner.Plan, intent: Intent | None, t: str, confirmed: bool = False) -> Reply:
+    def _run(self, plan: planner.Plan, intent: Intent | None, t: str, confirmed: bool = False, task=None) -> Reply:
+        from core.tasks import Task, Step, TaskStatus
+        self.active_task = task or Task(t, [Step(s.get('id', f's{i}'), s['do'], deepcopy(s.get('with', {})))
+                                           for i, s in enumerate(plan.steps)], mode='dry_run' if self.dry_run else 'live')
+        if task is None and self.turn_deadline:
+            self.active_task.active_seconds = max(0, 45 - (self.turn_deadline - time.monotonic()))
+        self.active_task.deadline_at = min(self.turn_deadline or time.monotonic() + 45,
+                                          time.monotonic() + max(0, 45 - self.active_task.active_seconds))
         try:
-            res = safety.run_plan(plan.steps, confirmed=confirmed, dry_run=self.dry_run, why=t)
+            if intent is None and plan.source.startswith('brain') and not confirmed:
+                raise safety.NeedsConfirm(safety.describe(plan.steps))
+            res = safety.run_plan(plan.steps, confirmed=confirmed, dry_run=self.dry_run, why=t,
+                                  task=self.active_task, progress=self.progress)
         except safety.NeedsConfirm as e:
-            self._set_pending("confirm_plan", text=t, intent=intent, plan=plan)
-            return Reply(f"Just checking: should I {e}?")
-        if plan.source == "recipe":
+            self.active_task.transition(TaskStatus.WAITING_INPUT)
+            self._set_pending('confirm_plan', text=t, intent=intent, plan=plan, task=self.active_task)
+            return Reply(f'Just checking: should I {e}?')
+        finally:
+            if self.active_task:
+                self.action_context.record(self.active_task)
+            self.active_task = None
+        self.trace['outcome_status'] = res.data.get('outcome_status')
+        if intent and intent.action in {'get_volume', 'set_volume', 'volume_up', 'volume_down'}:
+            from hands import media
+            if res.ok or (self.dry_run and res.data.get('outcome_status') == 'simulated'):
+                self.volume_context.bind('simulation' if self.dry_run else media.endpoint_id())
+        if res.data.get('playback_target'):
+            self.playback_target = res.data['playback_target']
+            self.playback_target_at = time.time()
+        self.rephrase_of = None
+        if plan.source == 'recipe' and not self.dry_run and res.data.get('outcome_status') in {'verified', 'failed'}:
             recipes.record(plan.key, res.ok)
 
         found = res.data.get("files")
@@ -367,7 +518,7 @@ class Otto:
         text = res.say
         if res.ok and plan.source.startswith("brain"):
             text += " If that worked, say \"save that\" and I'll do it the same way next time."
-        self.last = {"text": t, "intent": intent, "plan": plan, "ok": res.ok}
+        self.last = {"text": t, "intent": intent, "plan": plan, "ok": res.ok, 'task_id': res.data.get('task_id')}
         return self._finish(Reply(text), intent.area if intent else "", res.ok)
 
     def _finish(self, reply: Reply, area: str, ok: bool) -> Reply:
@@ -516,23 +667,12 @@ class Otto:
         return True
 
     def _split(self, t: str) -> Reply | None:
-        prompt = (f"The user asked their desktop assistant: \"{t}\"\n"
-                  "Split it into the smallest list of separate, standalone requests, in order (max 4). Each must make "
-                  "sense alone (repeat names instead of 'it'). Merge steps that one action already covers: playing a "
-                  "song on Spotify already opens and searches Spotify; searching in an app already opens it.\n"
-                  "Reply with only JSON: {\"steps\": [\"...\", \"...\"]}")
-        try:
-            r = self.brain.ask("decide", prompt, want_json=True, required=("steps",), timeout=10)
-        except NoBrainAvailable:
-            return None
-        steps = [str(s).strip() for s in (r.data.get("steps") or []) if str(s).strip()][:4]
-        if len(steps) < 2:
-            return None
-        self.trace.update(split_by=r.model, steps=steps)
-        self.queue = steps[1:]
-        first = self._process(steps[0], from_split=True)
-        first.text = f"On it: {', then '.join(steps)}. " + first.text
-        return first
+        from core.compiler import compile_request
+        plan = compile_request(t, self.apps, self.brain)
+        self.trace['plan'] = {'source': plan.source, 'steps': plan.steps}
+        if plan.error:
+            return Reply(plan.error)
+        return self._run(plan, None, t)
 
     def context(self) -> dict:
         """What every brain call is told about right now (fills the {placeholders} in the Otto brief)."""

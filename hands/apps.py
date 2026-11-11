@@ -234,8 +234,9 @@ def builtin_search_link(app: str, query: str) -> str | None:
         key = found["name"].lower()
     for name, link in SEARCH_LINKS.items():
         if name in key:
-            # Spotify shows %20 literally as "+", so its links keep plain spaces; websites need encoding
-            q = query.replace(":", " ") if link.startswith("spotify:") else urllib.parse.quote(query)
+            # A protocol URI must not contain raw spaces: Windows may truncate it.
+            # quote (not quote_plus) keeps spaces distinct from literal plus signs.
+            q = urllib.parse.quote(query, safe='')
             return link.format(q=q)
     return None
 
@@ -243,6 +244,13 @@ def builtin_search_link(app: str, query: str) -> str | None:
 @action("search_in_app", UNDOABLE, {"app": "app name", "query": "what to search for"},
         lambda app, query: f"search {app} for \"{query}\"")
 def search_in_app(app: str, query: str) -> Result:
+    if app.casefold().strip() == 'spotify' and win.IS_WINDOWS:
+        opened = open_app('Spotify')
+        window = win.find_window('Spotify')
+        if not opened.ok or not window or not win.focus(window['hwnd']):
+            return Result(False, 'I could not focus Spotify search.')
+        from hands.spotify_search import search
+        return search(window['hwnd'], query)
     link = builtin_search_link(app, query)
     if not link:
         return Result(False, "no_method", {"needs_plan": True})

@@ -4,7 +4,7 @@ Three ways to listen (settings: listen.mode, or  otto mode ...):
   wake    - always listening, but only acts on sentences starting with "Hey Otto" (default).
             After Otto replies, or while it's asking you something, you can answer without "Hey Otto".
   always  - every sentence is for Otto.
-  push    - only hears you while you hold the push-to-talk key (F8 by default).
+  push    - only hears you while you hold the push-to-talk hotkey (Ctrl+Alt by default).
 Plus a mute key (F9 by default) in every mode. While Otto is speaking, the mic is ignored so Otto
 doesn't hear itself. Whisper also reports how sure it was, so Otto can ask "did you say ...?".
 """

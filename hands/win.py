@@ -84,6 +84,8 @@ def find_window(app_name: str) -> dict | None:
 
 
 def focus(hwnd: int) -> bool:
+    from core.action_runtime import check
+    check()
     from pywinauto import Desktop
 
     try:
@@ -115,6 +117,8 @@ _KEYS = {"enter": "{ENTER}", "return": "{ENTER}", "tab": "{TAB}", "esc": "{ESC}"
 
 def hotkey(keys: str) -> None:
     """'ctrl+l', 'ctrl+shift+t', 'enter'."""
+    from core.action_runtime import check
+    check()
     from pywinauto.keyboard import send_keys
 
     parts = [p.strip().lower() for p in keys.replace(" ", "").split("+") if p.strip()]
@@ -125,6 +129,8 @@ def hotkey(keys: str) -> None:
 
 
 def type_text(text: str) -> None:
+    from core.action_runtime import check
+    check()
     from pywinauto.keyboard import send_keys
 
     escaped = "".join("{" + c + "}" if c in "{}+^%~()[]" else c for c in text)

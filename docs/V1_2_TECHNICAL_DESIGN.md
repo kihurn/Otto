@@ -1,6 +1,6 @@
 # Otto 1.2 technical design
 
-Status: approved for implementation; Batch A completed (73 tests passing). Prepared 10 November 2026.
+Status: approved for implementation; Batches A and B completed (113 tests passing). Astra integration review next. Prepared 10 November 2026.
 This document specifies intended changes; it does not describe features already implemented.
 
 ## 1. Release goal and boundaries
@@ -239,6 +239,8 @@ Hard gates: no new failing existing tests; all new lifecycle/safety regression t
 
 ## 14. Implementation batches and model checkpoints
 
+Review 1 is complete: [findings and required amendments](V1_2_REVIEW_1.md). Its implementation sequence supersedes the C/D split below: C1 corrects contracts and compiles structured music goals; C2 integrates the runner with minimum Spotify verification and failure feedback; C3 completes remaining runner/context integration. D then adds the remaining domain verifiers. This avoids shipping another runner checkpoint that claims unobserved playback success. These are planned changes, not implemented behavior.
+
 | Batch | Model | Files / concrete output | Exit check |
 |---|---|---|---|
 | A: baseline and routing | Sol 6.1 | Import supplied tests/dev requirements; `details.py`, music override in `pipeline.py`, app matching; regression fixtures | Baseline recorded, Bruno/Run fixed, compound/title cases covered |
@@ -247,7 +249,7 @@ Hard gates: no new failing existing tests; all new lifecycle/safety regression t
 | C: runner and context | Sol 6.1 | `executor.py`, `context.py`, pipeline/safety integration, deadline-aware brain calls, CLI cancellation | Failure, expiry, replacement and cancellation scenarios pass |
 | D: domain verification | Sol 6.1 | Spotify/media, apps/window focus, timers, notes/files, recipe compatibility | Realistic fake-backend checks; partial results honest |
 | E: audio | Sol 6.1 | `audio_focus.py`, ears/keys/mouth/CLI hooks, settings | Fake-session lifecycle tests and Windows acceptance |
-| F: learning/evaluation | Sol 6.1 after Astra reviews promotion contract | Router/learning, evaluation runner, train CLI and reports | No live effects, no regression promotion, reproducible report |
+| F: learning/evaluation | Sol 6.1 | Router/learning, evaluation runner, train CLI and reports | No live effects, no regression promotion, reproducible report |
 | Final review | Astra 6 | Whole diff, failure paths, results and release scope | Approve release readiness or identify bounded follow-up fixes |
 
 Batches are sequential and independently reviewable. Avoid two agents editing pipeline.py, details.py or otto.py concurrently. The user controls chat model switching; announce checkpoints and pause before the next model-specific batch. No automatic subagent delegation is assumed.
@@ -275,4 +277,16 @@ Retain `zones.clarify_timeout_s` and `listen.follow_up_s` for their existing dis
 
 ## 15. Approval and next action
 
-Approval of this specification authorizes implementation of the included scope, not deferred desktop training or Phase 2. The first implementation checkpoint is Batch A on Sol 6.1. Remain on Astra only if revising the design. No implementation, package installation, training, test import, branch change or runtime data migration has been performed as part of writing this document.
+Scheduling update, 11 November 2026: finish D, E and F on Sol, with tests and live checks during each batch. Consolidate the intermediate Astra checks into one final review of the combined implementation, live acceptance, promotion safeguards and release readiness.
+
+Latest Astra checkpoint: [bounded recovery and system audio](V1_2_RECOVERY_DESIGN.md). It specifies D0–D2 additions requested after live C3 tests, identifies prerequisites before visual dispatch, and defines candidate-only learning with a later promotion review. This supersedes the earlier blanket deferral of all visual recovery for the narrow Spotify scope; general Phase 3 remains separate.
+
+C3 implementation checkpoint: compounds compile once to validated named actions; all action plans use the runner, approvals bind plan/task/revision, requested and observed context are separate, and simulated results cannot promote recipes. Minimal app/volume checks and typed read-volume references are implemented. Other domain actions remain conservative dispatched outcomes until D; full file-result bindings, preparation hooks and general entity resolution are not claimed. Current suite: 196 passing tests. Updated voice acceptance is in V1_2_VOICE_TESTS.md; D on Sol follows that check.
+
+C2's first Spotify runner path is implemented with observed playback, progress, feedback and cancellation requests (156 automated tests passing). Live voice acceptance is next. The general queue, task-bound pending/approval flow and pre-run planning deadline are still C3; this is not full task-runner integration or release readiness. Liked Songs uses an explicit selection of up to 50 saved tracks. See WORKLOG and V1_2_VOICE_TESTS.md for exact implemented limits.
+
+C1 is implemented: narrow Spotify goal compilation, unbound-reference rejection, raw numeric validation, recipe expansion checks and lifecycle interfaces. 128 automated tests pass. C2 must integrate these records into execution and verify real playback. See V1_2_VOICE_TESTS.md for the C1 voice dry-run checklist.
+
+Batch B implementation note: the live safety runner now validates the complete plan before execution, but still returns legacy Result values. Outcome/task records and the conservative adapter are available for Batch C integration. Backward output references fail closed until resolution is implemented. Initial numeric limits are volume 0–100, relative volume -100–100, wait 0.1–5 seconds and timer 1–604800 seconds (one week). New plan validation does not establish URI/target/focus safety; those require the domain preparation work. Tests currently total 113, all passing. Review 1 on Astra precedes Batch C.
+
+Approval of this specification authorizes implementation of the included scope, not deferred desktop training or Phase 2. Batches A and B are implemented; Review 1 identified integration blockers and amended the sequence. The next implementation checkpoint is C1 on Sol 6.1, followed by C2's verified Spotify path. The original design-writing step made no runtime changes; subsequent batch results are recorded above and in WORKLOG.

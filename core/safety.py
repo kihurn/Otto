@@ -8,8 +8,7 @@ brain reply can skip:
 
 from __future__ import annotations
 
-from core import log
-from hands.registry import ACTIONS, ASK, RISK_NAMES, Result
+from hands.registry import ACTIONS, ASK, Result
 
 
 class NeedsConfirm(Exception):
@@ -48,31 +47,16 @@ def describe(steps: list[dict]) -> str:
     return ", then ".join(parts)
 
 
-def run_plan(steps: list[dict], confirmed: bool = False, dry_run: bool = False, why: str = "") -> Result:
+def run_plan(steps: list[dict], confirmed: bool = False, dry_run: bool = False, why: str = "", task=None, progress=lambda message: None) -> Result:
+    # Validate every step before risk checks or any effect, including legacy recipes.
+    from core.planner import validate_steps
+    from hands.registry import InvalidPlan
+    try:
+        steps = validate_steps(steps)
+    except InvalidPlan as e:
+        return Result(False, f"I didn't run that plan: {e}", {"error_code": "invalid_plan"})
     risk = plan_risk(steps)
     if risk >= ASK and not confirmed:
         raise NeedsConfirm(describe(steps))
-    said, data, ok = [], {}, True
-    for s in steps:
-        a = ACTIONS[s["do"]]
-        args = s.get("with", {})
-        if dry_run:
-            if s["do"] != "wait":
-                said.append(f"[dry run] would {describe([s])}.")
-            continue
-        try:
-            res = a.fn(**args)
-        except TypeError as e:
-            res = Result(False, f"That step was set up wrongly ({e}).")
-        except Exception as e:
-            res = Result(False, f"Something went wrong: {type(e).__name__}: {e}"[:200])
-        log.write({"type": "action", "do": s["do"], "with": args, "risk": RISK_NAMES[step_risk(s)],
-                   "ok": res.ok, "say": res.say, "why": why})
-        data.update(res.data)
-        if res.say and res.say != "Done." or not res.ok:
-            said.append(res.say)
-        if not res.ok:
-            ok = False
-            break
-    text = " ".join(x for x in said if x) or ("Done." if ok else "That didn't work.")
-    return Result(ok, text, data)
+    from core import executor
+    return executor.run(steps, dry_run=dry_run, why=why, task=task, progress=progress)

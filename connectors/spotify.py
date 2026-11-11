@@ -19,6 +19,19 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from contextvars import ContextVar
+
+deadline = ContextVar('spotify_deadline', default=None)
+
+
+def request_timeout():
+    end = deadline.get()
+    if end is None:
+        return 10
+    remaining = end - time.monotonic()
+    if remaining <= 0:
+        raise SpotifyError('Spotify task deadline reached.')
+    return min(10, remaining)
 
 from core import config
 
@@ -61,8 +74,10 @@ def _token_request(fields: dict) -> dict:
                                  data=urllib.parse.urlencode(fields).encode(),
                                  headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=request_timeout()) as r:
             return json.loads(r.read().decode())
+    except (ValueError, UnicodeError):
+        raise SpotifyError('Spotify token refresh returned invalid JSON.') from None
     except urllib.error.HTTPError as e:
         raise SpotifyError(f"Spotify sign-in failed: {e.read().decode(errors='replace')[:200]}", e.code) from None
 
@@ -139,15 +154,27 @@ def _call(method: str, path: str, params: dict | None = None, body: dict | None 
                                  headers={"Authorization": f"Bearer {_access_token()}",
                                           "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=request_timeout()) as r:
             raw = r.read().decode()
-            return json.loads(raw) if raw.strip() else None
+            if r.status == 204 or not raw.strip():
+                return None
+            try:
+                value = json.loads(raw)
+                if not isinstance(value, dict):
+                    raise ValueError('Expected object')
+                return value
+            except (ValueError, TypeError):
+                from core import log
+                log.write({'type': 'spotify_decode_error', 'method': method, 'path': path.split('?')[0],
+                           'status': r.status, 'content_type': r.headers.get('Content-Type', ''),
+                           'body_length': len(raw), 'error_class': 'invalid_json_object'})
+                raise SpotifyError('Spotify returned an unreadable response; playback may have changed.') from None
     except urllib.error.HTTPError as e:
         raw = e.read().decode(errors="replace")
         try:
             msg = json.loads(raw).get("error", {}).get("message", raw)
         except Exception:
-            msg = raw
+            msg = 'Spotify returned an unreadable error response.'
         if e.code == 403 and "premium" in str(msg).lower():
             msg = "Spotify says this needs Premium."
         raise SpotifyError(str(msg)[:200], e.code) from None
@@ -164,14 +191,16 @@ def _pick_device() -> dict | None:
     if not devs:
         return None
     pc = os.environ.get("COMPUTERNAME", "").lower()
+    preferred = config.load_settings().get('spotify', {}).get('device_name')
+    if preferred:
+        return next((d for d in devs if d.get('name', '').casefold() == preferred.casefold()
+                     and not d.get('is_restricted')), None)
+    devs = [d for d in devs if not d.get('is_restricted')]
     for d in devs:
-        if d.get("is_active"):
-            return d
-    for d in devs:
-        if d.get("type") == "Computer" and (not pc or pc in d.get("name", "").lower()):
+        if d.get("type") == "Computer" and pc and pc == d.get("name", "").lower():
             return d
     computers = [d for d in devs if d.get("type") == "Computer"]
-    return computers[0] if computers else devs[0]
+    return computers[0] if len(computers) == 1 else None
 
 
 def ensure_device(launch) -> dict | None:
@@ -181,6 +210,8 @@ def ensure_device(launch) -> dict | None:
         return d
     launch()
     for _ in range(20):          # up to ~10 s for the app to start and register
+        if deadline.get() is not None and time.monotonic() >= deadline.get():
+            return None
         time.sleep(0.5)
         d = _pick_device()
         if d:
@@ -201,7 +232,17 @@ def best_match(query: str, kind: str = "auto", artist: str = "") -> tuple[str, s
         items = (res.get("tracks") or {}).get("items") or []
         if not items:
             items = (search(f"{query} {artist}", "track").get("tracks") or {}).get("items") or []
-        return ("track", items[0]["uri"], items[0]) if items else None
+        ranked = []
+        for item in items:
+            if not item or not item.get('uri'):
+                continue
+            title_score = fuzz.ratio(query.casefold(), item.get('name', '').casefold())
+            artist_score = max((fuzz.ratio(artist.casefold(), a.get('name', '').casefold())
+                                for a in item.get('artists', [])), default=0)
+            if title_score >= 75 and artist_score >= 75:
+                ranked.append((title_score + artist_score, item))
+        ranked.sort(key=lambda entry: entry[0], reverse=True)
+        return ('track', ranked[0][1]['uri'], ranked[0][1]) if ranked else None
     if kind == "playlist":   # your own playlists first
         try:
             mine = (_call("GET", "/me/playlists", {"limit": 50}) or {}).get("items") or []
@@ -225,7 +266,15 @@ def best_match(query: str, kind: str = "auto", artist: str = "") -> tuple[str, s
             cand.append((score, k, it))
     if not cand:
         return None
-    _, k, it = max(cand, key=lambda c: c[0])
+    score, k, it = max(cand, key=lambda c: c[0])
+    if score < 75:
+        return None
+    if k == 'track' and not artist:
+        for other_score, other_kind, other in cand:
+            if (other_kind == 'track' and other.get('uri') != it.get('uri') and
+                    other.get('name', '').casefold() == it.get('name', '').casefold() and
+                    other.get('artists') != it.get('artists') and score - other_score <= 6):
+                return None  # Ask for the artist instead of choosing a same-title song blindly.
     return k, it["uri"], it
 
 

@@ -49,6 +49,139 @@ def test_high_zone_acts(otto):
     assert "would open Spotify" in say(otto, "Otto, open Spotify")
 
 
+def test_volume_followup_reads_without_inventing_level(otto):
+    say(otto, 'lower down the volume')
+    assert 'check the current volume' in say(otto, 'What is it now?')
+    assert 'set the volume to 30' in say(otto, 'Could you lower the volume down to 30?')
+
+
+def test_d0_volume_pronouns_keep_absolute_targets(otto):
+    say(otto, 'set volume to 30')
+    assert 'set the volume to 70' in say(otto, 'Could you increase it up to 70?')
+    assert 'turn it down' in say(otto, 'lower it by 5')
+    assert otto.last['plan'].steps[0]['with']['step'] == -5
+    assert 'check the current volume' in say(otto, 'what is it now')
+
+
+def test_d0_unrelated_topic_clears_volume_reference(otto):
+    say(otto, 'set volume to 30')
+    say(otto, 'open Spotify')
+    assert 'What would you like' in say(otto, 'increase it to 70')
+
+
+def test_unrelated_request_invalidates_pending_approval(otto):
+    say(otto, 'close discord')
+    task = otto.pending.task
+    say(otto, 'play Bruno Mars')
+    assert task.cancel.is_set()
+    assert 'no current question' in say(otto, 'yes')
+
+
+def test_low_confidence_yes_never_approves(otto):
+    say(otto, 'close discord')
+    task = otto.pending.task
+    assert 'repeat your answer' in otto.handle('yes', heard_conf=-1.2).text
+    assert not task.results
+    assert 'would close Discord' in say(otto, 'yes')
+
+
+def test_approval_plan_mutation_rejected(otto):
+    say(otto, 'close discord')
+    otto.pending.plan.steps[0]['with']['app'] = 'Spotify'
+    assert 'changed or expired' in say(otto, 'yes')
+
+
+def test_approval_revision_change_rejected(otto):
+    say(otto, 'close discord')
+    otto.pending.task.revision += 1
+    assert 'changed or expired' in say(otto, 'yes')
+
+
+def test_expired_yes_never_executes(otto):
+    say(otto, 'close discord')
+    task = otto.pending.task
+    otto.pending.expires = 0
+    assert 'no current question' in say(otto, 'yes')
+    assert task.cancel.is_set() and not task.results
+
+
+def test_simulation_cannot_be_repeated_as_verified_action(otto):
+    say(otto, 'play Bruno Mars')
+    assert 'no verified action' in say(otto, 'do that again')
+
+
+def test_c1_spotify_workflow_never_splits_or_googles(otto):
+    def no_brain(*args, **kwargs):
+        raise AssertionError('Deterministic music workflow should not need the brain')
+    otto.brain.ask = no_brain
+    reply = say(otto, 'open spotify and search for the hills by the weeknd and play it')
+    assert 'would play the hills by the weeknd' in reply
+    assert 'Google' not in reply and not otto.queue
+
+
+def test_spotify_voice_prefix_without_open(otto):
+    def no_brain(*args, **kwargs):
+        raise AssertionError('Must compile without splitting')
+    otto.brain.ask = no_brain
+    reply = say(otto, 'Spotify and search for The Hills by The Weekend and Play it.')
+    assert reply.count('would play') == 1 and not otto.queue
+
+
+def test_c1_voice_search_order_keeps_spotify(otto):
+    reply = say(otto, 'Can you search on Spotify the shade by Rex Orange County?')
+    assert 'Spotify' in reply and 'Google' not in reply and 'would play' not in reply
+
+
+@pytest.mark.parametrize('utterance', [
+    'Open Spotify and search for The Hills by the weekend',
+    'Search on Spotify, The Shade by Rex Orange County',
+    'No, I want you to search on Spotify the shade by Rex Orange County',
+])
+def test_c1_reported_voice_search_variants(otto, utterance):
+    def no_brain(*args, **kwargs):
+        raise AssertionError('Explicit search must not be rewritten by the brain')
+    otto.brain.ask = no_brain
+    reply = say(otto, utterance)
+    assert 'Spotify' in reply and 'would play' not in reply and 'Google' not in reply
+
+
+def test_new_music_goal_does_not_learn_old_pending_request(otto):
+    from core import learning
+    say(otto, 'valorant')
+    say(otto, 'Search on Spotify, The Shade by Rex Orange County')
+    assert not any(row['text'] == 'valorant' for row in learning.load_examples())
+
+
+def test_c1_unbound_reference_asks(otto):
+    assert 'Which song' in say(otto, 'play the first result')
+
+
+@pytest.mark.parametrize('utterance', ['It was not played.', 'It was not played on Spotify', 'You did not play it'])
+def test_failure_feedback_never_rewrites_or_replays(otto, utterance):
+    def no_brain(*a, **kw):
+        raise AssertionError('Failure feedback must not be rewritten')
+    otto.brain.ask = no_brain
+    assert 'dry-run' in say(otto, utterance)
+    assert not otto.queue
+
+
+def test_filler_does_not_create_heard_question(otto):
+    assert otto.handle('um', heard_conf=-1.06).text == ''
+    assert otto.pending is None
+
+
+def test_explicit_search_bypasses_screen_route(otto):
+    first = say(otto, 'can you search what is Otto')
+    assert 'Google' in first and 'what is otto' in first
+    second = say(otto, 'I want you to look at my screen and search on google chrome')
+    assert 'Google' in second and 'what is otto' in second
+    assert 'confirm Google Chrome is open' not in second and not otto.queue
+
+
+def test_c1_quoted_queue_is_a_title(otto):
+    assert 'would play Queue' in say(otto, 'play "Queue"')
+
+
 def test_middle_zone_asks_then_learns(otto):
     from core import learning
     assert say(otto, "valorant") == "Open VALORANT?"
@@ -61,7 +194,23 @@ def test_risky_asks_first(otto):
     assert "would close Discord" in say(otto, "yes")
 
 
-def test_recipe_saved_and_replayed(otto):
+def test_recipe_saved_and_replayed(otto, monkeypatch):
+    from hands import registry
+    from core.tasks import Outcome, OutcomeStatus, Evidence
+    # Simulation must not be learned as a successful execution.
+    first = otto.handle("search for taylor swift in discord")
+    assert 'save that' not in first.text
+    assert not otto.last['ok']
+    otto.dry_run = False
+    state = {}
+    def backend(name):
+        def run(**args):
+            state[name] = dict(args)
+            return Outcome(OutcomeStatus.VERIFIED, 'Verified fake app state.', evidence=[
+                Evidence('fake_app', expected=dict(args), observed=dict(state[name]))])
+        return run
+    for name in ('open_app', 'hotkey', 'type_text'):
+        monkeypatch.setattr(registry.ACTIONS[name], 'fn', backend(name))
     first = otto.handle("search for taylor swift in discord")
     assert "save that" in first.text
     assert say(otto, "save that").startswith("Saved")

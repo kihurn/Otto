@@ -1,0 +1,178 @@
+"""Window-bound native provider for the approved Qwen controller."""
+import base64
+import io
+import time
+import uuid
+from core.action_runtime import check
+from core.tasks import Evidence
+from hands.registry import action, UNDOABLE
+
+
+@action('visual_task', UNDOABLE, {'app': 'Spotify or Chrome', 'goal': 'play or search',
+                                'query': 'original query', 'artist': 'optional artist'},
+        lambda app, goal, query, artist='': f'{goal} {query} visually in {app}', for_brain=False)
+def visual_task(app, goal, query, artist=''):
+    from core.computer_use import run
+    return run(app, goal, query, artist)
+
+
+class WindowProvider:
+    def __init__(self, app):
+        from hands import apps, win
+        opened = apps.open_app('Spotify' if app.casefold() == 'spotify' else 'Google Chrome')
+        window = win.find_window('Spotify' if app.casefold() == 'spotify' else 'Google Chrome')
+        if not opened.ok or not window or not win.focus(window['hwnd']):
+            raise ValueError('Target unavailable')
+        self.hwnd = window['hwnd']
+        self.exe = 'spotify.exe' if app.casefold() == 'spotify' else 'chrome.exe'
+        self.bound = self.identity()
+        self.query_control = None
+
+    def identity(self):
+        from hands import win
+        import psutil
+        info = win.window_info(self.hwnd)
+        if info['exe'].casefold() != self.exe or win.foreground() != self.hwnd:
+            raise ValueError('Window ownership/focus mismatch')
+        return (info['pid'], psutil.Process(info['pid']).create_time(), tuple(info['rect']))
+
+    def pixels(self):
+        from PIL import Image
+        import mss
+        target = self.identity()
+        l, t, r, b = target[2]
+        import win32gui
+        for x in range(l+8, r-8, 40):
+            for y in range(t+8, b-8, 40):
+                if win32gui.GetAncestor(win32gui.WindowFromPoint((x,y)),2) != self.hwnd:
+                    raise ValueError('Window is obscured; no screenshot was taken')
+        with mss.mss() as source:
+            raw = source.grab({'left': l, 'top': t, 'width': r-l, 'height': b-t})
+            image = Image.frombytes('RGB', raw.size, raw.rgb)
+        if self.identity() != target:
+            raise ValueError('Capture changed')
+        return target, image
+
+    def observe(self):
+        target, full = self.pixels()
+        if target[:2] != self.bound[:2]:
+            raise ValueError('Process replaced')
+        image = full.copy()
+        image.thumbnail((1280, 1280))
+        buffer = io.BytesIO()
+        image.save(buffer, format='JPEG', quality=80)
+        return {'id': uuid.uuid4().hex, 'identity': target, 'time': time.monotonic(),
+                'image': base64.b64encode(buffer.getvalue()).decode(), 'pixels': full}
+
+    def fresh(self, snapshot, point):
+        from PIL import ImageChops, ImageStat
+        target, image = self.pixels()
+        if target != snapshot['identity'] or time.monotonic()-snapshot['time'] > 20:
+            return False
+        if point:
+            x, y = int(point['x']*(image.width-1)), int(point['y']*(image.height-1))
+            region = (max(0,x-32), max(0,y-24), min(image.width,x+33), min(image.height,y+25))
+            diff = ImageChops.difference(image.crop(region), snapshot['pixels'].crop(region))
+            return max(ImageStat.Stat(diff).mean) < 8
+        return True
+
+    def edit(self, goal):
+        from pywinauto.uia_defines import IUIA
+        field = IUIA().get_focused_element()
+        if field.CurrentProcessId != self.bound[0] or field.CurrentIsPassword or field.CurrentControlType not in (50003,50004):
+            raise ValueError('No safe edit')
+        name = (field.CurrentName or '').casefold()
+        labels = ('what do you want to play', 'search') if goal['app'].casefold() == 'spotify' else ('address and search bar',)
+        if not any(label in name for label in labels):
+            raise ValueError('Unrelated edit')
+        return field
+
+    def act(self, action_name, target, snapshot, goal):
+        from hands import win
+        from pywinauto import mouse
+        import win32gui
+        check()
+        if self.identity() != snapshot['identity']:
+            raise ValueError('Stale target')
+        if action_name in {'click', 'scroll_down'}:
+            l,t,r,b = snapshot['identity'][2]
+            x,y = (l+int(target['x']*(r-l-1)), t+int(target['y']*(b-t-1))) if action_name == 'click' else ((l+r)//2,(t+b)//2)
+            hit = win32gui.WindowFromPoint((x,y))
+            if win32gui.GetAncestor(hit,2) != self.hwnd:
+                raise ValueError('Target obscured')
+            if action_name == 'click':
+                from pywinauto import Desktop
+                control = Desktop(backend='uia').from_point(x,y)
+                label = control.window_text().casefold()
+                if goal['app'].casefold() == 'chrome':
+                    eligible = label in {'address and search bar', 'new tab', 'search google or type a url'}
+                else:
+                    eligible = label in {'search', 'what do you want to play?'}
+                    if not eligible:
+                        from hands.spotify_desktop import play_candidates
+                        from pywinauto import Application
+                        dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
+                        eligible = any(c.rectangle().left <= x <= c.rectangle().right and c.rectangle().top <= y <= c.rectangle().bottom
+                                       for c in play_candidates(dialog, goal['query'], goal['artist']))
+                if not eligible:
+                    raise ValueError('Visual target is outside the allowed capability')
+            check()
+            if action_name == 'click':
+                mouse.click(coords=(x,y))
+            else:
+                mouse.scroll(coords=(x,y), wheel_dist=-3)
+        elif action_name == 'type_query':
+            from pywinauto import Application
+            dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
+            labels = ('what do you want to play',) if goal['app'].casefold() == 'spotify' else ('address and search bar',)
+            candidates = [c for kind in ('ComboBox','Edit') for c in dialog.descendants(control_type=kind)
+                          if c.is_visible() and c.is_enabled() and not c.element_info.element.CurrentIsPassword
+                          and any(label in c.window_text().casefold() for label in labels)]
+            if len(candidates) != 1:
+                raise ValueError('No uniquely identified query field')
+            control = candidates[0]
+            expected = goal['query'] + (' '+goal['artist'] if goal['artist'] else '')
+            check()
+            if self.identity() != snapshot['identity'] or control.iface_value.CurrentIsReadOnly:
+                raise ValueError('Query target changed')
+            control.iface_value.SetValue(expected)
+            if control.iface_value.CurrentValue != expected:
+                raise ValueError('Query readback mismatch')
+            self.query_control = control
+            control.set_focus()
+        elif action_name == 'enter':
+            expected = goal['query'] + (' '+goal['artist'] if goal['artist'] else '')
+            control = self.query_control
+            if (control is None or not control.has_keyboard_focus() or
+                    control.element_info.element.CurrentIsPassword or control.iface_value.CurrentValue != expected):
+                raise ValueError('Search text changed before submission')
+            win.hotkey('enter')
+        else:
+            raise ValueError('Unsupported effect')
+
+    def verify(self, goal):
+        check()
+        self.identity()
+        if goal['app'].casefold() == 'spotify':
+            from hands import media
+            from hands.spotify_desktop import normalized
+            for session in media.sessions() or []:
+                if ('spotify' in session.get('app','').casefold() and session.get('status') == media.PLAYING
+                        and normalized(session.get('title','')) == normalized(goal['query'])
+                        and (not goal['artist'] or normalized(session.get('artist','')) == normalized(goal['artist']))):
+                    return Evidence('windows.spotify_session', target=goal, observed=dict(session))
+        else:
+            from pywinauto import Application
+            from urllib.parse import urlparse, parse_qs
+            dialog = Application(backend='uia').connect(handle=self.hwnd).window(handle=self.hwnd)
+            for ctrl in dialog.descendants(control_type='Edit'):
+                if 'address and search bar' not in ctrl.window_text().casefold():
+                    continue
+                url = ctrl.iface_value.CurrentValue
+                parsed = urlparse(url if '://' in url else 'https://'+url)
+                if parsed.hostname in {'google.com','www.google.com','google.com.my','www.google.com.my'} and parsed.path == '/search' and parse_qs(parsed.query).get('q') == [goal['query']]:
+                    return Evidence('chrome.address_bar', target=goal, observed={'url':url})
+        return None
+
+    def success_text(self, goal):
+        return 'Playing '+goal['query']+'.' if goal['goal']=='play' else 'The requested Google search is open.'

@@ -1,9 +1,56 @@
 # Otto: Architecture
 
+Approved window-controller prototype: `core/computer_use.py` runs the local-Qwen observation/action
+loop; `hands/window_control.py` provides guarded native effects and domain observations. Registry
+action `visual_task` is available only through explicit “use Qwen to…” commands and the opt-in
+`computer_use.enabled` flag. It supports Spotify song goals and Chrome search goals, not arbitrary
+system navigation. Six actions, shared deadline, snapshot checks and code-owned completion apply.
+
+Live Spotify inspection on 11 November found the search control is a settable ComboBox. The
+normal path now targets it by name/value pattern and verifies readback; keyboard Enter requires
+confirmed control focus. Edit and ComboBox are both eligible recovery controls. Compound spoken
+volume amounts support tens plus ones, including hyphenated variants.
+
+Initial D2 recovery is implemented in `core/recovery.py`: local Qwen selects snapshot-bound UIA
+controls for Spotify search focus or matching song playback. No arbitrary pixel clicks are enabled;
+missing safe controls still stop. This user's recovery flag is enabled for live acceptance, while
+the new-install default stays disabled. D1 audio-device control is still pending.
+
+The [recovery/audio design checkpoint](V1_2_RECOVERY_DESIGN.md) specifies the next D0–D2 work:
+explicit-window bounded Spotify recovery, typed volume context and verified audio-output control.
+These additions are designed, not implemented. Candidate recipe promotion requires a later review.
+D0 is now implemented: `core/audio_context.py` binds volume follow-ups to a recent endpoint;
+`core/action_runtime.py` guards dispatch against cancellation, revision changes and deadline expiry;
+`hands/spotify_search.py` polls and diagnoses the focused edit before typing. The executor no longer
+promotes arbitrary READ successes to verified. D1/D2 and candidate promotion remain planned.
+
+User-requested follow-up: `spotify.playback_backend=desktop` selects bounded named-control playback
+in `hands/spotify_desktop.py`, verified through Spotify's Windows media session rather than the API.
+Only a unique matching visible Play button is invoked; missing controls stop. Qwen pixel clicking
+and desktop collection playback remain deferred. `core/search_goals.py` routes explicit web searches
+before Laya; `core/answers.py` can use `search.searxng_url` for internal current-information queries.
+Filler-only utterances are ignored before confidence checks. C3 task compilation is described below.
+
 1.2 implementation is tracked in [V1_2_TECHNICAL_DESIGN.md](V1_2_TECHNICAL_DESIGN.md).
 Batch A adds exact installed-game/alias resolution for music shortcuts (`routing.play_game_apps`),
 explicit full-command corrections and quote-aware compound detection before music extraction.
-The sequential verified task runner remains proposed; the execution sections below still describe 1.1.
+Batch B adds `core/tasks.py` records and whole-plan validation in the planner and existing safety runner.
+C1 compiles narrow Spotify goals; C2 introduced observed Spotify playback. C3 now compiles
+compound requests in `core/compiler.py` into one validated named-action plan, never re-routing
+model-generated prose. All plans enter `core/executor.py` through safety checks. Only verified
+steps advance live dependencies; simulation can advance simulated steps but cannot save success.
+Legacy unverified actions stop dependencies until their domain verifier is added in D.
+
+`core/context.py` separates requested actions from observed outcomes. Plan approvals hold a task,
+revision and snapshot fingerprint; changed, expired or replaced approvals cannot execute. Brain
+calls and execution share a 45-second turn budget; in-flight OS calls may finish late, but late
+results cannot advance the task. Explicit read-volume output can be referenced by a later volume
+setter; other output-reference forms fail closed pending domain-specific binding support.
+
+Spotify desktop mode can bind a generic Play button to a small matching song card, never the
+whole page. Search types literal spaces into a verified focused search edit. Volume reads have a
+read-only named action; absolute targets override relative wording. CLI interruption signals the
+active task. See WORKLOG and V1_2_VOICE_TESTS for current acceptance scope.
 
 *Version 3, 10 November 2026 (Otto 1.1). Adds Spotify through its API, conversation memory and follow-ups, multi-step requests, the Otto brief, result checks, listening modes ("Hey Otto" / always / push-to-talk) and the single `otto` command. Phase 1 is built; Phase 2 onward isn't.*
 

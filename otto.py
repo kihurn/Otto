@@ -337,6 +337,12 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
 
     timers.announce[0] = announce
 
+    def task_progress(msg):
+        out(f"{CYAN}otto:{RESET} {msg}")
+        speak_text(msg)
+
+    otto.progress = task_progress
+
     def beep() -> None:
         if settings["listen"].get("beep", True) and os.name == "nt":
             import winsound
@@ -360,6 +366,8 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
         lk = settings["listen"]
 
         def down():
+            if otto.active_task:
+                otto.active_task.cancel.set()
             force.set()
             ears.push_down()
 

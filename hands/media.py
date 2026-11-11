@@ -86,6 +86,8 @@ def _spotify():
 
 
 def _launch_spotify():
+    from core.action_runtime import check
+    check()
     from hands.apps import open_app
     open_app("Spotify")
 
@@ -246,7 +248,23 @@ def current_volume() -> int | None:
         return None
 
 
-@action("set_volume", UNDOABLE, {"level": "0 to 100"}, lambda level: f"set the volume to {level}%")
+def endpoint_id() -> str | None:
+    try:
+        from pycaw.pycaw import AudioUtilities
+        device = AudioUtilities.GetSpeakers()
+        return str(device.id)
+    except Exception:
+        return None
+
+
+@action('get_volume', READ, {}, lambda: 'check the current volume', for_brain=True)
+def get_volume() -> Result:
+    now = current_volume()
+    return Result(now is not None, f'Volume {now}%.' if now is not None else 'I could not read the volume.',
+                  {'volume': now})
+
+
+@action("set_volume", UNDOABLE, {"level": "0 to 100"}, lambda level: f"set the volume to {level}%", for_brain=True)
 def set_volume(level) -> Result:
     level = max(0, min(100, int(float(level))))
     try:

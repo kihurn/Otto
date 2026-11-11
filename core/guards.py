@@ -26,6 +26,11 @@ def clean(text: str) -> str:
     return " ".join((text or "").strip().split())
 
 
+def filler_only(text: str) -> bool:
+    words = re.findall(r"[a-z]+", text.lower())
+    return bool(words) and all(re.fullmatch(r'u+h+m*s*|u+m+s*|e+r+m*s*|e+r+s*|h+m+', word) for word in words)
+
+
 def strip_wake(text: str) -> tuple[str, bool]:
     """'Otto, open spotify' -> ('open spotify', True). Whisper often hears 'Otto' as 'auto'."""
     m = _WAKE.match(text)

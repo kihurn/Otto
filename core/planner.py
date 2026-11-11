@@ -6,10 +6,57 @@ Order: saved recipe -> built-in way -> ask the brain to plan with Otto's buildin
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
+import re
 
 from core import recipes
 from core.details import Intent
-from hands.registry import ACTIONS, brain_menu
+from hands.registry import ACTIONS, InvalidPlan, brain_menu, validate_args
+
+
+def validate_steps(steps, *, for_brain: bool = False) -> list[dict]:
+    """Reject a whole invalid plan; never silently remove or truncate its contents."""
+    if not isinstance(steps, list) or not 1 <= len(steps) <= 8:
+        raise InvalidPlan("A plan must contain between 1 and 8 steps.")
+    ids = set()
+    producers = {}
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict) or set(step) - {"id", "do", "with"}:
+            raise InvalidPlan("Invalid step fields.")
+        name = step.get("do")
+        if not isinstance(name, str) or name not in ACTIONS:
+            raise InvalidPlan("The plan contains an unknown action.")
+        if for_brain and not ACTIONS[name].for_brain:
+            raise InvalidPlan("The model selected an action it is not allowed to plan.")
+        if "id" in step:
+            sid = step["id"]
+            if not isinstance(sid, str) or not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]{0,63}", sid) or sid in ids:
+                raise InvalidPlan("Step IDs must be valid and unique.")
+            ids.add(sid)
+        else:
+            sid = f's{index}'
+            if sid in ids or any(isinstance(s, dict) and s.get('id') == sid for s in steps):
+                raise InvalidPlan('Explicit step ID collides with an automatic ID.')
+            ids.add(sid)
+        args = step.get('with', {})
+        checked = deepcopy(args)
+        if isinstance(args, dict):
+            for key, value in args.items():
+                if isinstance(value, dict):
+                    ref = value.get('$ref')
+                    if (set(value) != {'$ref'} or not isinstance(ref, str) or
+                            name != 'set_volume' or key != 'level' or
+                            producers.get(ref) != 'number'):
+                        raise InvalidPlan('Unbound or unsupported output reference.')
+                    checked[key] = 0
+        validate_args(ACTIONS[name], checked)
+        if 'id' in step and name == 'get_volume':
+            producers[step['id'] + '.volume'] = 'number'
+        if name == 'play_music':
+            from core.music_goals import unbound_music_reference
+            if unbound_music_reference(step.get('with', {}).get('query', '')):
+                raise InvalidPlan('A result reference needs a bound song identity.')
+    return deepcopy(steps)
 
 
 @dataclass
@@ -47,6 +94,8 @@ def builtin_steps(i: Intent) -> list[dict] | None:
                 return [_step("search_in_app", app=app, query=p["query"])]
             return None  # needs a recipe or a brain plan
     if i.area == "media":
+        if a[1] == 'get_volume':
+            return [_step('get_volume')]
         keys = {"play_pause": "play_pause", "play": "play", "pause": "pause", "next": "next",
                 "previous": "previous", "mute": "mute"}
         if a[1] in keys:
@@ -58,9 +107,11 @@ def builtin_steps(i: Intent) -> list[dict] | None:
         if a[1] == "now_playing":
             return [_step("now_playing")]
         if a[1] == "volume_up":
-            return [_step("change_volume", step=abs(int(p.get("step", 10))))]
+            validate_args(ACTIONS['change_volume'], {'step': p.get('step', 10)})
+            return [_step("change_volume", step=abs(p.get("step", 10)))]
         if a[1] == "volume_down":
-            return [_step("change_volume", step=-abs(int(p.get("step", 10))))]
+            validate_args(ACTIONS['change_volume'], {'step': p.get('step', 10)})
+            return [_step("change_volume", step=-abs(p.get("step", 10)))]
         if a[1] == "set_volume" and p.get("level") is not None:
             return [_step("set_volume", level=p["level"])]
     if i.area == "web":
@@ -80,7 +131,7 @@ def builtin_steps(i: Intent) -> list[dict] | None:
             return [_step("new_note", text=p.get("text", ""), title=p.get("title"))]
     if i.area == "timer":
         if a[1] == "set_timer" and p.get("seconds"):
-            return [_step("set_timer", seconds=float(p["seconds"]), label=p.get("label", ""))]
+            return [_step("set_timer", seconds=p["seconds"], label=p.get("label", ""))]
         if a[1] == "set_alarm" and p.get("at"):
             return [_step("set_alarm", at=p["at"], label=p.get("label", ""))]
         if a[1] == "time_left":
@@ -108,28 +159,27 @@ def brain_plan(text: str, i: Intent | None, brain) -> Plan:
         r = brain.ask("decide", prompt, want_json=True, required=("steps",))
     except Exception as e:
         return Plan([], "none", error=f"I couldn't reach a brain to work that out ({e}).")
-    steps = []
-    for s in (r.data.get("steps") or [])[:8]:
-        if not isinstance(s, dict):
-            continue
-        do = s.get("do")
-        if do in ACTIONS and ACTIONS[do].for_brain:
-            args = s.get("with") or {}
-            allowed = set(ACTIONS[do].params)
-            steps.append({"do": do, "with": {k: v for k, v in args.items() if k in allowed}})
-        else:
-            return Plan([], "none", error=f"The plan used a step I don't allow ({do}), so I didn't run it.")
-    if not steps:
-        return Plan([], "none", error=r.data.get("say") or "I don't know how to do that yet.")
+    try:
+        if set(r.data) - {"version", "steps", "say"} or (
+                "version" in r.data and (type(r.data["version"]) is not int or r.data["version"] != 1)):
+            raise InvalidPlan("Unsupported plan format.")
+        steps = validate_steps(r.data.get("steps"), for_brain=True)
+    except InvalidPlan as e:
+        return Plan([], "none", error=f"I didn't run that plan: {e}")
     return Plan(steps, f"brain:{r.model}", key=recipe_key(i) if i else "", params=i.params if i else {})
 
 
 def make_plan(i: Intent, text: str, brain) -> Plan:
     key = recipe_key(i)
     saved = recipes.get(key)
-    if saved:
-        return Plan(recipes.fill(saved["steps"], i.params), "recipe", key, i.params)
-    steps = builtin_steps(i)
+    try:
+        if saved:
+            return Plan(validate_steps(recipes.fill(saved["steps"], i.params)), "recipe", key, i.params)
+        steps = builtin_steps(i)
+        if steps:
+            steps = validate_steps(steps)
+    except (InvalidPlan, TypeError, ValueError, AttributeError) as e:
+        return Plan([], 'none', error=f"I didn't run that plan: {e}")
     if steps:
         return Plan(steps, "builtin", key, i.params)
     return brain_plan(text, i, brain)

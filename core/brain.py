@@ -149,20 +149,28 @@ class Brain:
             user["images"] = images
         messages.append(user)
         reasons = []
+        def remaining():
+            limit = timeout or self.timeout
+            deadline = getattr(self, 'deadline', None)
+            if deadline is not None:
+                limit = min(limit, deadline - time.monotonic())
+            if limit <= 0:
+                raise NoBrainAvailable(['Task deadline reached.'])
+            return limit
         for model in chain:
             if self.cooldown.get(model, 0) > time.time():
                 reasons.append(f"{model}: resting after a limit")
                 continue
             t0 = time.perf_counter()
             try:
-                text = self._chat_once(model, messages, want_json, timeout or self.timeout)
+                text = self._chat_once(model, messages, want_json, remaining())
                 data = None
                 if want_json:
                     data = self._parse(text, required)
                     if data is None:  # one polite retry on the same model
                         retry = messages + [{"role": "assistant", "content": text},
                                             {"role": "user", "content": "Reply with only the JSON object, nothing else."}]
-                        text = self._chat_once(model, retry, True, timeout or self.timeout)
+                        text = self._chat_once(model, retry, True, remaining())
                         data = self._parse(text, required)
                     if data is None:
                         reasons.append(f"{model}: reply wasn't valid JSON")

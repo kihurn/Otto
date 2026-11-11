@@ -1,6 +1,25 @@
 # Changelog
 
 ## 1.2 (in development)
+- Visual mode reports model and target failures separately and allows up to 18 seconds for the first image within the task deadline. 234 tests pass.
+- Added opt-in local-Qwen Spotify/Chrome window controller with one-action screenshot loop, bounded native controls, independent result checks and explicit “use Qwen to…” routing. 230 tests pass; live acceptance pending.
+- Added a reviewable Qwen window computer-use implementation proposal; controller implementation remains pending scope approval.
+- Fixed compound spoken volume numbers and Spotify's observed ComboBox search control; queries use direct value setting/readback. Live tool-assisted playback of The Hills confirmed; full Otto re-test pending. 218 tests pass.
+- Initial D2 Spotify recovery uses local Qwen screenshots to select safe UIA controls, bounded by snapshot identity and attempt limits. Pixel-only actions remain unsupported. Fix spelled volume amounts; 217 tests pass, live recovery acceptance pending.
+- D0: endpoint-bound volume follow-ups, explicit by/to amounts, bounded Spotify search-field polling with diagnostic reason codes, immediate dispatch guards and conservative read verification. 205 automated tests pass; live voice acceptance pending.
+- Completed Astra design checkpoint for bounded Spotify visual recovery, volume context, system audio outputs and candidate recipe learning; implementation remains D0–D2/F.
+- C3: compile compounds into one validated task; shared runner, scoped approvals/context, conservative dependency stopping, deadline-aware brain calls and no simulated recipe promotion. Minimal typed volume-output references are supported; broader verifiers remain D.
+- Fix absolute volume targets/read-only volume questions and Spotify generic Play-card matching. Spotify desktop search now types literal spaces into a verified search field. 196 tests pass; live voice acceptance pending.
+- Added desktop Spotify backend using named controls and Windows media verification, explicit Chrome search routing, filler-only suppression and internal SearxNG search. This user's desktop backend and local search port 8889 are configured. 173 tests pass; desktop acceptance pending.
+- C2 live follow-up: encode complete Spotify search URIs, launch the desktop app even when a device is cached/listed, and report accepted-but-empty playback separately from dispatch errors. Live API playback issue remains under diagnosis.
+- C2: Spotify task runner verifies identity, playing state and device before success; spoken progress, interruption requests, failure-feedback observations and sanitized JSON decode errors. Liked Songs verifies an explicit selection of up to 50 tracks. 156 tests pass; live voice acceptance pending.
+- Push-to-talk supports modifier chords, with Ctrl+Alt as the new default and this user's setting. Narrow Spotify voice-prefix recovery avoids duplicate playback plans. 135 tests pass.
+- Voice follow-up: preserve Spotify search intent with punctuation, search-only setup and “I want you to” corrections; clear unrelated pending learning context. 132 tests pass.
+- C1: compile explicit Spotify search/play workflows into one music goal; preserve search-only app targets, reject unbound result references and malformed split lists, validate raw numeric arguments and recipe expansion. 128 automated tests pass; live verification awaits C2.
+- Completed Review 1 against the live Spotify transcripts; documented contract gaps, regression acceptance cases and a revised runner/Spotify integration sequence. No runtime fixes in this review.
+- Added task/outcome records and conservative conversion of legacy results; these await runner integration.
+- Validate complete action plans before execution, rejecting invalid parameters, unknown fields, duplicate IDs and excessive steps. Model plans are never silently shortened or filtered.
+- Contract and routing suite: 113 tests passing. Live playback verification and task lifecycle integration remain pending.
 - Imported the 58 supplied regression tests and added 15 routing cases (73 passing).
 - Prevented music requests such as Bruno Mars from fuzzy-matching installed apps such as Run.
 - Exact configured game names and aliases still launch games; explicit song requests remain music.

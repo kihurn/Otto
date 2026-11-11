@@ -47,6 +47,7 @@ ACTIONS = {
         "volume_up": "louder",
         "volume_down": "quieter",
         "set_volume": "set volume to a number",
+        "get_volume": "read the current volume without changing it",
         "mute": "mute or unmute",
     },
     "web": {
