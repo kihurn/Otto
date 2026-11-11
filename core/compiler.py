@@ -1,6 +1,7 @@
 """Compile a compound request once. Generated sentences are never routed again."""
 import re
 from core import details, planner
+from core.audio_context import is_followup
 from core.music_goals import compile_music
 from core.search_goals import new_tab, web_query
 from hands.registry import InvalidPlan
@@ -26,8 +27,12 @@ def compile_request(text, apps, brain):
         return planner.Plan([], 'none', error='Please give me between two and four complete tasks.')
     steps = []
     typing_into = None   # the app opened by the previous part, if any
+    volume_seen = False  # an earlier part was about the volume
     for index, part in enumerate(parts):
         intent = None
+        if volume_seen and is_followup(details._t(part)):
+            # "set volume to 70, then lower it by 32": "it" is the volume from the earlier part.
+            part = re.sub(r'\bit\b', 'the volume', details._t(part))
         if new_tab(part):
             # A web search opens its own new tab, so "open a new tab and search X" is just the search.
             if index + 1 < len(parts) and web_query(parts[index + 1]):
@@ -64,6 +69,7 @@ def compile_request(text, apps, brain):
                                     "Say \"write a note saying ...\" if you want it as a note.")
             opened = [s['with'].get('app', '') for s in built if s['do'] in {'open_app', 'switch_to'}]
             typing_into = opened[-1] if opened and 'notepad' not in opened[-1].casefold() else None
+            volume_seen = volume_seen or any(s['do'] in {'set_volume', 'change_volume', 'get_volume'} for s in built)
             steps.extend(built)
         except (InvalidPlan, TypeError, ValueError):
             return planner.Plan([], 'none', error='One of those tasks has invalid arguments; nothing was run.')

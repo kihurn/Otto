@@ -152,3 +152,10 @@ def test_open_app_then_write_does_not_silently_make_a_note(monkeypatch):
     for text in ('open notepad and write "whats up dawg"', 'open word and write a note saying whats up dawg'):
         plan = compiler.compile_request(text, apps.INDEX, None)
         assert [s['do'] for s in plan.steps] == ['open_app', 'new_note'], text
+
+
+def test_compound_volume_pronoun_keeps_the_amount():
+    plan = compiler.compile_request('set volume to 70, then lower it by thirty two', apps.INDEX, None)
+    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('change_volume', {'step': -32})]
+    plan = compiler.compile_request('set volume to 70, then increase it to 80', apps.INDEX, None)
+    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('set_volume', {'level': 80})]
