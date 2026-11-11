@@ -4,6 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
+- [claude] agent core rebuild (docs/superpowers/plans/2026-11-11-agent-core.md) – started 2026-11-11. Codex paused on new features; avoid core/pipeline.py, core/goal_mode.py, core/details.py, core/brain.py, core/tools.py, core/agent*.py.
 
 ## Next up
 - Re-run the goal-mode voice cases after the completion/replay fixes below (docs/PHASE1_ANY_APP_PLAN.md, completion stabilization). Then continue the existing acceptance order. Screenshot-only clicking and full method promotion remain later work.
@@ -15,6 +16,16 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 - Then the rest of AGENTS.md section 8 (act while talking, the companion).
 
 ## Done
+
+### Agent core, task 1: context size, multi-turn chat, local models only (11 Nov 2026, Claude Code, main)
+- Design approved by the user (docs/superpowers/specs/2026-11-11-agent-core-design.md): one local-Qwen loop with
+  tools replaces the deciding layers; 1.2's remaining checks are frozen (replaced by the new core); Codex paused on
+  new features; C0RE and Ollama context length raised to 32k by the user.
+- `core/brain.py`: every call sends `num_ctx` (`brain.num_ctx`, default 32768); new `Brain.chat(messages, ...)` for
+  the loop's own conversation. Gemma 4 cloud (now paid) removed from every default chain; settings v3 migration
+  removes it from existing users' chains. Linux-only test failures fixed (pywinauto import order in
+  hands/spotify_desktop.py). `tools/tool_call_probe.py` checks native Ollama tool calling on the PC. 456 tests pass.
+- On the PC: run `python tools\tool_call_probe.py`, and check graphics memory with Otto running.
 
 ### Laya 90% acting floor (11 Nov 2026, Codex)
 - Inspection found brains.decide still tried Gemma cloud first despite the interpreter's Qwen name. Set this user's decision chain to local qwen3-vl:8b-instruct, then qwen3-vl:4b-instruct, as requested. Other job-specific model chains are unchanged. Read back both settings successfully; no model inference was run.

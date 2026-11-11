@@ -129,7 +129,9 @@ class Brain:
 
     def _chat_once(self, model: str, messages: list[dict], want_json: bool | dict, timeout: float) -> str:
         body = {"model": model, "messages": messages, "stream": False,
-                "options": {"temperature": 0.2 if want_json else 0.6}}
+                "options": {"temperature": 0.2 if want_json else 0.6,
+                            # How much the model may read at once. Ollama and C0RE must allow at least this much.
+                            "num_ctx": int((self.settings.get("brain") or {}).get("num_ctx", 32768))}}
         if want_json:
             body["format"] = want_json if isinstance(want_json, dict) else "json"
         out = self._post("/api/chat", body, timeout)
@@ -139,7 +141,6 @@ class Brain:
     def ask(self, job: str, prompt: str, system: str | None = None, images: list[str] | None = None,
             want_json: bool | dict = False, required: tuple[str, ...] = (), timeout: float | None = None) -> BrainReply:
         """Ask the first working model for this job. Raises NoBrainAvailable if all fail."""
-        chain = self.settings.get("brains", {}).get(job) or self.settings["brains"]["decide"]
         messages = []
         system = "\n\n".join(x for x in (self.brief(), system) if x)
         if system:
@@ -148,6 +149,13 @@ class Brain:
         if images:
             user["images"] = images
         messages.append(user)
+        return self.chat(messages, job, want_json, required, timeout)
+
+    def chat(self, messages: list[dict], job: str = "decide", want_json: bool | dict = True,
+             required: tuple[str, ...] = (), timeout: float | None = None) -> BrainReply:
+        """Send a whole conversation the caller has built (used by the agent loop, which keeps its own
+        messages). Same models, fallbacks, rests and JSON checking as ask(); the brief is not added here."""
+        chain = self.settings.get("brains", {}).get(job) or self.settings["brains"]["decide"]
         reasons = []
         def remaining():
             limit = timeout or self.timeout

@@ -64,7 +64,7 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
-SETTINGS_VERSION = 2
+SETTINGS_VERSION = 3
 
 
 def _migrate(mine: dict) -> dict:
@@ -74,6 +74,22 @@ def _migrate(mine: dict) -> dict:
         if vo.get("speed") == 1.0:          # 1.1: slightly faster speech by default
             vo["speed"] = 1.15
         mine["_version"] = 2
+        save_json(SETTINGS_FILE, mine)
+    if mine.get("_version", 1) < 3:
+        # Gemma 4 cloud is no longer free: take it out of your model lists. A list that ends up empty is
+        # removed, so the default (local Qwen) applies.
+        brains = mine.get("brains")
+        if isinstance(brains, dict):
+            for job, chain in list(brains.items()):
+                if isinstance(chain, list):
+                    kept = [m for m in chain if not str(m).startswith("gemma4:")]
+                    if kept:
+                        brains[job] = kept
+                    else:
+                        del brains[job]
+            if not brains:
+                del mine["brains"]
+        mine["_version"] = 3
         save_json(SETTINGS_FILE, mine)
     return mine
 

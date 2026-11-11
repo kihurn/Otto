@@ -4,30 +4,26 @@
   "brains": {
     "extract": [
       "qwen3-vl:8b-instruct",
-      "gemma4:31b-cloud",
       "qwen3-vl:4b-instruct"
     ],
     "decide": [
-      "gemma4:31b-cloud",
       "qwen3-vl:8b-instruct",
       "qwen3-vl:4b-instruct"
     ],
     "screen": [
-      "gemma4:31b-cloud",
       "qwen3-vl:8b-instruct",
       "qwen3-vl:4b-instruct"
     ],
     "answer": [
-      "gemma4:31b-cloud",
       "qwen3-vl:8b-instruct",
       "qwen3-vl:4b-instruct"
     ],
     "chat": [
       "qwen3-vl:8b-instruct",
-      "gemma4:31b-cloud",
       "qwen3-vl:4b-instruct"
     ]
   },
+  "brain": {"num_ctx": 32768},
   "brain_timeout_s": 12,
   "laya": {
     "device": "cuda",

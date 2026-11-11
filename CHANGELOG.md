@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.2 (in development)
+- New core under way (one local Qwen loop with tools). First step: 32k context on every model call, local
+  models only (Gemma 4 cloud removed from all model lists, including yours), and a multi-turn chat for the loop.
 - Set this user's Laya acting minimum to 90%. Enforce the configured floor for all calibration modes and route middle-confidence split requests through Qwen too. Full suite passes 452 tests.
 - Word window lookup requires WINWORD.EXE ownership, preventing unrelated workspace/document titles from matching Word or Microsoft Word. Nine regressions added; full suite passes 444 tests. Native voice acceptance pending.
 - Goal-mode completion/replay stabilization (435 tests pass): verify Spotify's requested playback, stop on unconfirmed Play, treat Qwen completion as uncertain, verify saved-method outcomes, and prevent retries of dispatched clicks. Partial replays stop without restarting. Settings and saved data are preserved; live acceptance pending.

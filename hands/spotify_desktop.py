@@ -223,7 +223,6 @@ def play_playlist(step, task, end, progress):
 def play(step, task, end, progress):
     from core.action_runtime import check, ActionInterrupted
     from hands import apps, media, win
-    from pywinauto import Application
     if step.action == 'play_music' and step.args.get('kind') == 'playlist':
         return play_playlist(step, task, end, progress)
     if (step.action == 'play_music' and step.args.get('kind', 'auto') == 'auto' and not step.args.get('artist')
@@ -232,6 +231,7 @@ def play(step, task, end, progress):
         return play_playlist(step, task, end, progress)
     if step.action != 'play_music' or step.args.get('kind', 'auto') not in {'auto', 'track'}:
         return Outcome(OutcomeStatus.NEEDS_INPUT, 'Desktop playback currently needs a song title and artist.')
+    from pywinauto import Application        # Windows only, so imported here, after the playlist paths
     query, artist = step.args['query'], step.args.get('artist', '')
     progress('Opening Spotify and searching for the song.')
     check()
