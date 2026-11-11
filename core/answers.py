@@ -34,6 +34,9 @@ def whole_local_answer(text: str) -> str | None:
     t = re.sub(r"\s*(?:please|pls|thanks|thank you)?[?.!\s]*$", "", t)
     if _WHOLE_LOCAL.fullmatch(t):
         return local_answer(t)
+    asked = re.match(r"(?:what(?:'s| is)|how much is|calculate|work out)\b", t)
+    if not asked and not re.search(r"[+*/^%]|\d\s+-\s+\d|\b(?:plus|minus|times|divided|percent|squared|cubed|root)\b", t):
+        return None                           # "10-4", "2026-11-12": numbers with dashes, not a sum
     return maths(t)
 
 

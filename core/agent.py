@@ -12,6 +12,7 @@ chats only ever comes back as "information"; Qwen is told it is never an instruc
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -35,6 +36,14 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
 - Never type into password, card or code fields. Never try to get around a "waiting_for_yes".
 - When the request is complete (or cannot be done), call done with one short, casual sentence for the user.
   Say honestly if something could not be confirmed."""
+
+
+class Stopper:
+    """The stop switch for one request: Otto's cancel key sets it, and the loop stops before its next step.
+    (It has the two fields the key/mouse helpers already check before every press: cancel and revision.)"""
+    def __init__(self):
+        self.cancel = threading.Event()
+        self.revision = 1
 
 
 @dataclass
@@ -63,23 +72,43 @@ def system_prompt(brain, request: str) -> str:
 
 
 def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
-        max_steps: int = MAX_STEPS, max_seconds: float = MAX_SECONDS, stop_after: int | None = None) -> AgentResult:
+        max_steps: int = MAX_STEPS, max_seconds: float = MAX_SECONDS, stop_after: int | None = None,
+        stop: Stopper | None = None) -> AgentResult:
     """Work on a request. conversation: earlier {"role", "content"} turns, oldest first.
-    stop_after: stop after this many tool calls (otto eval uses it to judge only the first decision)."""
+    stop_after: stop after this many tool calls (otto eval uses it to judge only the first decision).
+    stop: set stop.cancel from anywhere to make the loop stop."""
     ctx.brain = ctx.brain or brain
     agent_safety.back_to_user_window(ctx)
     messages = [{"role": "system", "content": system_prompt(brain, request)}]
     messages += [m for m in conversation if m.get("role") in ("user", "assistant") and m.get("content")]
     messages.append({"role": "user", "content": request})
     state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(),
-             "max_steps": max_steps, "max_seconds": max_seconds, "stop_after": stop_after, "request": request}
-    return _loop(state, brain)
+             "max_steps": max_steps, "max_seconds": max_seconds, "stop_after": stop_after, "request": request,
+             "stop": stop or Stopper()}
+    return _guarded(state, lambda: _loop(state, brain))
 
 
 def resume(pending: dict, brain, answer: str | None = None, yes: bool | None = None) -> AgentResult:
     """Carry on after ask_user (answer = what the user said) or a confirmation (yes = True/False)."""
     state = pending
     state["started"] = time.monotonic()            # the user's thinking time doesn't count
+    return _guarded(state, lambda: _resume(state, brain, answer, yes))
+
+
+def _guarded(state: dict, work) -> AgentResult:
+    """Run with the stop switch and the time limit armed, so a key press or click already under way is
+    interrupted too (hands/win and hands/mouse check before every press)."""
+    from core.action_runtime import ActionInterrupted, current
+    token = current.set((state["stop"], state["stop"].revision, state["started"] + state["max_seconds"] + 10))
+    try:
+        return work()
+    except ActionInterrupted:
+        return _stop(state, "Okay, I stopped.")
+    finally:
+        current.reset(token)
+
+
+def _resume(state: dict, brain, answer: str | None, yes: bool | None) -> AgentResult:
     if yes is not None:
         call = state.pop("waiting")
         before = state.pop("waiting_front", None)
@@ -107,6 +136,8 @@ def _loop(state: dict, brain) -> AgentResult:
     ctx, calls = state["ctx"], state["calls"]
     invalid = 0
     while True:
+        if state["stop"].cancel.is_set():
+            return _stop(state, "Okay, I stopped.")
         spent = time.monotonic() - state["started"]
         if state["steps"] >= state["max_steps"] or spent >= state["max_seconds"]:
             return _stop(state, "I hit my step limit before finishing, so I stopped.")

@@ -41,6 +41,13 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
   honest eval) and after: time/date answered locally only for whole questions ("time in tokyo" goes to the loop),
   YouTube/video sentences never take the Spotify fast path, an unresolved volume follow-up reaches the loop, earlier
   screen reads are dropped after you answer a question, and the run file keeps each case's agent steps. 559 tests.
+- Correction: the two reviews above ran on the advisor tool while it was still not Fable (its usage stayed 0). The
+  user then switched the session itself to Fable 5.2, which reviewed all of task 7 and fixed: Otto's cancel key now
+  stops the loop (between steps and inside a key press or click); nothing is typed, pressed or read while Otto's own
+  window is in front; a yes still counts when only the unread counter in the window title changed; agent questions
+  and yeses wait 2 minutes, not 30 s; "do that again" goes to the loop; conversation older than 15 minutes is left
+  out; failed steps are not saved into examples; "10-4" is not a sum; the glow is hidden after a run (a pointer you
+  asked for stays); "open youtube" (a site in your sites list) takes the fast path. 569 tests.
 - For Task 8: re-run `otto eval --core old` on the same (updated) file, as the 16/25 baseline used the older rows.
   Must-ask sentences can't reach their risky step in dry-run (no real window to read), so judge those in the live
   check. PC-only: after a typed yes, does Otto really bring the chat window back with the same box focused?

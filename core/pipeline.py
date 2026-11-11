@@ -223,7 +223,7 @@ class Otto:
             if prev:
                 t = prev
                 self.trace["understood_as"] = t
-            else:
+            elif not self._agent_on():            # the new core: the agent sees the conversation and repeats it
                 return Reply('There is no verified action to repeat yet.')
         # Follow-ups like "its called student resume" or "turn it up more": make them a full request
         elif (not self._agent_on() and not explicit_correction and not explicit_music_goal
@@ -456,6 +456,8 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     def _set_pending(self, kind: str, **kw) -> None:
         timeout = float(self.settings.get("zones", {}).get("clarify_timeout_s", 30))
+        if kind in ("agent_ask", "agent_confirm"):
+            timeout = max(timeout, 120)        # reading the question and typing an answer takes longer than a yes/no
         if kw.get('plan'):
             kw['plan'] = deepcopy(kw['plan'])
             kw['scope'] = plan_scope(kw['plan'].steps)
@@ -485,15 +487,11 @@ class Otto:
             self.pending = None
             if kind not in ("yes", "no"):
                 return None                   # something else: a new request, and the waiting step is dropped
-            from core import agent
-            self._agent_deadline()
-            return self._agent_reply(p.text, agent.resume(p.agent, self.brain, yes=(kind == "yes")))
+            return self._agent_resume(p, yes=(kind == "yes"))
 
         if p.kind == "agent_ask":
             self.pending = None
-            from core import agent
-            self._agent_deadline()
-            return self._agent_reply(p.text, agent.resume(p.agent, self.brain, answer=t))
+            return self._agent_resume(p, answer=t)
 
         if p.kind == "heard":
             self.pending = None
@@ -818,6 +816,8 @@ class Otto:
         """The last 6 exchanges, as chat turns for the agent (with a short note of what Otto did)."""
         turns = []
         for h in list(self.history)[-6:]:
+            if time.time() - h.get("time", 0) > 900:
+                continue                           # older than 15 minutes: no longer "the conversation"
             if h.get("you"):
                 turns.append({"role": "user", "content": h["you"]})
             if h.get("otto"):
@@ -828,9 +828,34 @@ class Otto:
     def _agent(self, t: str) -> Reply:
         from core import agent, tools
         self._agent_deadline()
+        self._hide_indicator()
         ctx = tools.ToolContext(dry_run=self.dry_run, brain=self.brain)
-        result = agent.run(t, self._conversation(), self.brain, ctx, stop_after=self.agent_stop_after)
+        self.active_task = agent.Stopper()         # what Otto's cancel key stops
+        try:
+            result = agent.run(t, self._conversation(), self.brain, ctx, stop_after=self.agent_stop_after,
+                               stop=self.active_task)
+        finally:
+            self.active_task = None
         return self._agent_reply(t, result)
+
+    def _agent_resume(self, p: Pending, answer: str | None = None, yes: bool | None = None) -> Reply:
+        from core import agent
+        self._agent_deadline()
+        self.active_task = p.agent.get("stop")
+        try:
+            result = agent.resume(p.agent, self.brain, answer=answer, yes=yes)
+        finally:
+            self.active_task = None
+        return self._agent_reply(p.text, result)
+
+    def _hide_indicator(self) -> None:
+        if self.dry_run:
+            return
+        try:
+            from hands import indicator
+            indicator.hide()
+        except Exception:
+            pass
 
     def _agent_reply(self, t: str, result) -> Reply:
         from core import agent
@@ -845,6 +870,8 @@ class Otto:
             "calls": [{"tool": c["tool"], "args": c.get("args", {}), "ok": c.get("ok")} for c in calls],
             "summary": ", ".join(f"{c['tool']} {' '.join(str(v) for v in c.get('args', {}).values())}".strip()
                                  for c in acting[-4:])[:200]}
+        if not any(c["tool"] == "point" and c.get("ok") for c in calls):
+            self._hide_indicator()                 # the glow goes; a pointer you asked for stays until next time
         if result.status == "ask":
             self._set_pending("agent_ask", text=t, agent=result.pending)
             missing = [o for o in result.options if o.casefold() not in result.say.casefold()]
@@ -856,7 +883,7 @@ class Otto:
         saveable = (not self.dry_run and result.status == "done" and result.ok and bool(acting)
                     and all(c.get("ok") for c in acting))
         self.last = {"text": t, "intent": None, "plan": None, "ok": saveable,
-                     "agent": [c for c in calls if not c.get("asked")]}
+                     "agent": [c for c in calls if c.get("ok") and not c.get("asked")]}
         self.learned = None
         return Reply(result.say or ("Done." if result.ok else ""))
 

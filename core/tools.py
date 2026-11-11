@@ -137,6 +137,10 @@ def validate(name: str, args) -> str | None:
     return None
 
 
+# These act on (or read) whatever window is in front, so Otto's own window must not be the one in front.
+ON_FRONT_WINDOW = {"type", "keys", "click", "scroll", "drag", "read_window", "look", "point"}
+
+
 def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
     """Run one tool call. Never raises for ordinary failures; the result says what happened."""
     problem = validate(name, args)
@@ -147,6 +151,9 @@ def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
     if name == "type":
         clean["text"] = str(args["text"])                 # keep the user's exact words, new lines included
     from core import agent_safety
+    if name in ON_FRONT_WINDOW and agent_safety.otto_in_front(ctx):
+        return ToolResult(False, "Otto's own window is in front and I couldn't get back to yours, so I did nothing. "
+                                 "Click the window you mean, then ask again.")
     question = agent_safety.check(name, clean, ctx)
     if question:
         return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)

@@ -480,12 +480,21 @@ def whole(area: str, text: str, apps) -> Intent | None:
     if not t or _JOINED.search(t):
         return None
     intent = None
-    if area == "apps" and apps is not None:
+    if area in ("apps", "web") and apps is not None:
         m = re.fullmatch(r"(?P<verb>open|launch|start|run|close|quit|exit) (?:up )?(?:the )?(?:my )?(?P<app>[\w .'+-]+?)(?: app)?", t)
         found = apps.match_exact(m["app"]) if m else None
         if found:
             action = "close" if m["verb"] in ("close", "quit", "exit") else "open"
             intent = Intent("apps", action, {"app": found["name"]})
+    if intent is None and area in ("apps", "web"):
+        # "open youtube": a site from your own list (otto-data/sites.json), by its exact name
+        m = re.fullmatch(r"(?:open|go to|go on|take me to|pull up|bring up) (?:up )?(?:the )?(?P<s>[\w .-]+?)(?: website| site)?", t)
+        if m:
+            from hands import web
+            if m["s"].strip() in web.sites():
+                intent = Intent("web", "open_site", {"site": m["s"].strip()})
+    if intent is not None:
+        pass
     elif area == "media":
         if re.search(r"\b(?:youtube|netflix|twitch|chrome|browser|videos?|movie|film|episode)\b", t):
             return None                     # not Spotify: the agent works out where to play it

@@ -366,3 +366,116 @@ def test_dry_run_knows_explorer_and_terminals():
     from core import agent_safety, tools
     for app, exe in (("File Explorer", "explorer.exe"), ("Command Prompt", "cmd.exe"), ("Terminal", "windowsterminal.exe")):
         assert agent_safety.front(tools.ToolContext(dry_run=True, app=app))["exe"] == exe
+
+
+# ---- review round 2: stopping, Otto's own window, timing ------------------------------------------
+
+def test_cancel_key_stops_the_loop(new):
+    s = script(new, call("open", what="Notepad"), call("open", what="Spotify"), call("done", say="never"))
+    real = s.__call__
+    seen_task = []
+
+    def chat(messages, **k):
+        seen_task.append(new.active_task)
+        reply = real(messages, **k)
+        new.active_task.cancel.set()          # what the cancel key does, while Otto is working
+        return reply
+    new.brain.chat = chat
+    assert "I stopped" in new.handle("open notepad and then spotify and tidy up").text
+    assert len(s.seen) == 1 and seen_task[0] is not None
+    assert new.active_task is None and new.pending is None
+
+
+def test_cancel_interrupts_a_step_under_way(monkeypatch):
+    from core import action_runtime, agent, tools
+    stop = agent.Stopper()
+
+    def pressing(ctx, keys):
+        stop.cancel.set()
+        action_runtime.check()                # hands/win does this before every key press
+        raise AssertionError("the key was pressed after cancel")
+    monkeypatch.setattr(tools.TOOLS["keys"], "run", pressing)
+    brain = SimpleNamespace(brief=lambda: "")
+    brain.chat = Scripted(brain, call("keys", keys="pagedown"), call("done", say="never"))
+    r = agent.run("scroll down a page", [], brain, tools.ToolContext(dry_run=True), stop=stop)
+    assert r.status == "stopped" and "I stopped" in r.say
+    assert action_runtime.current.get() is None
+
+
+def test_nothing_is_typed_into_ottos_own_window(monkeypatch):
+    from core import tools
+    from hands import registry, win
+    from senses import eyes
+    registry.load_all()
+    monkeypatch.setattr(win, "foreground", lambda: 99)
+    monkeypatch.setattr(win, "OTTO_WINDOWS", {99})
+    monkeypatch.setattr(eyes, "last_other_window", lambda: None)      # nowhere to go back to
+    ran = []
+    for name in ("keys", "type", "read_window"):
+        monkeypatch.setattr(tools.TOOLS[name], "run", lambda ctx, **k: ran.append(k))
+    ctx = tools.ToolContext(dry_run=False)
+    for name, args in (("keys", {"keys": "pagedown"}), ("type", {"text": "hi"}), ("read_window", {})):
+        result = tools.call(name, args, ctx)
+        assert not result.ok and "own window" in result.say
+    assert ran == []
+
+
+def test_unread_counter_in_the_title_is_not_a_different_window(monkeypatch):
+    from core import agent_safety, tools
+    from hands import win
+    monkeypatch.setattr(win, "foreground", lambda: 7)
+    now = {"hwnd": 7, "exe": "discord.exe", "title": "(3) #general - Discord", "focused": "Message #general"}
+    monkeypatch.setattr(agent_safety, "front", lambda ctx: dict(now))
+    ctx = tools.ToolContext(dry_run=False)
+    before = {"hwnd": 7, "exe": "discord.exe", "title": "#general - Discord", "focused": "Message #general"}
+    assert agent_safety.same_place(before, ctx)
+    now["title"] = "#random - Discord"
+    assert not agent_safety.same_place(before, ctx)
+    now.update(title="#general - Discord", focused="Search")
+    assert not agent_safety.same_place(before, ctx)
+
+
+def test_agent_questions_wait_two_minutes(new):
+    script(new, call("ask_user", question="Which one?"))
+    new.handle("swap my audio output")
+    assert new.pending.expires - time.time() > 100
+
+
+def test_do_that_again_goes_to_the_agent(new):
+    s = script(new, call("done", say="Did it again."))
+    assert new.handle("do that again").text == "Did it again."
+    assert len(s.seen) == 1
+
+
+def test_old_conversation_is_left_out(new):
+    new.history.append({"you": "an hour ago", "otto": "ok", "time": time.time() - 3600})
+    new.history.append({"you": "just now", "otto": "sure", "time": time.time() - 5})
+    assert [m["content"] for m in new._conversation()] == ["just now", "sure"]
+
+
+def test_failed_steps_are_not_saved(new):
+    from core import agent, examples
+    new.dry_run = False
+    calls = [{"tool": "read_window", "args": {"app": "Chrome"}, "ok": False},
+             {"tool": "read_window", "args": {}, "ok": True},
+             {"tool": "click", "args": {"control": 2}, "ok": True},
+             {"tool": "done", "args": {"say": "Done."}, "ok": True}]
+    new._agent_reply("click the first link", agent.AgentResult("done", "Done.", calls, True))
+    new.handle("save that")
+    assert [c["args"] for c in examples.load()[-1]["calls"]] == [{}, {"control": 2}, {"say": "Done."}]
+
+
+def test_dashes_are_not_sums():
+    from core import answers
+    assert answers.whole_local_answer("10-4") is None
+    assert answers.whole_local_answer("2026-11-12") is None
+    assert answers.whole_local_answer("what's 10-4") == "That's 6."
+    assert answers.whole_local_answer("12 times 12") == "That's 144."
+
+
+def test_known_site_opens_the_fast_way(new, monkeypatch):
+    from hands import web
+    assert "youtube" in web.sites()
+    no_agent(monkeypatch)
+    new.handle("open youtube")
+    assert new.trace["rule"] == "whole_sentence" and new.trace["intent"]["action"] == "open_site"

@@ -69,6 +69,26 @@ def back_to_user_window(ctx) -> None:
         pass
 
 
+def otto_in_front(ctx) -> bool:
+    """Is Otto's own window (where you type to it) still in front, even after trying to go back to yours?
+    Keys, typing and mouse actions must never land there."""
+    if ctx.dry_run:
+        return False
+    try:
+        from hands import win
+        if win.foreground() not in win.OTTO_WINDOWS:
+            return False
+        back_to_user_window(ctx)
+        return win.foreground() in win.OTTO_WINDOWS
+    except Exception:
+        return False
+
+
+def _steady(title: str) -> str:
+    """A window title without the parts that change by themselves: unread counts and "new message" dots."""
+    return re.sub(r"^\W+", "", re.sub(r"\(\d+\+?\)", "", title or "")).strip()
+
+
 def snapshot(ctx) -> dict:
     """Where a risky step would land, taken when Otto asks for your yes."""
     return front(ctx)
@@ -91,8 +111,8 @@ def same_place(before: dict | None, ctx) -> bool:
     except Exception:
         return False
     now = front(ctx)
-    keys = ("hwnd", "exe", "title") + (("focused",) if before.get("focused") else ())
-    return all(now.get(k) == before.get(k) for k in keys)
+    keys = ("hwnd", "exe") + (("focused",) if before.get("focused") else ())
+    return all(now.get(k) == before.get(k) for k in keys) and _steady(now.get("title")) == _steady(before.get("title"))
 
 
 def focused_name() -> str:

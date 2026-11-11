@@ -121,6 +121,8 @@ def decide_only(otto, text: str, must_ask: bool = False) -> Decision:
         reply = otto.handle(text)
     except Exception as error:
         return Decision("error", "", {}, False, f"{type(error).__name__}: {error}"[:200])
+    finally:
+        otto.agent_stop_after = None
     trace = otto.trace
     asks = bool(otto.pending and otto.pending.kind in ("confirm_plan", "agent_confirm")) \
         or reply.text.startswith("Just checking")
