@@ -12,6 +12,7 @@ chats only ever comes back as "information"; Qwen is told it is never an instruc
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -203,7 +204,13 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     if end == "done":
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"])
-        return AgentResult("done", result.say, calls, worked)
+        say = result.say
+        if worked:
+            problem = _not_saved(state)
+            if problem:
+                worked, say = False, problem
+                calls[-1].update(ok=False, say=say)
+        return AgentResult("done", say, calls, worked)
     if end == "ask":
         state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
         return AgentResult("ask", result.say, calls, False, result.observed.get("options", []), state)
@@ -217,6 +224,29 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     if _all_failures(calls) >= MAX_FAILURES:
         return _stop(state, f"Too many steps failed, so I stopped. {result.say}")
     return None
+
+
+UNSAVED = re.compile(r"^\s*\*|\*\s+-\s|[●•]|\bunsaved\b|\bnot saved\b", re.I)
+SAVE_AS = re.compile(r"^\s*save (?:as|file)\b", re.I)
+
+
+def _not_saved(state: dict) -> str:
+    """A request to save is only done when the window no longer shows unsaved changes. Qwen's own "Saved." is not
+    proof (11 Nov live log: it clicked some control and said "Saved the file."). Returns the problem, or ""."""
+    ctx, calls = state["ctx"], state["calls"]
+    asked = re.search(r"\bsav(?:e|ed|ing)\b", state.get("request", ""), re.I)
+    tried = any((c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) == "ctrl+s")
+                or (c["tool"] == "click" and re.search(r"\bsave\b", str(c.get("say", "")), re.I)) for c in calls)
+    if ctx.dry_run or not (asked or tried):
+        return ""
+    title = agent_safety.front(ctx).get("title", "")
+    if SAVE_AS.search(title):
+        return "The Save As window is open. Tell me the file name (and folder) to use."
+    if UNSAVED.search(title):
+        return "It doesn't look saved yet: the window still shows unsaved changes."
+    if not tried:
+        return "I couldn't confirm it saved, because I never pressed Save (try ctrl+s)."
+    return ""
 
 
 def left_over(calls: list[dict]) -> str:

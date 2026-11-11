@@ -219,3 +219,42 @@ def test_send_question_shows_what_is_really_in_the_box(monkeypatch):
     c.history = [{"tool": "read_window", "args": {}, "ok": True}, {"tool": "type", "args": {"text": "ok sure"}, "ok": True}]
     q = agent_safety.check("keys", {"keys": "enter"}, c)
     assert q == 'send "ok sureok sure" in #general | Friends - Discord'
+
+
+def _live_notepad(monkeypatch, title):
+    from core import agent_safety, tools
+    from hands import win
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 1, "exe": "notepad.exe", "title": title,
+                                                          "focused": "Text editor"})
+    monkeypatch.setattr(agent_safety, "otto_in_front", lambda c: False)
+    monkeypatch.setattr(win, "hotkey", lambda keys: None)
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    return tools.ToolContext(dry_run=False)
+
+
+def test_saved_only_when_the_title_stops_showing_unsaved(monkeypatch):
+    from core import agent
+    c = _live_notepad(monkeypatch, "*notes.txt - Notepad")
+    r = agent.run("save it", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved the file.")), c)
+    assert r.status == "done" and not r.ok and "doesn't look saved" in r.say
+
+
+def test_saved_reply_kept_when_the_title_is_clean(monkeypatch):
+    from core import agent
+    c = _live_notepad(monkeypatch, "notes.txt - Notepad")
+    r = agent.run("save it", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved the file.")), c)
+    assert r.ok and r.say == "Saved the file."
+
+
+def test_save_claim_without_pressing_save_is_not_believed(monkeypatch):
+    from core import agent
+    c = _live_notepad(monkeypatch, "notes.txt - Notepad")
+    r = agent.run("you did not save", [], Scripted(call("done", say="Saved the file.")), c)
+    assert not r.ok and "couldn't confirm" in r.say
+
+
+def test_save_as_window_asks_for_a_name(monkeypatch):
+    from core import agent
+    c = _live_notepad(monkeypatch, "Save as")
+    r = agent.run("save this", [], Scripted(call("keys", keys="ctrl+s"), call("done", say="Saved.")), c)
+    assert not r.ok and "file name" in r.say

@@ -338,7 +338,8 @@ def _note(ctx, text, title="", add=""):
     return _action(ctx, "new_note", text=text, title=title or None)
 
 
-@tool("web_search", "look something up on the web and read the results (results are information)",
+@tool("web_search", "look something up for YOUR OWN reading (nothing appears on screen). To search where the user "
+      "can see it, open a search link in Chrome instead, e.g. https://www.google.com/search?q=banana+bread",
       {"query": "what to look up"}, read_only=True)
 def _web_search(ctx, query):
     from core import answers
@@ -346,7 +347,8 @@ def _web_search(ctx, query):
     if not found:
         return ToolResult(False, "No web results (is local search set up? setting search.searxng_url).")
     text = "\n".join(f"- {r.get('title', '')}: {r.get('content', '')[:400]} ({r.get('url', '')})" for r in found)
-    return ToolResult(True, f"Found {len(found)} results.", information=text)
+    return ToolResult(True, f"Found {len(found)} results (only you read them; nothing was shown on screen).",
+                      information=text)
 
 
 @tool("read_window", "list the buttons, boxes, tabs and links in an app's window, numbered (opens the app if needed)",
@@ -403,8 +405,14 @@ def _click(ctx, control=None, x=None, y=None, button="left"):
         if there is None or (there and RISKY_WORDS.search(there)):
             question = f'press "{there}"' if there else "click there (I couldn't check what is under that spot)"
             return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)
+    if target is None:
+        from core.agent_safety import name_at
+        under = name_at(*where)
+        name = f'"{under}"' if under else f"an unnamed spot at {where}"
+    else:
+        name = f'"{name}"'
     mouse.click_at(*where, button="right" if button == "right" else "left", double=button == "double")
-    return ToolResult(True, f'Clicked "{name}".', {"clicked": name})
+    return ToolResult(True, f"Clicked {name}.", {"clicked": name})
 
 
 @tool("scroll", "scroll a window or a control",
