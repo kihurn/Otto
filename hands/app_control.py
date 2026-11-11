@@ -30,6 +30,8 @@ def front_window(app: str):
         check()
         window = win.find_window(name)
         if window and win.focus(window['hwnd']) and win.foreground() == window['hwnd']:
+            from hands import indicator
+            indicator.show(window['hwnd'])          # glow around the window Otto is operating
             return window, name, ''
         time.sleep(0.25)
     return None, name, f"I couldn't bring {name} to the front."
@@ -90,6 +92,8 @@ def type_in_app(app: str, text: str) -> Outcome:
                 return worked_out
         return Outcome(OutcomeStatus.NEEDS_INPUT, NO_TARGET[reason].format(app=name))
     before = ui_probe.read_text(target)
+    from hands import indicator
+    indicator.point(target['rect'])
     check()
     # Last look before any key is sent: still the same window in front, and not a password box.
     if win.foreground() != hwnd or win.focused_is_password():
@@ -124,6 +128,8 @@ def _find(app: str, wanted: str, kinds: set[str], what: str):
         return window, name, [], None, Outcome(OutcomeStatus.FAILED, f"I couldn't read {name}'s window.")
     usable = [c for c in controls if c['type'] in kinds and c['enabled'] and c['name']]
     target, only = ui_probe.find_control(usable, wanted)
+    if not target:
+        target, only = ui_probe.closest(usable, wanted)
     if not target:
         return window, name, controls, None, Outcome(
             OutcomeStatus.NEEDS_INPUT, f'I can\'t see a {what} called "{wanted}" in {name}.')
@@ -166,6 +172,8 @@ def click_named(app: str, button: str) -> Outcome:
     if lost:
         return lost
     before, title = ui_probe.fingerprint(controls), window.get('title', '')
+    from hands import indicator
+    indicator.point(target['rect'])
     try:
         pressed = ui_probe.press(target)
     except Exception:

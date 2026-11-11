@@ -9,10 +9,48 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 - Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
   Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
   volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
-- Any-app control: slice 1 acceptance on Windows, then slices 2-5 in docs/PHASE1_ANY_APP_PLAN.md.
+- Live run of the Qwen interpreter/supervisor, goal mode and the indicator (lists in docs/PHASE1_ANY_APP_PLAN.md).
+- Then slice 4 (screenshot-only clicking), method promotion rules (R7), and acting while talking.
 - Then the rest of AGENTS.md section 8 (act while talking, the companion).
 
 ## Done
+
+### Qwen in the loop, indicator (11 Nov 2026, Claude Code, committed to main at the user's request)
+- User merged PRs #4/#5 and reported the 1.2 voice checks as working. New instruction: commit straight to main,
+  as kihurn, with no AI attribution.
+- User's diagnosis, confirmed: Qwen was only consulted for Laya-unsure area guesses, per-area detail filling and
+  inside goal mode; failures just returned a message. Direction agreed: Laya + rules for plain requests, Qwen
+  for the rest, including conversation context.
+- `core/interpreter.py`: `interpret()` (menu of 23 named choices, last 4 turns, last app, front window ->
+  Intent via `to_intent`, which drops anything off the menu, unknown apps, and typed/written words the user
+  did not actually say), `suspicious()` (fast answers that get a second look: no rule match, a note whose text
+  is the whole request or has no note-like word, a file search starting with save/close/print/export..., a
+  brain-picked play/pause for "change/skip/next"), `review()` (the supervisor's three choices).
+- Pipeline: Laya high + clean rule = unchanged fast path. Laya high but suspicious, or Laya middle/low, goes to
+  `_qwen()` first; sure -> act (safety gate still applies), unsure -> confirm question, clarify -> Otto asks.
+  `_supervise()` runs after a failed/uncertain/needs-input plan (never in dry run, never twice, never after
+  goal mode already gave up) and can re-run the request as an `app_goal`.
+- Live hands-off trial with real Qwen (decisions only): "could you save this file" after opening Notepad ->
+  apps.app_goal Notepad; "will you close the word" -> apps.close Word; "could you change the song" ->
+  media.next; "can you open notepad" -> apps.open; "export this as a pdf" after opening Word -> app_goal Word;
+  "how old is michael jordan" -> question (after tightening the web_search menu line); "do the thing" -> asks.
+  0.3-0.5 s each once the model is warm (first call 1.2-2.2 s).
+- Voice gate: a low-confidence reply is still rejected while a question is pending, except fixed phrases that
+  cannot approve anything ("save that"/forget, "no", cancel). An existing test caught my first version, which
+  also let a mumbled "yes" through; that stays blocked.
+- Names: `spotify_desktop.closest_playlist` (library "Play <name>" buttons on the left 45% of the window,
+  rapidfuzz ratio; >= 80 with a 12-point lead is used, 60-80 becomes a "Did you mean" confirm via
+  `did_you_mean` data -> pending confirm_area). `ui_probe.closest` for near-miss control names (>= 85, 8 lead).
+- `hands/indicator.py`: plain Win32 layered window (WS_EX_LAYERED|TRANSPARENT|NOACTIVATE|TOOLWINDOW|TOPMOST,
+  colour key, excluded from capture). A Tk version was tried first and took keyboard focus when shown, which
+  would have broken every foreground check; the Win32 one was checked live: focus did not move, and a capture
+  with the hiding switched off showed the teal border around Notepad. Shown by `front_window`, pointed before
+  each press/type, hidden when the request ends (and after 30 quiet seconds). Only for live tasks. Not checked:
+  displays scaled above 100%.
+- executor: `media_key` answers are treated as their own observation (they already verify state).
+- Not run live end to end: interpreter/supervisor inside real requests, the pointer during real actions, the
+  "did you mean" confirm. Slice 4 (pure-screenshot clicking for apps with no listed controls) still not built.
+  395 tests pass.
 
 ### Goal mode, method saving, app context (11 Nov 2026, Claude Code, branch claude/any-app-control)
 - User feedback after testing slices 1-2: fixed single clicks are too shallow (Word start screen, Save inside

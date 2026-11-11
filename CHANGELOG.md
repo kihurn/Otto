@@ -1,6 +1,20 @@
 # Changelog
 
 ## 1.2 (in development)
+- Qwen in the loop (395 tests pass; real requests through it not yet run live):
+  - Interpreter: when Laya is unsure, or the rules have no answer or an odd one, local Qwen reads the request
+    with the last few turns, the last app used and the window in front, and picks one of Otto's named actions.
+    "Can you save this file" after "open notepad" now means save in Notepad. Laya and the rules still handle
+    plain requests on their own.
+  - Supervisor: when a step fails or can't be confirmed, Qwen chooses between working it out in the app (goal
+    mode), asking you one specific question, or leaving the reply as it is. One attempt per request.
+  - Misheard names: "for the rack" finds your playlist "for the rat"; a weaker match asks "Did you mean…?".
+    Nearly-right button names are matched when one is clearly nearest.
+  - "In notepad, can you click view then click status?" works with the app named first.
+  - A quiet "save that", "no" or "cancel" is accepted; a quiet "yes" still is not.
+  - "Change the song" skips to the next track and says what is playing.
+- Indicator: a teal glow around the window Otto is operating and a small Otto pointer that glides to each
+  control it uses. Click-through, never takes focus, hidden from screenshots, gone when the task ends.
 - Goal mode (any-app control, slice 3; 366 tests pass; real pressing not yet run live):
   - When a fixed rule can't finish the job, local Qwen picks the next step by number from the window's real
     buttons and boxes; Otto checks the pick, does it, and looks again (up to 8 steps). Examples: typing in Word

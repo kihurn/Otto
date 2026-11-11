@@ -112,6 +112,18 @@ def find_control(controls: list[dict], name: str, kind: str = '') -> tuple[dict 
     return top[0], len(top) == 1
 
 
+def closest(controls: list[dict], name: str, least: int = 85, lead: int = 8) -> tuple[dict | None, bool]:
+    """For a name that was heard or typed slightly wrong: the control whose name is nearly the same, as long as
+    it is clearly nearer than any other. Returns (control, True) or (None, False)."""
+    from rapidfuzz import fuzz
+
+    scored = sorted(((fuzz.ratio(name.casefold(), c['name'].casefold()), index) for index, c in enumerate(controls)
+                     if c['name']), reverse=True)
+    if not scored or scored[0][0] < least or (len(scored) > 1 and scored[0][0] - scored[1][0] < lead):
+        return None, False
+    return controls[scored[0][1]], True
+
+
 def control_at(controls: list[dict], x: int, y: int) -> dict | None:
     """The smallest listed control containing a screen point (a label inside a button is not the button)."""
     best, best_area = None, None

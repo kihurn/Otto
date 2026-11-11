@@ -111,6 +111,28 @@ Slice 1 fixes something Ki hit today and builds the reader every later slice nee
 rule-driven, so it is fast and predictable. Slice 3 is the real "Jarvis" step and the first place a model
 chooses, so it comes after the guards exist and are tested. Slices 4 and 5 build on 3.
 
+## Qwen in the loop (built 11 November 2026)
+
+Not in the original slices; added after Ki's tests showed Qwen was rarely consulted.
+
+- **Interpreter** (`core/interpreter.py`): for anything Laya and the rules don't answer cleanly, Qwen reads the
+  request with the recent conversation and picks one named action. Typed or written words must be words the
+  user actually said.
+- **Supervisor**: after a failed or unconfirmed step, Qwen picks: work it out in the app (goal mode), ask one
+  specific question, or leave the reply. One attempt per request.
+- **Indicator** (`hands/indicator.py`): glow around the operated window and a gliding Otto pointer.
+
+| Say or type | Expected |
+|---|---|
+| `open notepad`, then `can you save this file` | Works in Notepad (File, Save), not a file search |
+| `could you change the song` | Skips, and says the new song |
+| `will you close the word` | "Just checking: should I close Word…?" |
+| `can you open notepad` (by voice) | Opens Notepad; no note is written |
+| `In notepad, can you click view then click status?` | Both clicks in Notepad |
+| "play my playlist called for the rat" (by voice) | Plays it even if heard as "for the rack" |
+| "save that" said quietly while a question is open | Accepted |
+| Any app action | Teal glow on that window and a pointer at each control; both vanish at the end |
+
 ## Acceptance list for goal mode (run on Windows)
 
 | Type | Expected |

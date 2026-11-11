@@ -260,6 +260,7 @@ def spotify(monkeypatch, controls):
     state = N(controls=controls, pressed=[])
     monkeypatch.setattr(app_control, 'front_window', lambda app: ({'hwnd': 1}, 'Spotify', ''))
     monkeypatch.setattr(win, 'foreground', lambda: 1)
+    monkeypatch.setattr(win, 'window_info', lambda hwnd: {'rect': (0, 0, 1000, 800), 'title': 'Spotify'})
     monkeypatch.setattr(ui_probe, 'list_controls', lambda hwnd, limit=150: list(state.controls))
     monkeypatch.setattr(media, 'sessions', lambda: [{'app': 'Spotify.exe', 'status': media.PLAYING,
                                                      'title': 'heat', 'artist': 'Cloaks'}])

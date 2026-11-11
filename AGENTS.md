@@ -84,6 +84,8 @@ hands/ui_probe.py    reads any window's buttons/boxes/tabs from Windows (no scre
 core/sensitive.py    refuses password/card/ID fields in code
 core/goal_mode.py    goal mode: local Qwen picks the next step by number from a window's controls
 core/methods.py      worked-out methods saved on "save that" and replayed without a model
+core/interpreter.py  Qwen as interpreter (request + recent conversation -> one named action) and supervisor
+hands/indicator.py   glow around the window Otto is operating + a gliding Otto pointer (drawing only)
 senses/ears.py       mic + Whisper; wake / always / push-to-talk;  senses/keys.py  hotkeys (pynput)
 senses/mouth.py      Kokoro, sentence by sentence, mutes ears while speaking;  senses/eyes.py  screenshots, clipboard
 connectors/spotify.py  Spotify Web API (PKCE)
@@ -123,9 +125,11 @@ python -m pytest -q tests
 
 ## 7. Status (as of 11 November 2026)
 
-**1.2 is in development, waiting for Windows acceptance.** Branches `claude/live-check-fixes` (fixes from
-the first live checks) and `claude/any-app-control` (Phase 1 slices 1-3, built on top of it) are pushed and
-waiting for the user's PRs; 366 tests. The D–F review findings R1–R6 in
+**1.2 is in development.** The user reported the 1.2 live voice checks as working on 11 Nov and merged the
+live-check and any-app-control branches (PRs #4, #5). Since then work is committed straight to `main` at the
+user's request, as kihurn with no AI attribution lines; 395 tests. Laya + rules handle plain requests; local
+Qwen interprets everything else with conversation context and supervises failures (see
+`docs/PHASE1_ANY_APP_PLAN.md`). Those Qwen paths, goal mode and the indicator still need a live run. The D–F review findings R1–R6 in
 `docs/V1_2_FINAL_REVIEW.md` are fixed with regression tests and merged into `main` (PR #2, 279 tests).
 R7 (learning reusable screen-control methods) is **postponed** to the any-app control work in Phase 1 below.
 Open before release: the live checks in `docs/V1_2_VOICE_TESTS.md` (fresh-start Spotify and Chrome visual
@@ -182,7 +186,8 @@ Smaller items: existing users' `whisper.hotwords` may still be "Otto" (consider 
 - **Avoid editing the same files at once.** `core/pipeline.py`, `otto.py` and `core/details.py` are hot spots: if
   the other agent has claimed work touching them, coordinate through the user or pick another task.
 - **Use git branches** (`codex/<task>`, `claude/<task>`), small commits with clear messages, and tell the user how
-  to merge. Never commit `.env`, `otto-data/`, or anything with keys.
+  to merge. (11 Nov 2026: the user asked Claude Code to commit straight to `main` instead, as
+  kihurn <kihurn@users.noreply.github.com>, with no AI attribution in commits.) Never commit `.env`, `otto-data/`, or anything with keys.
 - **Run the tests before handing over**, and add tests for what you changed.
 - **When you finish:** update `CHANGELOG.md`, the "Done" list and decisions in `docs/WORKLOG.md`, and
   `docs/ARCHITECTURE.md` if the design changed. Bump the version in `otto.py`'s banner if it's a release.

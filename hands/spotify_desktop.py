@@ -86,6 +86,20 @@ def playlist_names(query):
     return {wanted, 'playlist ' + wanted, 'my playlist ' + wanted} if wanted else set()
 
 
+def closest_playlist(buttons, query, window_rect):
+    """The playlist in the Your Library list whose name is nearest to what was heard, with a 0-100 score.
+    Library rows each have a "Play <name>" button on the left side of the window."""
+    from rapidfuzz import fuzz
+    left, _, right, _ = window_rect
+    names = {c['name'][5:].strip() for c in buttons
+             if c['name'].casefold().startswith('play ') and c['rect'][0] < left + (right - left) * 0.45}
+    wanted = re.sub(r'^(?:my )?playlist ', '', normalized(query))
+    scored = sorted(((fuzz.ratio(wanted, normalized(name)), name) for name in names if normalized(name)), reverse=True)
+    if not scored or scored[0][0] < 60 or (len(scored) > 1 and scored[0][0] - scored[1][0] < 12):
+        return None, 0
+    return scored[0][1], scored[0][0]
+
+
 def play_playlist(step, task, end, progress):
     """Play one of the user's own playlists from the Your Library sidebar: open it, press its Play button,
     then confirm from the window (the button turns into Pause) and from Windows (Spotify is playing)."""
@@ -118,12 +132,27 @@ def play_playlist(step, task, end, progress):
                        and any(normalized(c['name']) == n or normalized(c['name']).startswith(n + ' ') for n in names)]
             labels = sorted({c['name'] for c in entries})
             if not labels:
+                # Maybe the name was misheard ("for the rack"): compare with the playlists really in the list.
+                guess, score = closest_playlist(found, query, win.window_info(hwnd)['rect'])
+                if guess and score >= 80:
+                    names.clear()
+                    names.add(normalized(guess))
+                    query = guess
+                    found = buttons()
+                    entries = [c for c in found if 'edit details' not in c['name'].casefold()
+                               and any(normalized(c['name']) == n or normalized(c['name']).startswith(n + ' ') for n in names)]
+                    labels = sorted({c['name'] for c in entries})
+                elif guess:
+                    return Outcome(OutcomeStatus.NEEDS_INPUT, f'I can\'t see "{query}". Did you mean your playlist "{guess}"?',
+                                   {'did_you_mean': {'text': f'play my playlist {guess}', 'area': 'media', 'action': 'play_music',
+                                                     'params': {'query': guess, 'kind': 'playlist'}}})
+            if not labels and not page_button(found, 'play'):
                 return Outcome(OutcomeStatus.NEEDS_INPUT, f"I can't see a playlist called {query} in your Spotify library list. "
                                                          "Scroll it into view in Your Library and ask again.")
             if len(labels) > 1:
                 return Outcome(OutcomeStatus.NEEDS_INPUT, 'I can see more than one: ' + ', '.join(labels[:4]) + '. Which one?')
             check()
-            if win.foreground() != hwnd or not ui_probe.press(entries[0]):
+            if labels and (win.foreground() != hwnd or not ui_probe.press(entries[0])):
                 return Outcome(OutcomeStatus.UNCERTAIN, 'Spotify did not open that playlist.')
             opened_by = min(end, time.monotonic() + 6)
             while time.monotonic() < opened_by and not task.cancel.is_set():

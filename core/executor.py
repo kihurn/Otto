@@ -185,8 +185,9 @@ def run(steps, *, dry_run=False, why='', task=None, progress=lambda message: Non
                         if checkable and now is not None and (expected is None or abs(now - expected) <= 1):
                             outcome = Outcome(OutcomeStatus.VERIFIED, f'Volume {now}%.', {'volume': now},
                                               [Evidence('windows.volume', expected={'level': expected}, observed={'level': now})])
-                    elif step.action == 'now_playing':
-                        # The answer is itself a reading of what Windows/Spotify report as playing.
+                    elif step.action in {'now_playing', 'media_key'}:
+                        # The answer is itself a reading of what Windows/Spotify report as playing
+                        # (media_key checks the play state or reads the new song before it replies).
                         outcome = Outcome(OutcomeStatus.VERIFIED, result.say, result.data,
                                           [Evidence('windows.media_session', observed={'answered': True})])
                     elif step.action in {'open_site', 'web_search'} and outcome.data.get('url'):

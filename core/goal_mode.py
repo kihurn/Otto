@@ -215,6 +215,8 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
                 return Outcome(OutcomeStatus.NEEDS_INPUT, app_control.NO_TARGET['unclear'].format(app=name))
             target = again
         before = ui_probe.read_text(target)
+        from hands import indicator
+        indicator.point(target['rect'])
         check()
         if win.foreground() != hwnd or win.focused_is_password():
             return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I did not type.')
@@ -286,9 +288,11 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
             if RISKY_WORDS.search(control['name']):
                 return Outcome(OutcomeStatus.NEEDS_INPUT,
                                f'The next step would be "{control["name"]}", which I only press when you ask for it by name.',
-                               side_effect_possible=bool(pressed))
+                               {'goal_mode': True}, side_effect_possible=bool(pressed))
             before, title = ui_probe.fingerprint(everything), win.window_info(hwnd)['title']
             check()
+            from hands import indicator
+            indicator.point(control['rect'])
             if win.foreground() != hwnd or not ui_probe.press(control):
                 history.append(f'tried "{control["name"]}" but it did not respond')
                 stuck += 1
@@ -317,4 +321,4 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
     done_so_far = (' I got as far as ' + ', then '.join(f'"{p}"' for p in pressed) + '.') if pressed else ''
     return Outcome(OutcomeStatus.NEEDS_INPUT,
                    f"I'm not sure how to do that in {name}.{done_so_far} Can you tell me the next step?",
-                   side_effect_possible=bool(pressed))
+                   {'goal_mode': True}, side_effect_possible=bool(pressed))

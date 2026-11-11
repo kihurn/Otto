@@ -127,6 +127,10 @@ class Otto:
             return Reply("")
         t, _ = guards.strip_wake(t)
         self.trace["text"] = t
+        lead = re.match(r'(?:in|on)\s+([\w .]+?),?\s+(?:(?:can|could|would) you\s+(?:please\s+)?)?(.+?)[.!?]*$', t, re.I)
+        if lead and self.apps is not None and self.apps.match_exact(' '.join(lead[1].lower().split())):
+            t = f'{lead[2]} in {lead[1]}'
+            self.trace['understood_as'] = t
         if guards.filler_only(t):
             self.trace['guard'] = 'filler_only'
             return Reply('')
@@ -163,7 +167,11 @@ class Otto:
                 return Reply("I can't confirm it is playing. Please ask me to play the title again; I won't retry automatically.")
             return Reply("Which song failed to play? Please tell me its title and artist.")
 
-        if self.pending and heard_conf is not None and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9)):
+        # "save that", "no" and "cancel" are fixed phrases that can't approve anything risky, so a quiet or
+        # short recording of them is still accepted. A mumbled "yes" is NOT: it could approve closing an app.
+        fixed_phrase = bool(guards.memory_command(t) or guards.reply_kind(t) == 'no' or guards.is_cancel(t))
+        if (self.pending and heard_conf is not None and not fixed_phrase
+                and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9))):
             return Reply('I did not catch that clearly. Please repeat your answer.')
         if self.pending and time.time() < self.pending.expires:
             r = self._answer_pending(t)
@@ -320,12 +328,88 @@ class Otto:
                           top=[(a, round(x, 2)) for a, x in p["top"]])
 
         if zone == "high" or (from_split and zone == "middle"):
+            if p["area"] in ACTIONS and not from_split:
+                from core import interpreter
+                quick = details.by_rules(p["area"], t, self.apps)
+                if interpreter.suspicious(quick, t):      # no rule fits, or the answer looks wrong
+                    understood = self._qwen(t)
+                    if understood is not None:
+                        return understood
             return self._do_area(t, p["area"], via="laya")
+        understood = self._qwen(t)                        # Laya is unsure: Qwen reads it in context
+        if understood is not None:
+            return understood
         if zone == "middle":
             intent = details.by_rules(p["area"], t, self.apps) if p["area"] in ACTIONS else None
             self._set_pending("confirm_area", text=t, area=p["area"], intent=intent)
             return Reply(self._question(p["area"], intent))
         return self._low(t)
+
+    def _qwen(self, t: str) -> Reply | None:
+        """Ask Qwen what this request means, given the recent conversation. None = no usable answer."""
+        from core import interpreter
+        try:
+            from senses import eyes
+            w = eyes.last_other_window() or {}
+        except Exception:
+            w = {}
+        window = f"{w.get('title', '')[:60]} ({w.get('exe', '')})" if w else ""
+        last_app = self.last_app[0] if self.last_app and time.time() - self.last_app[1] < 300 else ""
+        try:
+            intent, question, sure = interpreter.interpret(t, list(self.history), last_app, window,
+                                                           self.apps, self.brain)
+        except Exception as error:
+            self.trace["interpreter"] = f"unavailable ({type(error).__name__})"
+            return None
+        self.trace["interpreter"] = {"choice": f"{intent.area}.{intent.action}" if intent else None,
+                                     "sure": sure, "question": question}
+        if intent is None:
+            if not question:
+                return None
+            self._set_pending("rephrase", text=t)
+            return Reply(question)
+        if intent.area in ("question", "chitchat"):
+            return self._do_area(t, intent.area, via="qwen")
+        try:
+            if not planner.builtin_steps(intent):
+                return None
+        except Exception:
+            return None
+        if not sure:
+            self._set_pending("confirm_area", text=t, area=intent.area, intent=intent)
+            return Reply(self._question(intent.area, intent))
+        return self._do_area(t, intent.area, intent=intent, via="qwen")
+
+    def _supervise(self, t: str, plan, res) -> Reply | None:
+        """Something failed or could not be confirmed: Qwen decides whether to work it out in the app,
+        ask the user something specific, or leave the reply as it is. One attempt per request."""
+        if (self.dry_run or res.ok or getattr(self, "_supervising", False) or res.data.get("goal_mode")
+                or res.data.get("outcome_status") not in ("failed", "uncertain", "needs_input")
+                or any(s["do"] == "app_goal" for s in plan.steps)
+                or not self.settings.get("app_control", {}).get("supervisor", True)):
+            return None
+        used = [s.get("with", {}).get("app") for s in plan.steps if s.get("with", {}).get("app")]
+        app = used[-1] if used else ("Spotify" if any(s["do"] in ("play_music", "play_liked") for s in plan.steps) else "")
+        from core import interpreter
+        try:
+            verdict = interpreter.review(t, safety.describe(plan.steps), res.say, app, self.brain)
+        except Exception as error:
+            self.trace["supervisor"] = f"unavailable ({type(error).__name__})"
+            return None
+        self.trace["supervisor"] = verdict["next"]
+        if verdict["next"] == "ask":
+            self._set_pending("rephrase", text=t)
+            return Reply(f"{res.say} {verdict['question']}")
+        if verdict["next"] != "work_it_out":
+            return None
+        self.progress("That didn't work, so I'm working it out another way.")
+        self._supervising = True
+        try:
+            retry = planner.Plan([{"do": "app_goal", "with": {"app": app, "goal": verdict["goal"]}}], "builtin")
+            self.trace["plan"] = {"source": "supervisor", "steps": retry.steps}
+            return self._run(retry, None, t)
+        finally:
+            self._supervising = False
 
     def _low(self, t: str) -> Reply:
         """Laya isn't sure: the brain guesses, then Otto checks with you."""
@@ -522,6 +606,9 @@ class Otto:
             if self.active_task:
                 self.action_context.record(self.active_task)
             self.active_task = None
+            if not getattr(self, '_supervising', False):
+                from hands import indicator
+                indicator.hide()
         self.trace['outcome_status'] = res.data.get('outcome_status')
         if intent and intent.action in {'get_volume', 'set_volume', 'volume_up', 'volume_down'}:
             from hands import media
@@ -534,6 +621,14 @@ class Otto:
         if plan.source == 'recipe' and not self.dry_run and res.data.get('outcome_status') in {'verified', 'failed'}:
             recipes.record(plan.key, res.ok)
 
+        meant = res.data.get('did_you_mean')
+        if meant and not res.ok:
+            self._set_pending('confirm_area', text=meant['text'], area=meant['area'],
+                              intent=Intent(meant['area'], meant['action'], dict(meant['params'])))
+            return Reply(res.say)
+        rescued = self._supervise(t, plan, res)
+        if rescued is not None:
+            return rescued
         found = res.data.get("files")
         if res.data.get('audio_candidates'):
             self._set_pending('audio_pick', text=t, files=res.data['audio_candidates'])
