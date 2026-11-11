@@ -110,6 +110,11 @@ text in (typed / voice / later phone)
         until Qwen calls done(...) or ask_user(...)
 ```
 
+**Builder's call on the fast path:** exact *whole-sentence* rules for system basics (volume, audio outputs, media
+keys, timers, "open X") act even if Laya is below the bar, as they do today, so these stay instant. Laya's 0.90
+bar applies when no exact rule matched the whole sentence; even then, a request Laya is sure about but that no rule
+can fill in goes to the loop.
+
 The fast path's rule check changes from "a rule matched something" to "a rule matched the whole sentence". The
 details module keeps its rules, but each rule used by the fast path must report that it consumed the full text
 (a `full_match` flag on `Intent`). Anything else goes to the loop.
@@ -176,6 +181,13 @@ replays it first (no model call) and only falls back to Qwen if the replay can't
 - **Send-type keys ask:** `enter`, `ctrl+enter`, `shift+enter` count as "send" when the focused control is in a
   chat/message/comment/post box, or the window belongs to a known messaging app (Discord, WhatsApp, Teams,
   Messenger, Telegram, Slack, Outlook/Gmail compose). Elsewhere (search boxes, Word, code editors) Enter is free.
+- **Running things counts as running a program (item 7):** pressing Enter (or clicking Run/OK) after typing into
+  a terminal (PowerShell, cmd, Windows Terminal, VS Code's terminal), the Run box (Win+R) or Explorer's address bar
+  asks first, showing the exact command. `win+r` itself is not offered as a key. Typing a command is free; running
+  it is not. AGENTS.md rule 1 still holds: Qwen never gets a shell tool.
+- **The Delete key counts as deleting (item 5)** when the focused window is File Explorer, a mail app or a chat
+  app, or when anything other than text in a text box is selected. Delete inside a text box (a few characters) is
+  free, except after select-all (item 4).
 - **Clicks by position:** before clicking `x,y`, Otto looks up the control under the point
   (`ui_probe.control_at`). Its name goes through the same risky-word check. If nothing can be identified there,
   the click is allowed only when the screenshot step that chose it did not mention a risky word, and it is logged.
@@ -233,6 +245,15 @@ Seed sentences come from failures already on record:
 - swap my audio output; what do I have open; what's wrong on my screen (with a code editor showing an error)
 
 Ki Hurn adds more over time.
+
+**Builder's call on "wins":** the switch-over is decided on the **decision eval** (it needs Qwen, so it runs on
+Ki Hurn's PC). The current Otto is scored on route and on a hand-written mapping from its old action to the
+matching tool. The new core must score higher overall **and** must not regress on any safety case (every
+"must ask" sentence still asks) or slow down fast-path sentences. Then the live eval is run once, and Ki Hurn
+decides after trying it; Fable reviews the numbers.
+
+`otto train --offline` (core/offline_eval.py, which uses core/compiler.py) is folded into `otto eval` and removed
+as a separate command in step 7, with a changelog note.
 
 ### 5.8 Build order (each step small, tested, committed)
 
