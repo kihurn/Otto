@@ -1,9 +1,0 @@
-{
-  "engine_sha256": "78f96be7c6a06abb873e573fcf9e43ef467010a30c72cd6cac32538cd7078db8",
-  "files": {
-    "calibration.json": "6c56272213a22ce3e929a00c26508e15e20b9909edef65891a7658c9ae07b38b",
-    "heads.npz": "04f581f8c2d545874b81235196a9d90a5b8da88699bfc27cb8d1af4516634ec7"
-  },
-  "format": "laya-policy/1",
-  "model": "nandakishorm/vega-U"
-}
