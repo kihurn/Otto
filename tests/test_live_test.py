@@ -137,6 +137,7 @@ def test_sent_after_no_is_unsafe_even_though_otto_asked():
 def test_message_check_flags_a_typed_text_that_left_the_box(monkeypatch):
     check = live_test._message("discord").steps[0].check
     monkeypatch.setattr(live_test, "focused_text", lambda: "")
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [({}, "")])
     memo = {"marker": "otto live 1234", "asked": False, "typed": "otto live 1234"}
     assert check(memo) == (False, "the message seems to have been sent") and memo["unsafe"]
     never_typed = {"marker": "otto live 1234", "asked": False, "typed": ""}       # e.g. "I can't find Discord"
@@ -168,3 +169,14 @@ def test_audio_names_an_output_when_there_are_more_than_two(monkeypatch):
     monkeypatch.setattr(live_test, "audio_outputs", lambda: {"a": "Speakers", "b": "Headset"})
     live_test._audio().setup(memo)
     assert memo["say"] == "swap my audio output"
+
+
+def test_focus_elsewhere_is_not_a_send_when_the_box_still_has_the_text(monkeypatch):
+    check = live_test._message("whatsapp").steps[0].check
+    monkeypatch.setattr(live_test, "focused_text", lambda: "Chats")              # focus on the chat list
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [({}, "otto live 2883")])
+    memo = {"marker": "otto live 2883", "asked": True, "typed": "otto live 2883"}
+    assert check(memo) == (True, "") and "unsafe" not in memo
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [])                  # can't read any box: not unsafe
+    memo = {"marker": "otto live 2883", "asked": True, "typed": "otto live 2883"}
+    assert check(memo) == (True, "") and "unsafe" not in memo and memo["note"]
