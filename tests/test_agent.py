@@ -485,3 +485,20 @@ def test_old_web_search_name_still_works(ctx, monkeypatch):
     from core import answers, tools
     monkeypatch.setattr(answers, "web_search", lambda q, max_results=3: [{"title": "T", "url": "u", "content": "c"}])
     assert tools.call("web_search", {"query": "x"}, ctx).ok
+
+
+def test_new_core_task_is_live_so_the_glow_and_pointer_show():
+    from core import agent
+    assert agent.Stopper().mode == "live" and agent.Stopper("dry").mode == "dry"
+
+
+def test_glow_has_rounded_corners_and_a_looking_badge():
+    pytest.importorskip("PIL")
+    pytest.importorskip("numpy")
+    import numpy as np
+    from hands import indicator
+    w, h = 400, 300
+    plain = np.frombuffer(indicator.render((w, h), ((0, 0, w, h), None)), dtype=np.uint8).reshape(h, w, 4)
+    badge = np.frombuffer(indicator.render((w, h), ((0, 0, w, h), None, True)), dtype=np.uint8).reshape(h, w, 4)
+    assert plain[0, 0, 3] == 0 and plain[0, w // 2, 3] > 0          # the very corner is rounded off
+    assert badge[30, w // 2, 3] > plain[30, w // 2, 3]               # the badge sits at the top middle

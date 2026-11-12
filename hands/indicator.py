@@ -14,6 +14,7 @@ import threading
 import time
 
 COLOUR = (24, 119, 201)        # Otto's blue, #1877c9 (red, green, blue)
+CORNER = 8                     # Windows 11 rounds window corners by about 8 pixels; the glow follows them
 GLOW_WIDTH = 18                # how many pixels the glow takes to fade away from the window's edge
 FADE_SECONDS = 0.25            # fade in when Otto starts on a window, fade out when it finishes
 HIDE_FROM_CAPTURE = True                                # only ever switched off by a test that photographs it
@@ -59,6 +60,14 @@ def point(rect) -> None:
         time.sleep(0.25)                      # long enough to see where Otto is about to act
 
 
+def looking(hwnd: int, on: bool = True) -> None:
+    """While Otto takes a screenshot of this window and Qwen studies it: a small "Otto is looking" badge.
+    (The overlay is left out of screenshots, so the badge never ends up in the picture.)"""
+    if _enabled():
+        _send(('show', hwnd))
+        _send(('looking', bool(on)))
+
+
 def hide() -> None:
     if _commands is not None:
         _send(('hide',))
@@ -73,10 +82,14 @@ def render(size, frame):
     image = Image.new('RGBA', size, (0, 0, 0, 0))
     if frame:
         draw = ImageDraw.Draw(image)
-        (l, t, r, b), dot = frame
+        (l, t, r, b), dot = frame[:2]
+        badge = len(frame) > 2 and frame[2]
         for step in range(GLOW_WIDTH):
             strength = (1 - step / GLOW_WIDTH) ** 2                     # quick fall-off: bright edge, soft inside
-            draw.rectangle((l + step, t + step, r - 1 - step, b - 1 - step), outline=COLOUR + (int(235 * strength),))
+            draw.rounded_rectangle((l + step, t + step, r - 1 - step, b - 1 - step), radius=max(0, CORNER - step),
+                                   outline=COLOUR + (int(235 * strength),))
+        if badge:
+            _badge(draw, (l + r) // 2, t + GLOW_WIDTH + 4, "Otto is looking")
         if dot:
             x, y = dot
             for grow, alpha in ((6, 40), (4, 80), (2, 140)):            # a soft halo around the ring
@@ -87,6 +100,20 @@ def render(size, frame):
     alpha = pixels[..., 3:4]
     colour = (pixels[..., :3] * alpha // 255)[..., ::-1]                # Windows wants blue-green-red, pre-faded
     return np.concatenate([colour, alpha], axis=2).astype(np.uint8).tobytes()
+
+
+def _badge(draw, centre_x: int, top: int, text: str) -> None:
+    """A small rounded label in Otto's blue, centred at the top of the window."""
+    from PIL import ImageFont
+    try:
+        font = ImageFont.truetype("segoeui.ttf", 15)
+    except Exception:
+        font = ImageFont.load_default()
+    box = draw.textbbox((0, 0), text, font=font)
+    w, h = box[2] - box[0], box[3] - box[1]
+    left, right = centre_x - w // 2 - 14, centre_x + w // 2 + 14
+    draw.rounded_rectangle((left, top, right, top + h + 14), radius=(h + 14) // 2, fill=COLOUR + (235,))
+    draw.text((centre_x - w // 2, top + 7 - box[1]), text, font=font, fill=(255, 255, 255, 255))
 
 
 def _run(commands: queue.Queue) -> None:
@@ -158,11 +185,13 @@ def _run(commands: queue.Queue) -> None:
                     state['seen'] = time.monotonic()
                     if command[0] == 'show':
                         state['target'] = command[1]
+                    elif command[0] == 'looking':
+                        state['looking'] = command[1]
                     elif command[0] == 'point':
                         state['want'] = command[1]
                         state['at'] = state['at'] or command[1]
                     else:
-                        state.update(target=None, want=None, at=None)
+                        state.update(target=None, want=None, at=None, looking=False)
             except queue.Empty:
                 pass
             if state['target'] and time.monotonic() - state['seen'] > 30:
@@ -184,7 +213,7 @@ def _run(commands: queue.Queue) -> None:
                         ax, ay = ax + (wx - ax) * 0.4, ay + (wy - ay) * 0.4            # glide, don't jump
                         state['at'] = (ax, ay)
                         dot = (round(ax) - left, round(ay) - top)
-                    frame = ((l - left, t - top, r - left, b - top), dot)
+                    frame = ((l - left, t - top, r - left, b - top), dot, bool(state.get('looking')))
             goal = 1.0 if frame else 0.0
             step = 0.04 / FADE_SECONDS
             level = min(goal, state['level'] + step) if goal > state['level'] else max(goal, state['level'] - step)

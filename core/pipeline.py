@@ -902,7 +902,7 @@ class Otto:
         self._agent_deadline()
         self._hide_indicator()
         ctx = tools.ToolContext(dry_run=self.dry_run, brain=self.brain)
-        self.active_task = agent.Stopper()         # what Otto's cancel key stops
+        self.active_task = agent.Stopper("dry" if self.dry_run else "live")   # what Otto's cancel key stops
         try:
             result = agent.run(t, self._conversation(t), self.brain, ctx, stop_after=self.agent_stop_after,
                                stop=self.active_task)

@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- Indicator in the new core: the blue glow and the Otto pointer now show (they were silently off because the new
+  core's task wasn't marked live); the glow has rounded corners like Windows 11 windows; an "Otto is looking"
+  badge shows while Otto takes a screenshot and Qwen studies it.
 - New core, fixes from the second live run (630 tests pass; not yet re-run live):
   - Web: full addresses open as they are (they were being Googled); unknown words are no longer quietly Googled
     by "open"; a new `google` tool shows a search in Chrome, while `look_up` (was web_search) is only for

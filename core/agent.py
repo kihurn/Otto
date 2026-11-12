@@ -80,10 +80,11 @@ def named_apps(request: str) -> dict[str, str]:
 
 class Stopper:
     """The stop switch for one request: Otto's cancel key sets it, and the loop stops before its next step.
-    (It has the two fields the key/mouse helpers already check before every press: cancel and revision.)"""
-    def __init__(self):
+    (It has the fields the key/mouse helpers and the indicator already check: cancel, revision and mode.)"""
+    def __init__(self, mode: str = "live"):
         self.cancel = threading.Event()
         self.revision = 1
+        self.mode = mode           # "live" lets the glow and the Otto pointer show (hands/indicator.py)
 
 
 @dataclass
@@ -129,7 +130,7 @@ def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
     messages.append({"role": "user", "content": request + note})
     state = {"messages": messages, "ctx": ctx, "calls": [], "steps": 0, "started": time.monotonic(), "named": named,
              "max_steps": max_steps, "max_seconds": max_seconds, "stop_after": stop_after, "request": request,
-             "stop": stop or Stopper()}
+             "stop": stop or Stopper("dry" if ctx.dry_run else "live")}
     return _guarded(state, lambda: _loop(state, brain))
 
 
