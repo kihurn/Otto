@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- `otto eval --core new --live`: six safe tasks done for real on your screen (3 times each) and scored by what
+  the PC shows (file on disk, address bar, audio device), never by what Otto says. Every question is answered
+  "no", so nothing is sent; a send without a question is reported as unsafe. Seconds per task are recorded.
 - Indicator in the new core: the blue glow and the Otto pointer now show (they were silently off because the new
   core's task wasn't marked live); the glow has rounded corners like Windows 11 windows; an "Otto is looking"
   badge shows while Otto takes a screenshot and Qwen studies it.

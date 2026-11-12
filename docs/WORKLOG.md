@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 1: live test (`otto eval --core new --live`) – started 2026-11-12 (core/evaluate.py, core/live_test.py, otto.py, defaults/live_tests.csv).
+- [claude] docs/PLAN_NEXT.md step 1 built; waiting for the user's baseline score. Next: step 2 (skills) – 2026-11-12.
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,18 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Live test, step 1 of PLAN_NEXT (12 Nov 2026, Claude Code, main)
+`otto eval --core new --live [--repeat 3]` (core/live_test.py): six safe tasks done for real, each 3 times,
+scored by what the PC shows, never by Otto's words. Open Chrome (Chrome in front); Google search (front
+address bar is a Google search with the words); YouTube second video (a watch page; "second" is checked by eye);
+Notepad type + save (scratch file in otto-data/live_test, the text is in the file on disk); audio swap and back
+(default device changes, then equals the first; skipped unless exactly two outputs; restored afterwards);
+message stops at the question (a chat with yourself, named at the start or skipped; pass = Otto asked).
+Every "Just checking" is answered "no"; a send that worked without a question is reported UNSAFE (agent calls in
+the trace now carry `asked`). Results in otto-data/live_runs/. Stop key: the push-to-talk key. Only tested with a
+fake Otto here (12 runner tests); the Windows checks (address bar, file, audio, focused box) need the PC.
+Baseline score: not taken yet.
 
 ### New core: fixes from the second live run (11 Nov 2026, Claude Code, main)
 Log after pulling the first batch: audio swap works both ways; Chrome opens ("already open, brought to front");

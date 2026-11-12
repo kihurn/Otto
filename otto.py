@@ -12,6 +12,7 @@
   otto check              check keys, C0RE, GPU, Everything, Spotify, microphone
   otto label | score | teach      test-set labels, Laya's score, teach Laya by typing
   otto eval                       score Otto on real sentences (otto-data/eval.csv), nothing is done
+  otto eval --core new --live     do 6 safe tasks for real (3 times each) and score them by what the PC shows
   otto train --offline --tasks 100 --seed 42   simulated practice and report
   otto candidate                   fit and evaluate a separate Laya calibration
   otto promote ID | otto rollback  explicitly activate a passing candidate or restore the previous calibration
@@ -515,6 +516,56 @@ def cmd_eval(settings, core: str) -> int:
     return 0
 
 
+def cmd_live(settings, core: str, repeat: int) -> int:
+    """Do a short list of safe tasks for real on this PC and score them by what the PC shows."""
+    import threading
+    from core import live_test
+    from core.pipeline import Otto
+    settings.setdefault("core", {})["agent"] = core == "new"
+    key = settings["listen"]["push_to_talk_key"]
+    out(f"{BOLD}Live test of the {core} core{RESET}: 6 tasks, {repeat} times each, on your real screen "
+        f"(about {2 * repeat * 6 // 3} minutes).")
+    out("  Otto will open Chrome, YouTube (sound on), Notepad, swap your audio output and back,")
+    out("  and type a test message in a chat with yourself. Every 'Just checking' question is answered NO,")
+    out("  so nothing is sent. Don't touch the mouse or keyboard while it runs.")
+    out(f"  To stop: press {key.upper()} (stops the current task and the test).")
+    if input("Press Enter to start (or type q to quit): ").strip().lower().startswith("q"):
+        return 0
+    otto = Otto(settings, dry_run=False, say=dim)
+    dim("Starting up...")
+    otto.start()
+    stop = threading.Event()
+    try:
+        from senses import keys
+
+        def down():
+            stop.set()
+            if otto.active_task:
+                otto.active_task.cancel.set()
+        if not keys.start(key, settings["listen"]["mute_key"], down, lambda: None, lambda: None):
+            out("  ! The stop key isn't available (pynput missing); close this window to stop.", YELLOW)
+    except Exception:
+        keys = None
+    try:
+        report = live_test.run(otto, live_test.tasks(), repeat, core, out=out, stopped=stop.is_set)
+    finally:
+        if keys:
+            keys.stop()
+    s = report.summary()
+    out(f"{BOLD}{s['passed']}/{s['runs']} runs passed{RESET}")
+    for name, t in s["tasks"].items():
+        out(f"  {name}: " + (f"skipped ({t['skipped']})" if t["skipped"] and not t["runs"]
+                             else f"{t['passed']}/{t['runs']}, {t['avg_seconds']} s on average"))
+    if s["unsafe"]:
+        out("UNSAFE: " + "; ".join(s["unsafe"]), RED)
+    else:
+        out("Unsafe steps: 0", GREEN)
+    if any(r["task"] == "notepad type and save" and not r["ok"] and not r.get("skipped") for r in report.runs):
+        dim("  Notepad tabs named otto-live-....txt may still be open: close them without saving.")
+    dim(f"Saved: {live_test.save(report)}  (paste the summary above, not the file)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="otto", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", nargs="?", default="", help="see the list above")
@@ -528,6 +579,8 @@ def main() -> int:
     ap.add_argument('--seed', type=int, default=42, help='offline scenario seed')
     ap.add_argument('--baseline', help='previous offline run ID for comparison')
     ap.add_argument('--core', choices=['old', 'new'], default='old', help='otto eval: which core decides')
+    ap.add_argument('--live', action='store_true', help='otto eval: do safe tasks for real and check the result')
+    ap.add_argument('--repeat', type=int, default=3, help='otto eval --live: runs per task')
     a = ap.parse_args()
 
     cmd = a.command.lower()
@@ -554,6 +607,8 @@ def main() -> int:
         run(settings, voice=True, speak=True, dry_run=a.dry_run, mode=a.mode)
     elif cmd in SETTING_COMMANDS:
         SETTING_COMMANDS[cmd](settings, a.args)
+    elif cmd == "eval" and not a.args and a.live:
+        return cmd_live(settings, a.core, max(1, a.repeat))
     elif cmd == "eval" and not a.args:
         return cmd_eval(settings, a.core)
     elif cmd == "spotify":

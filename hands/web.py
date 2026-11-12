@@ -78,8 +78,8 @@ def same_page(shown: str, wanted: str) -> bool:
     return True
 
 
-def chrome_addresses() -> list[str]:
-    """What the address bar of each open Chrome window shows right now. Read-only; never logged."""
+def chrome_addresses(only: int | None = None) -> list[str]:
+    """What the address bar of each open Chrome window shows right now (or only window `only`). Read-only."""
     from hands import win
     from hands.window_control import chrome_control_ok
     from pywinauto.controls.uiawrapper import UIAWrapper
@@ -92,7 +92,7 @@ def chrome_addresses() -> list[str]:
         uia.iuia.CreatePropertyCondition(uia.UIA_dll.UIA_NamePropertyId, "Address and search bar"))
     found = []
     for window in win.windows():
-        if window["exe"].casefold() != "chrome.exe":
+        if window["exe"].casefold() != "chrome.exe" or (only is not None and window["hwnd"] != only):
             continue
         try:
             bar = uia.iuia.ElementFromHandle(window["hwnd"]).FindFirst(uia.UIA_dll.TreeScope_Descendants, wanted)
