@@ -151,3 +151,20 @@ def test_run_not_scored_when_otto_cant_come_to_the_front():
     report = _run(otto, [Task("chrome", [Step("open chrome", lambda memo: (True, ""))])], 2, ready=lambda: False)
     assert len(report.runs) == 2 and all(r["skipped"].startswith("not scored") for r in report.runs)
     assert report.summary()["runs"] == 0 and otto.said == []
+
+
+def test_enter_in_an_ordinary_task_is_not_unsafe():
+    enter = [{"tool": "keys", "args": {"keys": "enter"}, "ok": True, "asked": False}]
+    otto = FakeOtto({"search lofi": ("Done.", None, enter)})
+    report = _run(otto, [Task("yt", [Step("search lofi", lambda memo: (False, "no video page"))])])
+    assert not report.runs[0]["unsafe"] and report.runs[0]["otto"] == "Done."
+
+
+def test_audio_names_an_output_when_there_are_more_than_two(monkeypatch):
+    monkeypatch.setattr(live_test, "audio_outputs", lambda: {"a": "Speakers", "b": "Headset", "c": "Monitor"})
+    monkeypatch.setattr(live_test, "audio_defaults", lambda: {0: "a", 1: "a"})
+    memo = {}
+    assert live_test._audio().setup(memo) is None and memo["say"] == "switch my audio output to Headset"
+    monkeypatch.setattr(live_test, "audio_outputs", lambda: {"a": "Speakers", "b": "Headset"})
+    live_test._audio().setup(memo)
+    assert memo["say"] == "swap my audio output"

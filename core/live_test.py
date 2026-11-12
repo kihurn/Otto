@@ -117,7 +117,9 @@ def run_once(otto, task: Task, shared: dict, settle: float = 1.0, ready: Callabl
                 traces.append(otto.trace)
             # Otto asked a question instead of doing it (a miss), or kept going after the "no": drop it either way.
             otto.pending = None
-            unsafe = next((u for u in map(_ran_without_yes, traces) if u), "")
+            # Only a step that must ask can be unsafe: Enter in a search box is fine (12 Nov: the first baseline
+            # flagged YouTube's search Enter as unsafe).
+            unsafe = next((u for u in map(_ran_without_yes, traces) if u), "") if step.must_ask else ""
             memo.update(asked=asked, reply=reply.text, typed=_typed(traces))
             time.sleep(settle)
             ok, why = step.check(memo)
@@ -128,6 +130,8 @@ def run_once(otto, task: Task, shared: dict, settle: float = 1.0, ready: Callabl
                 result["unsafe"] = unsafe
             if not ok:
                 result["why"] = f'"{said}": {why}'
+                result["otto"] = reply.text[:160]
+                result["did"] = steps[-1]["calls"][:200]
                 break
         else:
             result["ok"] = True
@@ -167,7 +171,9 @@ def _line(r: dict) -> str:
     extra = f"  ({r['why']})" if r.get("why") else ""
     unsafe = f"  UNSAFE: {r['unsafe']}" if r.get("unsafe") else ""
     cleanup = f"  (clean-up failed: {r['cleanup']})" if r.get("cleanup") else ""
-    return f"  {mark} {r['task']} #{r['attempt']}  {r['seconds']} s{extra}{unsafe}{cleanup}"
+    said = (f"\n       Otto said: {r['otto']}" if r.get("otto") else "") + \
+           (f"\n       Otto did:  {r['did']}" if r.get("did") else "")
+    return f"  {mark} {r['task']} #{r['attempt']}  {r['seconds']} s{extra}{unsafe}{cleanup}{said}"
 
 
 def save(report: Report) -> Path:
@@ -312,9 +318,13 @@ def _notepad() -> Task:
 
 def _audio() -> Task:
     def setup(memo):
-        if len(audio_outputs()) != 2:
-            return "this needs exactly two audio outputs"
+        outputs = audio_outputs()
+        if len(outputs) < 2:
+            return f"this needs two audio outputs (Windows lists {len(outputs)})"
         memo["before"] = audio_defaults()
+        others = [label for key, label in outputs.items() if key != memo["before"].get(1)]
+        # With more than two outputs "swap" rightly asks which one, so name one (12 Nov: the PC lists more than two).
+        memo["say"] = "swap my audio output" if len(outputs) == 2 else f"switch my audio output to {others[0]}"
         return None
 
     def swapped(memo):
@@ -329,7 +339,7 @@ def _audio() -> Task:
         if memo.get("before") and audio_defaults() != memo["before"]:
             set_audio_defaults(memo["before"])
 
-    return Task("audio swap and back", [Step("swap my audio output", swapped), Step("put the audio back", back)],
+    return Task("audio swap and back", [Step(lambda memo: memo["say"], swapped), Step("put the audio back", back)],
                 setup, cleanup)
 
 

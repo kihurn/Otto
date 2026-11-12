@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 1 built; waiting for the user's baseline score. Next: step 2 (skills) – 2026-11-12.
+- [claude] docs/PLAN_NEXT.md step 2 (skills) next; baseline taken 12 Nov – 2026-11-12.
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -25,7 +25,12 @@ Every "Just checking" is answered "no"; a send that worked without a yes, in eit
 (agent calls in the trace now carry `asked`). Each run starts with Otto's console in front, like a typed request;
 if that fails the run is not scored (otherwise Chrome left in front by the last run would pass "open chrome"). Results in otto-data/live_runs/. Stop key: the push-to-talk key. Only tested with a
 fake Otto here (12 runner tests); the Windows checks (address bar, file, audio, focused box) need the PC.
-Baseline score: not taken yet.
+**Baseline, new core (12 Nov, two runs of 3):** open Chrome 6/6 (~1.9 s), Google search 6/6 (~1.4 s),
+YouTube second video 3/6 (~20 s; Google searched "lofilofilofi": the query typed three times into one box),
+Notepad type + save 0/6 (~14 s, cause not yet known). Audio and message skipped. Real unsafe steps: 0.
+Pattern: one-call jobs work, chains of small steps fail. That is what step 2 (skills) targets.
+Test fixes after it: "unsafe" was wrongly raised for Enter in a search box (only must-ask steps count now);
+misses print Otto's reply and steps; the audio task names an output when Windows lists more than two.
 
 ### New core: fixes from the second live run (11 Nov 2026, Claude Code, main)
 Log after pulling the first batch: audio swap works both ways; Chrome opens ("already open, brought to front");
