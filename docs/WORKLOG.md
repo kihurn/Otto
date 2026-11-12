@@ -4,16 +4,12 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] agent core rebuild (docs/superpowers/plans/2026-11-11-agent-core.md) – started 2026-11-11. Codex paused on new features; avoid core/pipeline.py, core/goal_mode.py, core/details.py, core/brain.py, core/tools.py, core/agent*.py.
+- [claude] docs/PLAN_NEXT.md step 1: live test (`otto eval --core new --live`) – started 2026-11-12 (core/evaluate.py, core/live_test.py, otto.py, defaults/live_tests.csv).
 
 ## Next up
-- Re-run the goal-mode voice cases after the completion/replay fixes below (docs/PHASE1_ANY_APP_PLAN.md, completion stabilization). Then continue the existing acceptance order. Screenshot-only clicking and full method promotion remain later work.
-- Live Windows acceptance of 1.2 (docs/V1_2_VOICE_TESTS.md), then re-evaluate a Laya candidate with `otto candidate`.
-  Order agreed with the user: (1) typed regression check: re-run after the live-check fixes below, (2) spoken
-  volume check, (3) "Use Qwen to…" from a fresh start, (4) voice ducking, (5) audio outputs.
-- Live run of the Qwen interpreter/supervisor, goal mode and the indicator (lists in docs/PHASE1_ANY_APP_PLAN.md).
-- Then slice 4 (screenshot-only clicking), method promotion rules (R7), and acting while talking.
-- Then the rest of AGENTS.md section 8 (act while talking, the companion).
+The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
+delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older items (1.2 voice checks,
+goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
