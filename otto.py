@@ -529,6 +529,8 @@ def cmd_live(settings, core: str, repeat: int) -> int:
     out("  and type a test message in a chat with yourself. Every 'Just checking' question is answered NO,")
     out("  so nothing is sent. Don't touch the mouse or keyboard while it runs.")
     out(f"  To stop: press {key.upper()} (stops the current task and the test).")
+    chat = input("Message task: open a chat with YOURSELF first (your own Discord DM, WhatsApp 'Message yourself'),\n"
+                 "  then type that app's name here, or just press Enter to skip it: ").strip()
     if input("Press Enter to start (or type q to quit): ").strip().lower().startswith("q"):
         return 0
     otto = Otto(settings, dry_run=False, say=dim)
@@ -547,7 +549,8 @@ def cmd_live(settings, core: str, repeat: int) -> int:
     except Exception:
         keys = None
     try:
-        report = live_test.run(otto, live_test.tasks(), repeat, core, out=out, stopped=stop.is_set)
+        report = live_test.run(otto, live_test.tasks(chat), repeat, core, out=out, stopped=stop.is_set,
+                               ready=live_test.otto_to_front)
     finally:
         if keys:
             keys.stop()
