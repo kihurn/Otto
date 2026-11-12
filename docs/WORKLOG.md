@@ -29,6 +29,14 @@ the words "Ctrl+S" as text, clicked tabs, never saved (Otto's save check caught 
   1,427. Menu: 20 tools. No tests removed; the save tests now run through the skill. 661 tests pass.
 - Not confirmed on the PC: YouTube's results address still matches after YouTube redirects; Notepad's tab names
   read through UI Automation the same way as in the log; Save As title wording.
+- **Live re-run (13 Nov), with the user's model change** (decide job on a local Gemma 4 12B QAT GGUF, thinking
+  off, instead of Qwen3-VL 8B): open Chrome 3/3 (1.9 s), Google 3/3 (1.1 s), YouTube 2/3 (34 s), Notepad save
+  3/3 (25 s, was 0/6), audio swap and back 3/3 (25 s, first run of this task), message skipped; unsafe 0.
+  14/15 vs 15/24. Two things changed at once (skills and model), so the gain can't yet be split between them.
+  The YouTube miss: search worked (results page shown), then a click at a screenshot position (485,350) missed
+  and Otto still said "I've started playing the second video" (a click counts as backing "playing").
+  Slower: about 2x per task, and a one-tool job (audio swap) took 22-30 s for two requests.
+  Unconfirmed: whether Gemma gives screenshot positions on the same 0-1000 grid as Qwen3-VL.
 
 ### Live test, step 1 of PLAN_NEXT (12 Nov 2026, Claude Code, main)
 `otto eval --core new --live [--repeat 3]` (core/live_test.py): six safe tasks done for real, each 3 times,
