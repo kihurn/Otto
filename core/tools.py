@@ -106,7 +106,7 @@ def schemas() -> list[dict]:
 
 
 # Old tool names that may still appear in saved examples (otto-data/agent_examples.jsonl).
-ALIASES = {"web_search": "look_up"}
+ALIASES = {"web_search": "look_up", "google": "search"}   # google: now the search skill
 
 
 def validate(name: str, args) -> str | None:
@@ -143,7 +143,7 @@ def validate(name: str, args) -> str | None:
 
 
 # These act on (or read) whatever window is in front, so Otto's own window must not be the one in front.
-ON_FRONT_WINDOW = {"type", "keys", "click", "scroll", "drag", "read_window", "look", "point"}
+ON_FRONT_WINDOW = {"type", "keys", "click", "scroll", "drag", "read_window", "look", "point", "save"}
 
 
 def call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
@@ -259,7 +259,7 @@ def _dry(ctx: ToolContext, what: str) -> ToolResult:
 
 LINK_SCHEMES = {"spotify", "ms-settings", "mailto", "steam", "discord", "ms-windows-store", "zoommtg", "msteams"}
 # Calls after which the window may look different: the numbers from read_window no longer apply.
-CHANGES_WINDOW = {"open", "google", "close", "click", "keys", "type", "drag", "scroll", "media"}
+CHANGES_WINDOW = {"open", "search", "close", "click", "keys", "type", "drag", "scroll", "media"}
 
 
 # ---- the tools ------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ def _open(ctx, what):
         return _action(ctx, "open_site", site=what)
     # Unknown words are not an address (11 Nov: "open a new tab in Chrome" was quietly Googled instead).
     return ToolResult(False, f'I don\'t know an app or website called "{what}". For a new tab use keys ctrl+t; '
-                             "to search, use google.")
+                             "to search, use search.")
 
 
 @tool("close", "close or minimise an app (if it shows a message, Otto asks you instead of answering it)",
@@ -377,18 +377,12 @@ def _note(ctx, text, title="", add=""):
     return _action(ctx, "new_note", text=text, title=title or None)
 
 
-@tool("google", "search Google in Chrome, where the user can see the results (for search, google, look up)",
-      {"query": "what to search for"})
-def _google(ctx, query):
-    return _action(ctx, "web_search", query=query)
-
-
 @tool("look_up", "find facts to answer a question in your own words (nothing appears on screen; not for "
-      "\"search\" or \"google\" requests, use google for those)", {"query": "what to look up"}, read_only=True)
+      "\"search\" or \"google\" requests, use search for those)", {"query": "what to look up"}, read_only=True)
 def _look_up(ctx, query):
     from core import answers
     if re.search(r"\b(?:search|google)\b", ctx.request, re.I):
-        return ToolResult(False, "The user asked to search, so they want to see it: use google instead.")
+        return ToolResult(False, "The user asked to search, so they want to see it: use search instead.")
     found = answers.web_search(query)
     if not found:
         return ToolResult(False, "No web results (is local search set up? setting search.searxng_url).")
@@ -605,6 +599,9 @@ def _keys(ctx, keys):
         return _dry(ctx, f"press {keys}")
     if win.focused_is_password():
         return ToolResult(False, "The focused box is a password field, so I won't press keys in it.")
+    if "+".join(p for p in keys.lower().replace(" ", "").split("+") if p) == "ctrl+s":
+        from core.skills import save
+        return save(ctx)                     # the save skill presses it and checks that it really saved
     win.hotkey(keys)
     return ToolResult(True, f"Pressed {keys}.", {"pressed": keys})
 
@@ -620,3 +617,7 @@ def _ask_user(ctx, question, options=""):
       read_only=True)
 def _done(ctx, say, ok="true"):
     return ToolResult(ok.lower() not in ("false", "no", "0"), say, {"end": "done"})
+
+
+# The skills (whole jobs that check themselves) join the same menu.
+from core import skills  # noqa: E402,F401

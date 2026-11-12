@@ -244,7 +244,7 @@ def _selected_all(ctx) -> bool:
 
 def check(name: str, args: dict, ctx) -> str | None:
     """None = go ahead. Otherwise the question to ask (the call waits for a yes)."""
-    if ctx.confirmed or name in ("read_window", "find_files", "look_up", "google", "ask_user", "done", "look", "point",
+    if ctx.confirmed or name in ("read_window", "find_files", "look_up", "search", "ask_user", "done", "look", "point",
                                  "scroll"):
         return None
     if name == "keys":

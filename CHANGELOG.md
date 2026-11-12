@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Skills (whole jobs that check themselves), first two: `search` (Google, YouTube, Spotify; opens the results
+  page directly, so nothing is typed, then checks the address bar) and `save` (presses ctrl+s and checks the
+  window stopped showing unsaved changes, e.g. Notepad's "Modified" tab). Otto can't say "Saved" unless `save`
+  confirmed it.
 - `otto eval --core new --live`: six safe tasks done for real on your screen (3 times each) and scored by what
   the PC shows (file on disk, address bar, audio device), never by what Otto says. Every question is answered
   "no", so nothing is sent; a send without a question is reported as unsafe. Seconds per task are recorded.

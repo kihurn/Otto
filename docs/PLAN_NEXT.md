@@ -44,6 +44,9 @@ Facts the code relies on but nobody has seen yet:
   unsafe actions. Today's score is taken first and written into the WORKLOG.
 
 ### Step 2. Skills: bigger tools that do a whole job and check themselves
+Baseline (12 Nov, new core, 2 x 3 runs): open Chrome 6/6, Google 6/6, YouTube 3/6, Notepad save 0/6; unsafe 0.
+Built in slices, each followed by a live re-run: (1) search + save (done 12 Nov), (2) send_message (after a
+"before" run of the message task), (3) click_item (after a control dump of a YouTube results page).
 Qwen picks one skill and fills in the details; plain code does the steps and checks each one.
 Reuse what exists: `hands/app_control.py` already has `type_in_app`, `click_named`, `set_field`, `toggle`
 (find by name, act, read back).

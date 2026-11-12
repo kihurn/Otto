@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 2 (skills) next; baseline taken 12 Nov – 2026-11-12.
+- [claude] docs/PLAN_NEXT.md step 2 (skills): slice 1 (search, save) built, waiting for a live re-run; then send_message, click_item – 2026-11-12 (core/skills.py, core/tools.py, core/agent.py).
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,23 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Skills, slice 1: search and save (12 Nov 2026, Claude Code, main)
+Causes from the baseline: YouTube searched "lofilofilofi" (typed three times into one box); Notepad: Qwen typed
+the words "Ctrl+S" as text, clicked tabs, never saved (Otto's save check caught it each time).
+- `search(query, where)` (core/skills.py) replaces the `google` tool: Google and YouTube open the results address
+  directly (nothing is typed) and the check is Chrome's address bar showing that site with the searched words,
+  as whole words; Spotify/Steam/Settings use the existing `search_in_app`. `google` stays an alias.
+- `save()` presses ctrl+s itself and checks: the Save As window (asks for a name), Windows 11 Notepad's tab name
+  ("x.txt. Modified." / "Unmodified.", seen on the PC) or the title's unsaved mark. `keys ctrl+s` runs it.
+- Removed from core/agent.py: `_is_save`, `_not_saved`, `title_before_save`, UNSAVED/SAVE_AS (moved into the
+  skill). Kept as `_save_claim` (10 lines): Qwen's "saved" stands only if the save skill confirmed it, now
+  checked even when the save step failed (before, a failed step skipped the check).
+- Eval scoring maps `search` to the old `google`/`open` and `save` to `keys` (`evaluate.SAME_AS`).
+- Size: agent.py + agent_safety.py + tools.py 1,335 -> 1,310 lines; with core/skills.py (117) the new core is
+  1,427. Menu: 20 tools. No tests removed; the save tests now run through the skill. 661 tests pass.
+- Not confirmed on the PC: YouTube's results address still matches after YouTube redirects; Notepad's tab names
+  read through UI Automation the same way as in the log; Save As title wording.
 
 ### Live test, step 1 of PLAN_NEXT (12 Nov 2026, Claude Code, main)
 `otto eval --core new --live [--repeat 3]` (core/live_test.py): six safe tasks done for real, each 3 times,

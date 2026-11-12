@@ -45,6 +45,7 @@ OLD_TO_TOOL = {
     "app_goal": "", "visual_task": "",
 }
 LOOP_ACTIONS = {"app_goal", "visual_task"}
+SAME_AS = {"search": {"google", "open"}, "save": {"keys"}}
 
 
 @dataclass
@@ -156,7 +157,8 @@ def judge(case: EvalCase, d: Decision) -> tuple[bool, str]:
         return False, d.reply
     if case.first_tool:
         wanted = {"" if t.strip() == "none" else t.strip() for t in case.first_tool.split("|")}
-        if d.tool not in wanted:
+        # Newer tool names count as the ones older eval lists were written with (your eval.csv wins over defaults).
+        if d.tool not in wanted and not (wanted & SAME_AS.get(d.tool, set())):
             why.append(f"tool {d.tool or 'none'}, expected {case.first_tool}")
     details = " ".join(str(v) for v in d.args.values()).casefold()
     missing = [a for a in case.args if a.casefold() not in details]

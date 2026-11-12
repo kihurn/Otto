@@ -28,7 +28,8 @@ REHEARSAL = ("This is a rehearsal (dry run): nothing is really done, and read_wi
              "There are no control numbers or screen positions in a rehearsal: type without a control number and "
              "use keys (for example enter) where the real task would. Never repeat a step or invent options.")
 NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
-ACTING = {"click", "type", "keys", "open", "google", "media", "close", "drag", "scroll", "note", "timer", "audio_output"}
+ACTING = {"click", "type", "keys", "open", "search", "save", "media", "close", "drag", "scroll", "note", "timer",
+          "audio_output"}
 
 RULES = """You are operating the user's Windows PC for them, one tool call at a time.
 Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few words>"}.
@@ -36,8 +37,10 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
 - To act inside a window, use read_window first and refer to controls by their number. Use look (a screenshot)
   when read_window shows nothing useful, and click by x,y from that image only then.
 - Open exactly the app the user named, never a similar one (Anaconda Prompt is not PowerShell).
-- Shortcuts: new tab ctrl+t, close tab ctrl+w, address bar ctrl+l, save ctrl+s, find ctrl+f, back alt+left,
-  reload f5. To search where the user can see it, use google. To open a site, open its name or full address.
+- To search (Google, YouTube, Spotify) use search; to save use save. Both do the whole job and check it.
+  Then, for "play the second video" and the like: read_window and click it by its number.
+- Shortcuts (with keys, never typed as text): new tab ctrl+t, close tab ctrl+w, address bar ctrl+l, find ctrl+f,
+  back alt+left, reload f5. To open a site, open its name or full address.
 - "This chat", "here", "this window" mean the window in front: read_window it, don't ask which.
 - Before saying something isn't there, read_window (or look) to check.
 - If the user says you didn't do something, read the window to see what happened, then do it properly.
@@ -234,8 +237,6 @@ def _loop(state: dict, brain) -> AgentResult:
             continue
         state["steps"] += 1
         ctx.why = why
-        if _is_save(name, args, ctx) and not ctx.dry_run and "title_before_save" not in state:
-            state["title_before_save"] = agent_safety.front(ctx).get("title", "")
         result = tools.call(name, args, ctx)
         after = _after_call(state, call, result)
         if after is not None:
@@ -248,17 +249,15 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     end = result.observed.get("end")
     calls.append(dict(call, ok=result.ok, say=result.say, asked=bool(result.asks),
                       blocked=bool(result.observed.get("blocked"))))
+    if "saved" in result.observed:
+        calls[-1]["saved"] = result.observed["saved"]          # the save skill's own check
     if end == "done":
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"])
         say = result.say
         if result.ok:
-            unbacked = _unbacked_claim(say, calls[:-1], state.get("request", ""))
-            if unbacked:
-                worked, say = False, unbacked
-                calls[-1].update(ok=False, say=say)
-        if worked:
-            problem = _not_saved(state, say)
+            problem = (_unbacked_claim(say, calls[:-1], state.get("request", ""))
+                       or _save_claim(say, calls[:-1], state.get("request", "")))
             if problem:
                 worked, say = False, problem
                 calls[-1].update(ok=False, say=say)
@@ -279,10 +278,6 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     return None
 
 
-UNSAVED = re.compile(r"^\s*\*|\*\s+-\s|[●•]|\bunsaved\b|\bnot saved\b", re.I)
-SAVE_AS = re.compile(r"^\s*save (?:as|file)\b", re.I)
-
-
 # What Qwen's last sentence claims -> the tool calls that would back the claim up.
 # What Qwen's last sentence claims -> what the request must have asked for, and the tools that would back it up.
 _ASKED_TYPE = r"\b(?:type|write|say|reply|text|enter|fill)\b"
@@ -292,7 +287,7 @@ CLAIMS = [(r"\b(?:typed|written|wrote|entered)\b", _ASKED_TYPE, {"type"}, "I did
           (r"\b(?:clicked|pressed|tapped)\b", r"\b(?:click|press|tap|select|choose|hit)\b", {"click", "keys"},
            "I didn't manage to click it."),
           (r"\b(?:opened|is open|launched)\b", r"\b(?:open|launch|start|go to|bring up)\b",
-           {"open", "google", "read_window"}, "I didn't manage to open it."),
+           {"open", "search", "read_window"}, "I didn't manage to open it."),
           (r"\b(?:playing|played)\b", r"\b(?:play|put on|listen)\b", {"media", "click", "keys"},
            "I didn't manage to play it.")]
 
@@ -344,36 +339,15 @@ def _wrong_app(state: dict, name: str, args: dict) -> str:
     return ""
 
 
-def _is_save(name: str, args: dict, ctx) -> bool:
-    if name == "keys":
-        return agent_safety._keys(args.get("keys", "")) == "ctrl+s"
-    if name == "click" and args.get("control") is not None:
-        target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None)
-        return bool(re.search(r"\bsave\b", str((target or {}).get("name", "")), re.I))
-    return False
-
-
-def _not_saved(state: dict, say: str) -> str:
-    """Qwen's own "Saved." is not proof (11 Nov live log: it clicked some control and said "Saved the file.").
-    A save counts as confirmed only when the window showed unsaved changes before Save and doesn't any more.
-    Returns the reply to use instead, or "" to keep Qwen's."""
-    ctx, calls = state["ctx"], state["calls"]
-    pressed = any(c.get("ok") and (c["tool"] == "keys" and agent_safety._keys(c["args"].get("keys", "")) == "ctrl+s"
-                                   or c["tool"] == "click" and re.search(r"\bsave\b", str(c.get("say", "")), re.I))
-                  for c in calls)
-    claims = re.search(r"\bsaved\b", say, re.I)
-    if ctx.dry_run or not (pressed or claims):
+def _save_claim(say: str, calls: list[dict], request: str) -> str:
+    """Qwen's own "Saved." is not proof (11 Nov: it clicked some control and said "Saved the file."). When the
+    request asked to save, the claim stands only if the save skill confirmed it; otherwise its own words are used."""
+    if not re.search(r"\bsaved\b", say, re.I) or not re.search(r"\bsave\b", request, re.I):
         return ""
-    if not pressed:
+    saves = [c for c in calls if "saved" in c]
+    if not saves:
         return "I didn't actually press Save, so I can't say it's saved."
-    title = agent_safety.front(ctx).get("title", "")
-    if SAVE_AS.search(title):
-        return "The Save As window is open. Tell me the file name (and folder) to use."
-    if UNSAVED.search(title):
-        return "It doesn't look saved yet: the window still shows unsaved changes."
-    if UNSAVED.search(state.get("title_before_save", "")):
-        return ""
-    return "I pressed Save, but couldn't confirm it saved."
+    return "" if saves[-1]["saved"] else saves[-1]["say"]
 
 
 def left_over(calls: list[dict]) -> str:

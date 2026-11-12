@@ -231,6 +231,9 @@ def _live_notepad(monkeypatch, before, after=None):
     monkeypatch.setattr(agent_safety, "otto_in_front", lambda c: False)
     monkeypatch.setattr(win, "hotkey", lambda keys: title.update(now=after if after is not None else before))
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    from core import skills
+    monkeypatch.setattr(skills, "SAVE_WAIT", 0)
+    monkeypatch.setattr(skills, "_tab_names", lambda hwnd: [])
     return tools.ToolContext(dry_run=False)
 
 
@@ -320,7 +323,7 @@ def test_open_refuses_words_that_are_not_an_app_or_site(ctx):
 
 def test_google_tool_opens_a_visible_search(ctx):
     from core import tools
-    r = tools.call("google", {"query": "banana bread"}, ctx)
+    r = tools.call("search", {"query": "banana bread"}, ctx)
     assert r.ok and "banana bread" in r.say
 
 
@@ -476,9 +479,9 @@ def test_unmute_is_its_own_step(ctx):
 
 def test_look_up_refused_when_the_user_asked_to_search(ctx):
     from core import agent
-    brain = Scripted(call("look_up", query="banana bread"), call("google", query="banana bread"), call("done", say="Searched."))
+    brain = Scripted(call("look_up", query="banana bread"), call("search", query="banana bread"), call("done", say="Searched."))
     r = agent.run("can you search for banana bread?", [], brain, ctx)
-    assert not r.calls[0]["ok"] and "google" in r.calls[0]["say"] and r.calls[1]["ok"]
+    assert not r.calls[0]["ok"] and "search" in r.calls[0]["say"] and r.calls[1]["ok"]
 
 
 def test_old_web_search_name_still_works(ctx, monkeypatch):
