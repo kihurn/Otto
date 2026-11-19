@@ -283,7 +283,10 @@ def test_send_question_ignores_a_box_that_does_not_hold_the_typed_text(monkeypat
     monkeypatch.setattr(agent_safety, "focused_text", lambda: "a whole page of other people's messages " * 20)
     c = tools.ToolContext(dry_run=False)
     c.history = [{"tool": "read_window", "args": {}, "ok": True}, {"tool": "type", "args": {"text": "ok sure"}, "ok": True}]
-    assert agent_safety.check("keys", {"keys": "enter"}, c) == 'send "ok sure" in Discord'
+    # Neither the page nor the typed text, which may not be what is sent (advisor review 19 Nov).
+    assert agent_safety.check("keys", {"keys": "enter"}, c) == "send the message in Discord"
+    monkeypatch.setattr(agent_safety, "focused_text", lambda: "see you at 6")       # the draft was edited
+    assert agent_safety.check("keys", {"keys": "enter"}, c) == 'send "see you at 6" in Discord'
 
 
 def test_named_apps_are_spelled_out_for_qwen(monkeypatch):

@@ -55,7 +55,17 @@ Live test and figures (5, 9-11):
   skills.py 130. It grew by about 140 lines: safety fixes outrank rule 2 (rule 4 of the plan).
 - 698 tests pass (about 30 new); no test was removed; two old live-test checks and one save-that test were
   rewritten to the stricter rules.
-- Open decision: sending when the box can't be read at question time (allowed now, as before).
+- Second pass after an advisor review of these fixes: the send question now quotes the box's own text whenever it
+  can be read (an edited draft "see you at 6" is read out, not the typed "5"; a long unrelated text is not
+  quoted at all); terminal text must appear as whole words in the user's words, and letter-by-letter keys are
+  refused there; an answer to Otto's own question counts as the user's words; the message check finds the box
+  holding the text while the question is open and re-reads that same box after "no" (no readable box:
+  "couldn't be checked", never "unsafe"); risky-control detection in the live test looks at clicks only;
+  "Don't save" / "Discard" buttons always need a yes (the save-changes rule beyond the close tool).
+- Known limit: after a Save As (name typed, Enter), Otto can't confirm the new file, so it says so and the job
+  doesn't count as finished.
+- Open decisions for the user: sending when the box can't be read at question time (allowed now, the question
+  shows the typed text); spoken terminal commands are refused unless the exact command is in the request.
 
 ### Voice run after the speed batch (19 Nov 2026, Claude Code, main)
 The time lines showed: each Gemma call takes about 3.5-7 s, and "read" is as big as the whole prompt on every

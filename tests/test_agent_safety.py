@@ -315,3 +315,24 @@ def test_a_changed_draft_is_asked_about_again(monkeypatch):
     brain.replies.append(call("done", say="Sent."))
     r3 = agent.resume(r2.pending, brain, yes=True)
     assert pressed == ["enter"] and r3.status == "done"
+
+
+def test_terminal_rule_needs_whole_words_and_no_letter_by_letter(make, monkeypatch):
+    from core import tools
+    from hands import apps, win
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    pressed = []
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    ctx = make("powershell.exe", "Windows PowerShell", "")
+    ctx.request = "delete my temp files"
+    assert not tools.call("type", {"text": "del"}, ctx).ok                 # "del" is not the user's word
+    r = tools.call("keys", {"keys": "d"}, ctx)
+    assert not r.ok and "spelled out yourself" in r.say and not pressed
+    assert tools.call("keys", {"keys": "ctrl+c"}, ctx).ok                   # a real shortcut is still fine
+
+
+def test_dont_save_needs_a_yes(make):
+    from core.agent_safety import check
+    ctx = make("notepad.exe", "Notepad", "", controls=[{"id": 3, "name": "Don't save", "type": "Button"}])
+    assert "unsaved changes" in check("click", {"control": 3}, ctx)

@@ -629,8 +629,10 @@ def _type(ctx, text, control=None):
 
 
 def _user_said(text: str, request: str) -> bool:
+    """The text appears in the user's own words as whole words ("del" is not in "delete my temp files")."""
     flat = lambda x: " ".join(str(x).lower().split()).strip(" \"'`")
-    return bool(flat(text)) and flat(text) in flat(request)
+    said = flat(text)
+    return bool(said) and re.search(rf"(?<![\w-]){re.escape(said)}(?![\w-])", flat(request)) is not None
 
 
 @tool("keys", "press keys or a shortcut, e.g. ctrl+s, pagedown, enter", {"keys": "the keys, joined with +"})
@@ -640,6 +642,11 @@ def _keys(ctx, keys):
         return _dry(ctx, f"press {keys}")
     if win.focused_is_password():
         return ToolResult(False, "The focused box is a password field, so I won't press keys in it.")
+    from core import agent_safety
+    mods, last = win.parse_hotkey(keys)
+    if len(last) == 1 and not set(mods) - {"shift"} and agent_safety._is_command(agent_safety.front(ctx)):
+        # Letter by letter would spell a command no one said, and the run question couldn't show it.
+        return ToolResult(False, "In a terminal or Run box I only type a command you spelled out yourself, with type.")
     if "+".join(p for p in keys.lower().replace(" ", "").split("+") if p) == "ctrl+s":
         from core.skills import save
         return save(ctx)                     # the save skill presses it and checks that it really saved

@@ -26,6 +26,9 @@ SEND_KEYS = {"enter", "ctrl+enter", "shift+enter"}
 DELETE_KEYS = {"delete", "del", "shift+delete", "shift+del", "ctrl+d"}
 SELECT_ALL = {"ctrl+a"}
 RUN_BUTTONS = re.compile(r"^(run|ok|open|execute)$", re.I)
+# An app's own "save changes?" answer that throws work away: always the user's call (11 Nov rule). The close tool
+# stops before this; this covers the same message reached another way (Alt+F4, the X button).
+DISCARD = re.compile(r"\b(?:don'?t save|do not save|discard(?: changes)?|don'?t keep|close without saving)\b", re.I)
 
 
 # In a dry run nothing is really open, so the app's name stands in for its program file.
@@ -168,13 +171,17 @@ def _send_question(ctx, w: dict, typed: str) -> str:
     Otto typed, e.g. text left over from an earlier try) and the window's title (which names the chat in most apps)."""
     box = (None if ctx.dry_run else focused_text()) or ""
     box = " ".join(box.split())
-    # The box's own text only when it holds what was typed (focus may be on a pane full of other text).
-    if typed and typed.strip() and " ".join(typed.split()) in box:
-        shown = box
+    # Whenever the box can be read and holds something, its own text is what would be sent, so that is what the
+    # question reads out, even if it isn't what Otto typed (an edited draft; Codex/advisor review 19 Nov). Only an
+    # unreadable or empty box falls back to the typed text.
+    if box:
+        # A page of other text (focus on the chat history) is not quoted, and neither is the typed text then: the
+        # question names no text rather than text that may not be what is sent.
+        shown = box if len(box) <= 300 or (typed and " ".join(typed.split()) in box) else ""
     elif typed:
         shown = typed.strip()
     else:
-        shown = box if len(box) <= 300 else ""
+        shown = ""
     place = re.sub(r"\(\d+\+?\)\s*", "", w.get("title", "")).strip() or _app_name(w)   # no unread counts
     to = re.search(r"\b(?:message|reply|write) to (.+)$", w.get("focused") or "", re.I)
     if to and to[1].strip().lower() not in place.lower():
@@ -313,6 +320,8 @@ def check(name: str, args: dict, ctx) -> str | None:
         label = name_at(*to_screen(ctx, args.get("x", 0), args.get("y", 0)))
         if label is None:
             return "click there (I couldn't check what is under that spot)"
+        if DISCARD.search(label):
+            return f'press "{label}" (unsaved changes would be lost)'
         if label and RISKY_WORDS.search(label):
             w = front(ctx)
             if re.search(r"\bsend\b", label, re.I) and _is_message(w):
@@ -325,6 +334,8 @@ def check(name: str, args: dict, ctx) -> str | None:
         from hands.apps import RISKY_WORDS
         target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None)
         label = " ".join(str((target or {}).get(k) or "") for k in ("name", "automation_id")).strip()
+        if label and DISCARD.search(label):
+            return f'press "{(target or {}).get("name") or label}" (unsaved changes would be lost)'
         if label and RISKY_WORDS.search(label):
             w = front(ctx)
             if re.search(r"\bsend\b", label, re.I) and _is_message(w):
