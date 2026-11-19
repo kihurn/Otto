@@ -25,6 +25,10 @@ partly matching prompt. The one-step finish worked ("change my audio output to A
   ("AirPods" heard at -1.04 was refused). A quiet "yes" to a confirm question is still refused.
 - Thanks and goodbyes answer instantly with no model ("Thank you." had gone to Gemma and ended "I got confused").
 - 675 tests pass (4 new).
+- `ollama run --verbose` on the PC: writing 41 tok/s (healthy, fully on the card); "prompt eval count 79, cached
+  74", so Ollama does reuse a prompt's start with this Gemma (the sliding-window guess above was wrong) and its
+  prompt_eval_count includes the reused part. "read" in the log now subtracts any cached count Ollama returns.
+  Run directly, the model thinks first (124 tokens, 3 s); Otto sends think=false (`brain.think false`).
 
 ### Speed batch, step 3a (19 Nov 2026, Claude Code, main)
 Voice run 19 Nov: everything worked, about 70% satisfied; "increase the volume to 80" was slow (Gemma, two calls).

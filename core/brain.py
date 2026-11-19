@@ -63,6 +63,14 @@ def _strip_json(text: str) -> str:
     return t
 
 
+def _new_tokens(out: dict) -> int | None:
+    """Prompt tokens Ollama really had to read: the prompt minus the start it reused (any "...cache..." count)."""
+    count = out.get("prompt_eval_count")
+    cached = next((v for k, v in out.items() if "cache" in k.lower() and isinstance(v, int) and not isinstance(v, bool)),
+                  0)
+    return None if count is None else max(0, count - cached)
+
+
 class Brain:
     def __init__(self, settings: dict):
         self.settings = settings
@@ -170,7 +178,9 @@ class Brain:
             # Roughly how big the prompt is (about 4 letters a token): what the context size must hold.
             "prompt_size": sum(len(str(m.get("content", ""))) for m in messages) // 4,
             # How much Ollama really had to read; much smaller than prompt_size when it reused the unchanged start.
-            "prompt_read": out.get("prompt_eval_count"), "reply_tokens": out.get("eval_count"),
+            # Ollama's prompt_eval_count includes the start it reused from the last call (19 Nov: "prompt eval
+            # count 79, cached 74" in `ollama run --verbose`); the reused part is reported separately, so take it off.
+            "prompt_read": _new_tokens(out), "reply_tokens": out.get("eval_count"),
             # Ollama's own timings (nanoseconds): reading speed and writing speed show whether the model is slow.
             "read_s": (out.get("prompt_eval_duration") or 0) / 1e9, "write_s": (out.get("eval_duration") or 0) / 1e9,
             "load_s": (out.get("load_duration") or 0) / 1e9,

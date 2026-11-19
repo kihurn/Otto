@@ -81,3 +81,10 @@ def test_think_setting_is_dropped_for_a_model_without_thinking(tmp_path, monkeyp
         return {"message": {"content": "ok"}}
     monkeypatch.setattr(b, "_post", post)
     assert b.ask("chat", "hello").text == "ok" and "think" in sent[0] and "think" not in sent[1]
+
+
+def test_reused_prompt_start_is_not_counted_as_read():
+    from core.brain import _new_tokens
+    assert _new_tokens({"prompt_eval_count": 79, "prompt_eval_cached_count": 74}) == 5
+    assert _new_tokens({"prompt_eval_count": 79}) == 79
+    assert _new_tokens({}) is None
