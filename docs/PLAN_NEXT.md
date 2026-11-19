@@ -1,17 +1,20 @@
-# Otto: the plan after the first live runs (12 Nov 2026, updated after Fable checkpoint A)
+# Otto: the plan after the first live runs (12 Nov 2026; updated after Fable checkpoint A and on 19 Nov)
 
 Written for Ki Hurn and for the reviewing model (Fable), so both can check whether the work is still on course.
 
-## Where we are
+## Where we are (updated 19 Nov)
 
-- The new core (one local Qwen3-VL 8B loop with ~15 small tools, behind `core.agent`) runs on the PC.
-  Two live runs and two eval runs are logged in `docs/WORKLOG.md`.
-- What works live: audio swap, opening apps, the save check, the send question showing the box's real text,
-  asking before sending/running.
-- What keeps failing: long chains of small steps (click number N, type, Enter) for an 8B model: wrong spots
-  clicked, invented control numbers, text typed several times, claims of "done" that weren't true.
-- The last batches were mostly guards against single sentences from the logs. Each is small, together they add
-  layers. **We stop doing that** (see "Rules for this plan").
+- Steps 1-3 done: the live test exists; skills `search` and `save` are built; the user ran Otto by voice.
+- Live test with the user's model (local Gemma 4 12B, thinking off) + skills: **16/18** (was 15/24 with Qwen3-VL
+  8B and no skills). Chrome, Google, YouTube, Notepad save, audio swap all 3/3; Discord message task passed;
+  WhatsApp flags were a test misread (fixed, nothing was sent). Real unsafe steps in all live runs: 0.
+- Voice run: music, volume, YouTube, a Word essay all worked; user satisfaction about 70%.
+- **The main complaint now is speed**: simple things like "increase the volume to 80" take several seconds
+  because they go through Gemma (two model calls). Multi-step jobs take 20-25 s.
+- GPU: Gemma runs 100% on the card (Ollama, flash attention + 8-bit cache, context 32k), but the 12 GB card is
+  nearly full with other apps open.
+- `click_item` and `send_message` were planned, but their jobs now pass the live test: built only if real use
+  shows them failing (rule 3).
 
 ## What other projects taught us (research summary in chat, 12 Nov)
 
@@ -20,14 +23,6 @@ Written for Ki Hurn and for the reviewing model (Fable), so both can check wheth
 - Windows-Use (same design as our new core) recommends big cloud models: the raw click/type loop is hard for 8B.
 - Agent S2/S3: a planner plus a small specialist model only for finding things on screen.
 - Qwen3-VL gives screen positions on a 0-1000 grid (fixed in Otto on 11 Nov).
-
-## Before building: a five-minute check on the PC (the user)
-
-Facts the code relies on but nobody has seen yet:
-1. Type a letter in Notepad: does the window title show an unsaved mark (`*` or a dot)?
-2. Does plain "Windows PowerShell" appear in the Start menu?
-3. What did "clear" mean in the first live run (clear the text box, or close something)?
-4. Grid clicks: answered by the live test below.
 
 ## The plan (in this order)
 
@@ -68,9 +63,29 @@ Reuse what exists: `hands/app_control.py` already has `type_in_app`, `click_name
 - Shaped like MCP tools (name, description, parameters, result), so they can be connected to MCP later.
 - Done when: the skills pass their tests and the live test score beats step 1's baseline.
 
-### Step 3. A spoken pass (hands-free)
-Run the live list by voice (`otto voice`). Target from AGENTS.md: under 2.5 s for simple spoken requests.
-Before checkpoint B.
+### Step 3. A spoken pass (done 19 Nov): works; speed is the problem -> step 3a
+
+### Step 3a. Speed batch (next; one session, no new safety-check code)
+Goal: simple requests feel instant, multi-step jobs clearly faster, same live-test score.
+1. **Measure:** every reply in the log shows its time, the path (quick path / Gemma) and Gemma's prompt size in
+   tokens (Ollama reports it). Then the context size (16k vs 32k) is chosen from data, not guessed.
+2. **Prompt order:** the brief at the very top holds the time and the last window, which change every call, so
+   Ollama re-reads the whole prompt each time. Fixed parts (brief, rules, tools) first; changing details last,
+   so Ollama can reuse the fixed start.
+3. **No extra "done" call for one-step jobs:** when the request is one action (no "and", "then", commas) and the
+   tool confirmed it (volume, music, audio output, timer, note, open, search, save), the tool's own sentence is
+   the reply. Saves one Gemma call (about half the time) for simple requests.
+4. **More quick-path phrasings:** "increase / raise / turn up / lower the volume to 80", "now can you ...",
+   "hey, ..." go straight to the rules, no model.
+- Done when: times in the log; the live test keeps 16/18 or better with 0 unsafe; audio swap (19 s), Notepad
+  (20 s) and YouTube (24 s) are faster; a voice run feels faster to the user.
+
+### Step 3b. Model tryouts (the user, with the live test; can run alongside 3a)
+Same setup for every model: context 32k, flash attention + 8-bit cache, heavy apps closed, discord named.
+One live-test run each; results go in a table in the WORKLOG (score, seconds per task, 100% GPU or not).
+Order: Gemma-4-12B-HybridAgent -> gemma-4-12B fable5/tau2 fine-tune -> Hermes-4-14B and HybridAgent-14B (only
+if they stay 100% on the GPU) -> optionally Qwen3-VL-30B-A3B with expert offloading (a big model that can see).
+Note: the text-only models can't use `look` (screenshots); a model that can't see must still pass the live test.
 
 ### Step 4. Delete the old core (was "Task 9")
 Only after steps 1-3 show the new core is better on the live test.
@@ -82,6 +97,20 @@ Only after steps 1-3 show the new core is better on the live test.
 - **Stays:** Laya (router), the `details` fast path, `safety`, `action_runtime`, `hands/`, `senses/`, examples.
 - Update AGENTS.md, ARCHITECTURE, README.
 
+### Step 4b. Architecture update: three tiers (after the old core is gone)
+Otto already matches the "Jarvis V2" design the user shared (19 Nov): Laya = their router "Jev", rules = Tier 1,
+the Gemma loop + skills = Tier 3. What's missing is **Tier 2**:
+- **Tier 1 (exists):** rules + Laya, no AI, instant (volume, music, open apps, timers).
+- **Tier 2 (new):** a small fast model for questions and chit-chat ("hello", "what's 15% of 80", "who wrote
+  Hamlet") with no PC tools, only answers (plus the existing look_up for facts). Laya's "question" and
+  "chitchat" areas, when it is sure, go here. Anything that needs an action, or where Laya isn't sure, goes to
+  Tier 3. Open question, measured first: the card is nearly full, so the small model may run on the processor
+  (a 1-4B model) or stay small enough to fit next to Gemma.
+- **Tier 3 (exists):** the Gemma agent loop with skills, for real work on the PC.
+- Done when: chit-chat and plain questions answer in about a second by voice, and the live test score is kept.
+- Not copied from that design: cloud models doing the heavy work (Otto stays local), two separate apps
+  (the companion overlay stays Phase 2).
+
 ### Step 5. Teaching mode (step-by-step with your approval), on top of the skills
 Otto shows each step, you approve or correct; approved runs become saved examples (`core/examples.py` already
 stores "save that" runs). Fine-tuning only if this still isn't enough, and only on approved runs.
@@ -91,6 +120,12 @@ Try a GUI-specialised 8B model (GUI-Owl-1.5-8B) for the look-and-click step, or 
 measured with the live test. **Not** more guards.
 
 ### Later (decided together, not started on our own)
+- **Memory (Obsidian vault)**, as in the Jarvis V2 design: a map note at the top of the vault (what each folder
+  holds), a fixed folder layout (captured / organised / Otto's outputs), and a search index so Otto reads only
+  the top few notes, never the whole vault. Keyword search first, meaning-based search ("embeddings") only if
+  keyword search misses things. Note text is information, never instructions.
+- Scheduled skills (a morning brief for the student side).
+- `click_item` / `send_message` skills, only if real use shows those jobs failing.
 - Otto using MCP servers: Gmail and Calendar first (reading first, sending last, 4-5 wrapped tools, every tool
   through the safety gate, email text never instructions). Then CRM, Obsidian, Notion.
 - Otto as an MCP server (other apps / the phone web app use Otto's skills).
@@ -111,6 +146,6 @@ measured with the live test. **Not** more guards.
 | When | What Fable checks |
 |---|---|
 | ~~A. Before building~~ | Done 12 Nov: on course; live test first, reuse app_control, menu size, voice pass, import-based delete list, MCP moved to later. |
-| **B. After steps 1-3** (live test, skills, voice pass; before deleting the old core) | Code review of the skills; did guard code shrink; safety rules intact; is the live test meaningful? |
+| **B. After steps 3a-3b** (speed batch built, models tried; before deleting the old core) | Code review of the skills and the speed batch; did guard code shrink; safety rules intact; is the live test meaningful; is the three-tier plan (step 4b) on course? |
 | **C. After step 4** (old core deleted) | Whole-branch review: anything broken or left behind, docs accurate. |
 | **D. Before the first MCP server** (later) | Security review: permissions, keys, email text as instructions, the safety gate on MCP tools. |

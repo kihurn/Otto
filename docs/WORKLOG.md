@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 2 (skills): slice 1 (search, save) built, waiting for a live re-run; then send_message, click_item – 2026-11-12 (core/skills.py, core/tools.py, core/agent.py).
+- [claude] docs/PLAN_NEXT.md step 3a (speed batch): planned 19 Nov, waiting for the user's go (core/agent.py, core/brain.py, core/pipeline.py, core/details.py).
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
