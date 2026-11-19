@@ -32,6 +32,8 @@ class Intent:
 
 def _t(text: str) -> str:
     t = text.lower().strip()
+    # Spoken fillers in front ("now can you...", "hey, ...", "okay so ...") don't change the request.
+    t = re.sub(r"^(?:(?:hey|hi|ok|okay|so|um+|uh+|alright|right|now(?! playing))[,!.]?\s+)+", "", t)
     t = re.sub(r"^(?:can|could|would) you\s+(?:please\s+)?|^please\s+|^(?:i want to|i wanna|let's|lets)\s+", "", t)
     t = re.sub(r"\s*(?:please|pls|plz|for me|thanks|thank you)\s*[.!?]*$", "", t)
     return t.strip(" .!?")
@@ -454,7 +456,8 @@ def whole_command(text: str) -> Intent | None:
             if intent and intent.action == action:
                 intent.full_match = True
                 return intent
-    if re.fullmatch(r"(?:set |turn |change )?(?:the )?(?:volume|sound)(?: level)? (?:to |at )?\d{1,3}(?: ?%| percent)?|"
+    if re.fullmatch(r"(?:(?:set|turn up|turn down|turn|change|increase|raise|decrease|lower|bring|put|make) )?"
+                    r"(?:the )?(?:volume|sound)(?: level)?(?: up| down)? (?:to |at )?\d{1,3}(?: ?%| percent)?|"
                     r"\d{1,3}(?: ?%| percent) volume", t):
         intent = _media(t)
         if intent and intent.action == "set_volume":

@@ -70,20 +70,39 @@ class Brain:
         self.timeout = float(settings.get("brain_timeout_s", 12))
         self.cooldown: dict[str, float] = {}  # model -> time it may be tried again
         self.context_fn = None                 # set by the pipeline: what's happening right now
+        self.usage: list[dict] = []            # one entry per model call this turn (the pipeline resets it)
 
     def brief(self) -> str:
         """The Otto brief (otto-data/brief.md) with the live details filled in."""
+        fixed, live = self.brief_parts()
+        return "\n".join(x for x in (fixed, live) if x)
+
+    # Lines from the first of these on change every request (the time, your last window, the conversation).
+    LIVE = ("{now}", "{window}", "{recent}")
+
+    def brief_parts(self) -> tuple[str, str]:
+        """(the part of the brief that stays the same, the part that changes every request).
+        Prompts start with the fixed part and end with the changing one: Ollama can then reuse its work on the
+        unchanged start instead of reading the whole prompt again (19 Nov: simple requests took seconds)."""
         path = config.BRIEF_FILE if config.BRIEF_FILE.exists() else config.DEFAULTS / "brief.md"
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
-            return ""
+            return "", ""
+        lines = text.splitlines()
+        cut = next((i for i, line in enumerate(lines) if any(k in line for k in self.LIVE)), len(lines))
         ctx = {}
         if self.context_fn:
             try:
                 ctx = self.context_fn() or {}
             except Exception:
                 ctx = {}
+        return (self._fill("\n".join(lines[:cut]).strip(), ctx), self._fill("\n".join(lines[cut:]).strip(), ctx))
+
+    @staticmethod
+    def _fill(text: str, ctx: dict) -> str:
+        if not text:
+            return ""
 
         class Missing(dict):
             def __missing__(self, key):
@@ -134,15 +153,28 @@ class Brain:
                             "num_ctx": int((self.settings.get("brain") or {}).get("num_ctx", 32768))}}
         if want_json:
             body["format"] = want_json if isinstance(want_json, dict) else "json"
+        think = (self.settings.get("brain") or {}).get("think")
+        if think is not None:
+            body["think"] = bool(think)          # brain.think false: no hidden thinking before the answer
+        t0 = time.perf_counter()
         out = self._post("/api/chat", body, timeout)
-        return ((out.get("message") or {}).get("content") or "").strip()
+        message = out.get("message") or {}
+        self.usage.append({
+            "model": model, "seconds": round(time.perf_counter() - t0, 2),
+            # Roughly how big the prompt is (about 4 letters a token): what the context size must hold.
+            "prompt_size": sum(len(str(m.get("content", ""))) for m in messages) // 4,
+            # How much Ollama really had to read; much smaller than prompt_size when it reused the unchanged start.
+            "prompt_read": out.get("prompt_eval_count"), "reply_tokens": out.get("eval_count"),
+            "thinking": len(message.get("thinking") or "")})
+        return (message.get("content") or "").strip()
 
     # ---- what the rest of Otto uses -------------------------------------------------------
     def ask(self, job: str, prompt: str, system: str | None = None, images: list[str] | None = None,
             want_json: bool | dict = False, required: tuple[str, ...] = (), timeout: float | None = None) -> BrainReply:
         """Ask the first working model for this job. Raises NoBrainAvailable if all fail."""
         messages = []
-        system = "\n\n".join(x for x in (self.brief(), system) if x)
+        fixed, live = self.brief_parts()
+        system = "\n\n".join(x for x in (fixed, system, live) if x)
         if system:
             messages.append({"role": "system", "content": system})
         user = {"role": "user", "content": prompt}

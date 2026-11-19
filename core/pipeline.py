@@ -112,6 +112,8 @@ class Otto:
         self.turn_deadline = time.monotonic() + 45
         self.brain.deadline = self.turn_deadline
         self.trace = {"text": text}
+        if isinstance(getattr(self.brain, "usage", None), list):
+            self.brain.usage.clear()             # model calls of this turn only (shown in the details line)
         reply = self._handle(text, heard_conf)
         self._log_turn(reply, t0)
         return reply
@@ -119,6 +121,9 @@ class Otto:
     def _log_turn(self, reply: Reply, t0: float) -> None:
         self.trace["ms_total"] = round((time.perf_counter() - t0) * 1000)
         self.trace["reply"] = reply.text
+        usage = getattr(self.brain, "usage", None)
+        if isinstance(usage, list) and usage:
+            self.trace["model_calls"] = [dict(u) for u in usage]
         log.write({"type": "request", **self.trace})
         if self.settings.get("show_details", True) and not reply.details:
             reply.details = self._details_line()
@@ -1056,7 +1061,7 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     def _details_line(self) -> str:
         tr = self.trace
-        bits = []
+        bits = [self._speed_line()] if tr.get("ms_total") is not None else []
         if tr.get("guard"):
             bits.append(f"guard: {tr['guard']}")
         if tr.get("answering"):
@@ -1082,3 +1087,22 @@ class Otto:
         if tr.get("learned"):
             bits.append("learned: " + ", ".join(f"\"{x['text']}\" = {x['area']}" for x in tr["learned"]))
         return " | ".join(bits)
+
+    def _speed_line(self) -> str:
+        """How long the turn took and where the time went, e.g. "4.2 s, model: 2 calls (3.9 s), prompt ~3,900
+        tokens (read 600)". "read" much smaller than the prompt means Ollama reused the unchanged start."""
+        tr = self.trace
+        line = f"{tr['ms_total'] / 1000:.1f} s"
+        calls = tr.get("model_calls") or []
+        if tr.get("rule") or tr.get("answer_by") == "local":
+            line += ", quick path"
+        if calls:
+            size = max(c.get("prompt_size") or 0 for c in calls)
+            read = [c["prompt_read"] for c in calls if c.get("prompt_read") is not None]
+            line += (f", model: {len(calls)} call{'s' if len(calls) > 1 else ''} "
+                     f"({sum(c.get('seconds') or 0 for c in calls):.1f} s), prompt ~{size:,} tokens")
+            if read:
+                line += f" (read {max(read):,})"
+            if any(c.get("thinking") for c in calls):
+                line += ", thinking ON"
+        return line

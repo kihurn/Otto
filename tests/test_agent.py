@@ -78,7 +78,7 @@ def test_repeat_click_stopped(ctx):
 def test_budget_stops_at_limit(ctx):
     from core import agent
     brain = Scripted(*[call("media", do="volume_set", level=n) for n in range(1, 20)])
-    r = agent.run("fiddle with the volume", [], brain, ctx, max_steps=4)
+    r = agent.run("fiddle with the volume and keep going", [], brain, ctx, max_steps=4)
     assert r.status == "stopped" and len([c for c in r.calls if c["ok"]]) == 4
 
 
@@ -339,7 +339,7 @@ def test_look_positions_are_on_a_0_to_1000_grid_inside_the_window():
 def test_mute_back_and_forth_stops(ctx):
     from core import agent
     brain = Scripted(*[call("media", do="mute", level=lv) for lv in (0, 100, 0, 100, 0, 100)])
-    r = agent.run("could you put the audio back?", [], brain, ctx)
+    r = agent.run("mute it, then put the audio back", [], brain, ctx)
     assert r.status == "stopped" and "back and forth" in r.say
     assert len([c for c in r.calls if c["tool"] == "media"]) == 3
 
@@ -505,3 +505,20 @@ def test_glow_has_rounded_corners_and_a_looking_badge():
     badge = np.frombuffer(indicator.render((w, h), ((0, 0, w, h), None, True)), dtype=np.uint8).reshape(h, w, 4)
     assert plain[0, 0, 3] == 0 and plain[0, w // 2, 3] > 0          # the very corner is rounded off
     assert badge[30, w // 2, 3] > plain[30, w // 2, 3]               # the badge sits at the top middle
+
+
+def test_one_step_job_ends_on_the_tools_own_answer(ctx):
+    from core import agent
+    brain = Scripted(call("media", do="volume_set", level=80))
+    r = agent.run("now can you make it 80 percent loud", [], brain, ctx)
+    assert r.status == "done" and r.ok and len(brain.seen) == 1          # one model call, not two
+
+
+def test_looking_up_or_a_joined_request_keeps_going(ctx):
+    from core import agent
+    brain = Scripted(call("audio_output", do="list"), call("done", say="You have Speakers and AirPods."))
+    agent.run("swap my audio output", [], brain, ctx)
+    assert len(brain.seen) == 2
+    brain = Scripted(call("media", do="volume_set", level=30), call("done", say="Done both."))
+    agent.run("turn it down to 30 and play lofi", [], brain, ctx)
+    assert len(brain.seen) == 2

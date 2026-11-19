@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 3a (speed batch): planned 19 Nov, waiting for the user's go (core/agent.py, core/brain.py, core/pipeline.py, core/details.py).
+- [claude] docs/PLAN_NEXT.md step 3a (speed batch): built 19 Nov, waiting for the user's live test and voice run.
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,25 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Speed batch, step 3a (19 Nov 2026, Claude Code, main)
+Voice run 19 Nov: everything worked, about 70% satisfied; "increase the volume to 80" was slow (Gemma, two calls).
+- **Measure:** every reply's details line starts with its time and path, e.g. "4.2 s, model: 2 calls (3.5 s),
+  prompt ~4,100 tokens (read 600)" or "0.1 s, quick path". prompt ~ = our own estimate of the prompt (about 4
+  letters a token, for choosing num_ctx); read = Ollama's prompt_eval_count (much smaller = it reused the
+  unchanged start). "thinking ON" shows if the model returned hidden thinking. Stored per call in the turn log
+  (`model_calls`).
+- **Prompt order:** the brief is split at its first line with {now}/{window}/{recent} (`Brain.brief_parts`);
+  the agent prompt is now fixed brief, rules, tools, examples, rehearsal note, live details; `ask()` is fixed
+  brief, the job's own instructions, live details.
+- **One-step finish:** a single-action request (no "and", "then", commas) whose first call is media,
+  audio_output, timer, note or save, and worked, ends with the tool's own sentence: one model call instead of
+  two. Look-ups (list, get, now playing, volume_get, time left) don't count. Two chain tests were given joined
+  requests so they still test the step limit and the flip-flop guard.
+- **Quick path:** fillers in front are ignored ("now", "hey", "okay so"...); volume to N also with increase,
+  raise, lower, decrease, turn up/down, "turn the volume up to 80".
+- `brain.think` (unset by default): `otto set brain.think false` sends think=false to Ollama.
+- 670 tests pass (8 new). Not measured yet: the real time saved on the PC (needs the live test and a voice run).
 
 ### Skills, slice 1: search and save (12 Nov 2026, Claude Code, main)
 Causes from the baseline: YouTube searched "lofilofilofi" (typed three times into one box); Notepad: Qwen typed

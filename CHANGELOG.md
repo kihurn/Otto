@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Faster: simple volume phrasings ("increase the volume to 80", "now can you...") skip the model; one-step jobs
+  (volume, music, audio output, timer, note, save) answer with one model call instead of two; prompts start with
+  the parts that never change so Ollama can reuse its work. Every reply's details line shows its time and model
+  use. Optional `otto set brain.think false` turns hidden thinking off.
 - Skills (whole jobs that check themselves), first two: `search` (Google, YouTube, Spotify; opens the results
   page directly, so nothing is typed, then checks the address bar) and `save` (presses ctrl+s and checks the
   window stopped showing unsaved changes, e.g. Notepad's "Modified" tab). Otto can't say "Saved" unless `save`

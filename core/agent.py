@@ -101,20 +101,21 @@ class AgentResult:
 
 
 def system_prompt(brain, request: str, dry_run: bool = False) -> str:
-    parts = []
+    # Order matters for speed: what never changes first (brief, rules, tools), then what changes per request
+    # (examples, rehearsal note), and the live details (time, last window, conversation) last, so Ollama can
+    # reuse its work on the unchanged start from one request to the next.
     try:
-        brief = brain.brief()
-        if brief:
-            parts.append(brief)
+        fixed, live = brain.brief_parts() if hasattr(brain, "brief_parts") else (brain.brief(), "")
     except Exception:
-        pass
-    parts += [RULES, "Tools (? = optional):\n" + tools.menu()]
-    if dry_run:
-        parts.append(REHEARSAL)
+        fixed, live = "", ""
+    parts = [fixed, RULES, "Tools (? = optional):\n" + tools.menu()]
     similar = examples.similar(request)
     if similar:
         parts.append("Requests that worked before (control numbers differ each time):\n" + examples.as_prompt(similar))
-    return "\n\n".join(parts)
+    if dry_run:
+        parts.append(REHEARSAL)
+    parts.append(live)
+    return "\n\n".join(p for p in parts if p)
 
 
 def run(request: str, conversation: list[dict], brain, ctx: tools.ToolContext,
@@ -270,6 +271,10 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         state["waiting"] = call
         state["waiting_front"] = agent_safety.snapshot(state["ctx"])
         return AgentResult("confirm", result.asks, calls, False, [], state)
+    if _one_step_done(state, call, result):
+        # The tool checked its own result and it is the whole request: its sentence is the reply, with no second
+        # model call just to say so (19 Nov: "increase the volume to 80" took two Gemma calls).
+        return AgentResult("done", str(result.observed.get("done") or result.say), calls, True)
     state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
     if _failures(calls) >= 2:
         return _stop(state, f"That didn't work twice, so I stopped. {result.say}")
@@ -337,6 +342,20 @@ def _wrong_app(state: dict, name: str, args: dict) -> str:
     if app and app["name"] not in wanted and words & set(re.findall(r"[a-z0-9]+", app["name"].lower())):
         return f'The user named {", ".join(sorted(wanted))}, not {app["name"]}: open exactly that.'
     return ""
+
+
+# Tools whose own checked result can finish a one-action request.
+ONE_STEP = {"media", "audio_output", "timer", "note", "save"}
+# Looking something up is a step towards the job ("swap my audio output" lists the outputs first), not the job.
+LOOKUPS = {"list", "get", "now_playing", "volume_get", "left"}
+
+
+def _one_step_done(state: dict, call: dict, result: tools.ToolResult) -> bool:
+    from core import details
+    request = details._t(state.get("request", ""))
+    looked_up = str((call.get("args") or {}).get("do", "")).lower() in LOOKUPS   # a step towards the job
+    return (result.ok and not result.information and call["tool"] in ONE_STEP and not looked_up
+            and len(state["calls"]) == 1 and bool(request) and not details._JOINED.search(request))
 
 
 def _save_claim(say: str, calls: list[dict], request: str) -> str:
