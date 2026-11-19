@@ -32,6 +32,10 @@ Voice run 19 Nov: everything worked, about 70% satisfied; "increase the volume t
 - `brain.think` (unset by default): `otto set brain.think false` sends think=false to Ollama (replaces the
   user's local edit that did this only for gemma4-12b-otto); a model that rejects the setting is asked again without it.
 - 670 tests pass (8 new). Not measured yet: the real time saved on the PC (needs the live test and a voice run).
+- **Live test after the batch (19 Nov, Gemma, thinking off, new Modelfile):** 15/15, unsafe 0. Chrome 1.8 s,
+  Google 1.4 s, YouTube 3/3 23.0 s (was 24.1), Notepad 3/3 15.6 s (was 20.1), message 3/3 17.3 s (was 1/3 with
+  the WhatsApp misread). Audio skipped: Windows listed only one output that day, so the one-step finish (which
+  mostly helps simple jobs like this) isn't measured by this run; the voice log's time lines will show it.
 
 ### Skills, slice 1: search and save (12 Nov 2026, Claude Code, main)
 Causes from the baseline: YouTube searched "lofilofilofi" (typed three times into one box); Notepad: Qwen typed
