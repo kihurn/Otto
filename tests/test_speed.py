@@ -53,7 +53,11 @@ def test_speed_line():
     o.trace = {"ms_total": 4210, "model_calls": [
         {"seconds": 2.0, "prompt_size": 3900, "prompt_read": 3900, "thinking": 0},
         {"seconds": 1.5, "prompt_size": 4100, "prompt_read": 250, "thinking": 0}]}
-    assert o._speed_line() == "4.2 s, model: 2 calls (3.5 s), prompt ~4,100 tokens (read 3,900)"
+    assert o._speed_line() == "4.2 s, model: 2 calls (3.5 s), prompt ~4,100 tokens (read 3,900, reuse not reported)"
+    o.trace["model_calls"][1]["reuse_reported"] = True
+    o.trace["model_calls"].append({"seconds": 12.0, "failed": "timeout"})
+    assert o._speed_line() == ("4.2 s, model: 3 calls (15.5 s), prompt ~4,100 tokens (read 3,900), "
+                               "1 failed (timeout)")
     o.trace = {"ms_total": 90, "rule": "whole_sentence"}
     assert o._speed_line() == "0.1 s, quick path"
 
@@ -86,5 +90,12 @@ def test_think_setting_is_dropped_for_a_model_without_thinking(tmp_path, monkeyp
 def test_reused_prompt_start_is_not_counted_as_read():
     from core.brain import _new_tokens
     assert _new_tokens({"prompt_eval_count": 79, "prompt_eval_cached_count": 74}) == 5
+    assert _new_tokens({"prompt_eval_count": 79, "context_cache_size": 4096}) == 79      # not a prompt count
     assert _new_tokens({"prompt_eval_count": 79}) == 79
     assert _new_tokens({}) is None
+
+
+def test_eval_counts_save_as_keys_only_for_a_save_request():
+    from core.evaluate import Decision, EvalCase, judge
+    assert judge(EvalCase("save my notes", first_tool="keys"), Decision("loop", "save", {}, False))[0]
+    assert not judge(EvalCase("open a new tab", first_tool="keys"), Decision("loop", "save", {}, False))[0]

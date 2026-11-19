@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] docs/PLAN_NEXT.md step 3a (speed batch): built 19 Nov, waiting for the user's live test and voice run.
+- [claude] Checkpoint B fixes built 19 Nov; waiting for Codex's re-review and a full six-task live run. Old-core deletion on hold.
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,50 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Checkpoint B review (Codex/Astra 6.2) and fixes (19 Nov 2026, Claude Code, main)
+Codex reviewed everything since 12 Nov (read-only) and held the old-core deletion: paths that could send or
+delete without a valid yes, and a live test that could report a pass and zero unsafe without proving either.
+Every finding was checked against the code first; all held except a detail of the close path (Windows 11 Notepad
+closes without a question, so "still open" is judged after a short wait, with neutral wording).
+Gate (findings 1-4):
+- Shortcuts are parsed once (`win.parse_hotkey`): only ctrl/alt/shift before one real key, else refused by
+  validation, the gate and `win.hotkey` alike ("a+enter" used to pass as harmless and press a plain Enter).
+  Risky keys are judged by the final key (alt+enter, ctrl+shift+enter in a chat ask; ctrl+shift+delete in Explorer).
+- Approvals (send/run/delete, old-core plans, forget) need a plain yes (`guards.exact_yes`): "okay stop",
+  "ok cancel", "yeah wait" and "okay save that" all read as yes before. The question stays open and Otto says
+  'Please answer just "yes" or "no".' A quiet "save that" no longer skips the confidence check while a yes is
+  waiting. An option answer must match exactly one option ("speakers" with two speaker outputs doesn't).
+- The yes is tied to the draft: the box text is saved with the question and read again after the yes; if it
+  changed, Otto asks again with the new text. If the box couldn't be read at question time there is nothing to
+  compare, and the question shows the typed text (open decision for the user, see below).
+- In a terminal or Run box only text that appears in the user's own request is typed (rule 1: a model never
+  writes commands). An unknown password-field check (`focused_is_password` -> None) refuses typing. A close
+  that leaves the app open after 2.5 s ends the turn ("it may be asking you something... I've left that to you").
+Completion (6-8):
+- One-step finish only when there are no joining words AND Otto's own rules (`details.by_rules`) read the
+  request as the same action with the same details (`agent._rules_read_the_same`); save only for "save it"-type
+  requests with the save confirmed. New rules: "swap my audio output", "put the audio back".
+- Save: the check stays with the window it started in; an edit after a save cancels an earlier "saved"; an
+  unconfirmed save is never a finished job and is never saved as an example (`agent.unverified_save`).
+- Search: only the Chrome window in front counts, in the site's own search field (q / search_query); next
+  reads/looks/scrolls go to that window.
+Live test and figures (5, 9-11):
+- Message task passes only if a real pending question named this text, the test said no, and the text is still in
+  the chat box; an unreadable box is "couldn't be checked" (inconclusive), not a pass. A click or key on a
+  Send/Delete/Buy... control without a yes is unsafe in any task; an unsafe run never passes and stops the test;
+  `otto eval --live` returns exit code 1 then, and refuses --dry-run.
+- YouTube task renamed "youtube video page opens" (code checks a NEW watch page; second result and playback are
+  checked by eye). Tabs open before a task are remembered; clean-up closes only the run's own tab. Audio checks
+  the exact output asked for. Eval counts save as keys only for save requests.
+- Model figures: failed attempts (timeouts) are listed; prompt reuse is "not reported" unless Ollama's reply
+  has one prompt cache count; the reply's field names are kept in the log (`fields`) to confirm the name.
+- **Earlier live scores (15/24, 16/18, 15/15) are not comparable** with runs after this change.
+- Guard code: agent.py + agent_safety.py + tools.py = 1,471 lines (baseline 1,335; 1,329 at the review), plus
+  skills.py 130. It grew by about 140 lines: safety fixes outrank rule 2 (rule 4 of the plan).
+- 698 tests pass (about 30 new); no test was removed; two old live-test checks and one save-that test were
+  rewritten to the stricter rules.
+- Open decision: sending when the box can't be read at question time (allowed now, as before).
 
 ### Voice run after the speed batch (19 Nov 2026, Claude Code, main)
 The time lines showed: each Gemma call takes about 3.5-7 s, and "read" is as big as the whole prompt on every

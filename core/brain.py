@@ -63,12 +63,19 @@ def _strip_json(text: str) -> str:
     return t
 
 
+def _cached(out: dict) -> int | None:
+    """How much of the prompt Ollama says it reused, or None when its reply doesn't say (not the same as 0).
+    The field's name isn't documented where we could check it, so a prompt count with "cache" in its name is used
+    and the reply's field names are kept in the log (`fields`) to confirm it (Codex review 19 Nov)."""
+    found = [v for k, v in out.items() if "cache" in k.lower() and "prompt" in k.lower()
+             and isinstance(v, int) and not isinstance(v, bool)]
+    return found[0] if len(found) == 1 else None
+
+
 def _new_tokens(out: dict) -> int | None:
-    """Prompt tokens Ollama really had to read: the prompt minus the start it reused (any "...cache..." count)."""
-    count = out.get("prompt_eval_count")
-    cached = next((v for k, v in out.items() if "cache" in k.lower() and isinstance(v, int) and not isinstance(v, bool)),
-                  0)
-    return None if count is None else max(0, count - cached)
+    """Prompt tokens Ollama really had to read: the prompt minus the reused start, when Ollama reports it."""
+    count, cached = out.get("prompt_eval_count"), _cached(out)
+    return None if count is None else max(0, count - (cached or 0))
 
 
 class Brain:
@@ -181,6 +188,7 @@ class Brain:
             # Ollama's prompt_eval_count includes the start it reused from the last call (19 Nov: "prompt eval
             # count 79, cached 74" in `ollama run --verbose`); the reused part is reported separately, so take it off.
             "prompt_read": _new_tokens(out), "reply_tokens": out.get("eval_count"),
+            "reuse_reported": _cached(out) is not None, "fields": sorted(out)[:30],
             # Ollama's own timings (nanoseconds): reading speed and writing speed show whether the model is slow.
             "read_s": (out.get("prompt_eval_duration") or 0) / 1e9, "write_s": (out.get("eval_duration") or 0) / 1e9,
             "load_s": (out.get("load_duration") or 0) / 1e9,
@@ -237,6 +245,8 @@ class Brain:
                 return BrainReply(text, data, model, time.perf_counter() - t0)
             except BrainError as e:
                 reasons.append(f"{model}: {e.code}")
+                # Failed attempts count too: a timeout before a working fallback is time the user waited.
+                self.usage.append({"model": model, "seconds": round(time.perf_counter() - t0, 2), "failed": e.code})
                 if e.code in FATAL:
                     raise NoBrainAvailable([FIXES.get(e.code, e.message)]) from None
                 if e.code in ("quota", "rate_limited"):

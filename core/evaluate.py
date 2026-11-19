@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -46,6 +47,9 @@ OLD_TO_TOOL = {
 }
 LOOP_ACTIONS = {"app_goal", "visual_task"}
 SAME_AS = {"search": {"google", "open"}, "save": {"keys"}}
+# ...but only where the sentence is about that: save counts as keys only for a save request (Codex review 19 Nov:
+# "open a new tab" expects keys too, and save must not pass for it).
+SAME_AS_ONLY_IF = {"save": r"\bsave\b", "search": r"\b(?:search|google|look up|find)\b"}
 
 
 @dataclass
@@ -158,7 +162,8 @@ def judge(case: EvalCase, d: Decision) -> tuple[bool, str]:
     if case.first_tool:
         wanted = {"" if t.strip() == "none" else t.strip() for t in case.first_tool.split("|")}
         # Newer tool names count as the ones older eval lists were written with (your eval.csv wins over defaults).
-        if d.tool not in wanted and not (wanted & SAME_AS.get(d.tool, set())):
+        same = SAME_AS.get(d.tool, set()) if re.search(SAME_AS_ONLY_IF.get(d.tool, ""), case.text, re.I) else set()
+        if d.tool not in wanted and not (wanted & same):
             why.append(f"tool {d.tool or 'none'}, expected {case.first_tool}")
     details = " ".join(str(v) for v in d.args.values()).casefold()
     missing = [a for a in case.args if a.casefold() not in details]

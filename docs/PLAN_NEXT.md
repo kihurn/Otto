@@ -87,10 +87,25 @@ Order: Gemma-4-12B-HybridAgent -> gemma-4-12B fable5/tau2 fine-tune -> Hermes-4-
 if they stay 100% on the GPU) -> optionally Qwen3-VL-30B-A3B with expert offloading (a big model that can see).
 Note: the text-only models can't use `look` (screenshots); a model that can't see must still pass the live test.
 
+### Checkpoint B result (19 Nov): deletion on hold
+Codex found safety gaps and an evaluator that could over-report; fixed the same day (WORKLOG). Before step 4:
+- Codex re-reviews the fixes (read-only).
+- A full live run with **all six tasks** (audio outputs connected, a chat app named), on the corrected scoring.
+- Measure what the user waits for: from the end of speaking to the first word Otto says, with Whisper, Kokoro
+  and the model loaded together (to add to the voice log).
+- The model comparison (3b) is either done like-for-like or explicitly skipped by the user.
+
 ### Step 4. Delete the old core (was "Task 9")
 Only after steps 1-3 show the new core is better on the live test.
 - **Remove:** compiler, interpreter, computer_use, window_control, recovery, goal_mode, offline_eval,
   visual_task, methods, the old pipeline special cases and the `core.agent` switch.
+- **From the checkpoint B review (exact dependencies):** move `goal_mode.shortlist` (used by the agent's
+  read_window) and retire or replace `app_control._goal` (it still calls `goal_mode.pursue`); move
+  `chrome_control_ok` and `inside_web_page` out of window_control (Chrome address checks use them) before the
+  registry stops importing it (`visual_task` is registered there); keep or replace `recovery.recover` for both
+  Spotify fallbacks (spotify_desktop, spotify_search); retire or replace `otto train --offline` before deleting
+  offline_eval; remove the pipeline's interpreter/methods/compiler callers with their branches; update eval's
+  old-action mapping and the `--core` switch in the same change.
 - **Move first** (things still used): `goal_mode.shortlist` (used by `core/tools.py`); check every importer
   (`hands/app_control.py`, `spotify_desktop.py`, `spotify_search.py`, `core/audio_focus.py`, `hands/web.py`,
   `hands/registry.py`, `core/evaluate.py`, `otto.py`). The list is built from imports, not from memory.

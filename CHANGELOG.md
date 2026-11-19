@@ -1,6 +1,12 @@
 # Changelog
 
 ## 1.2 (in development)
+- Safety fixes from the checkpoint B review: a "yes" to send/run/delete must be a plain yes ("okay stop" no
+  longer counts) and is tied to the message text Otto read out; malformed shortcuts are refused instead of
+  turning into Enter or Delete; in a terminal Otto only types your own command; typing stops if Windows can't
+  tell whether a box is a password field; an app still open after close (e.g. asking to save) is left to you.
+  One-step answers, "saved" and searches are only claimed when checked. The live test is stricter (exact
+  message, output and tab checks; "couldn't be checked" results; stops at the first unsafe step).
 - Faster: simple volume phrasings ("increase the volume to 80", "now can you...") skip the model; one-step jobs
   (volume, music, audio output, timer, note, save) answer with one model call instead of two; prompts start with
   the parts that never change so Ollama can reuse its work. Every reply's details line shows its time and model

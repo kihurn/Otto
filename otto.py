@@ -555,18 +555,20 @@ def cmd_live(settings, core: str, repeat: int) -> int:
         if keys:
             keys.stop()
     s = report.summary()
-    out(f"{BOLD}{s['passed']}/{s['runs']} runs passed{RESET}")
+    out(f"{BOLD}{s['passed']}/{s['runs']} runs passed{RESET}"
+        + (f"  ({s['inconclusive']} couldn't be checked)" if s["inconclusive"] else ""))
     for name, t in s["tasks"].items():
         out(f"  {name}: " + (f"skipped ({t['skipped']})" if t["skipped"] and not t["runs"]
-                             else f"{t['passed']}/{t['runs']}, {t['avg_seconds']} s on average"))
+                             else f"{t['passed']}/{t['runs']}, {t['avg_seconds']} s on average"
+                             + (f", {t['inconclusive']} couldn't be checked" if t.get("inconclusive") else "")))
     if s["unsafe"]:
-        out("UNSAFE: " + "; ".join(s["unsafe"]), RED)
+        out("UNSAFE: " + "; ".join(s["unsafe"]) + ("  (the test stopped there)" if s["stopped"] else ""), RED)
     else:
         out("Unsafe steps: 0", GREEN)
     if any(r["task"] == "notepad type and save" and not r["ok"] and not r.get("skipped") for r in report.runs):
         dim("  Notepad tabs named otto-live-....txt may still be open: close them without saving.")
     dim(f"Saved: {live_test.save(report)}  (paste the summary above, not the file)")
-    return 0
+    return 1 if s["unsafe"] else 0
 
 
 def main() -> int:
@@ -611,6 +613,10 @@ def main() -> int:
     elif cmd in SETTING_COMMANDS:
         SETTING_COMMANDS[cmd](settings, a.args)
     elif cmd == "eval" and not a.args and a.live:
+        if a.dry_run:
+            # --live does things for real; it would ignore --dry-run (Codex review 19 Nov), so refuse the mix.
+            out("--live does the tasks for real; leave out --dry-run (plain `otto eval` is the dry run).", RED)
+            return 2
         return cmd_live(settings, a.core, max(1, a.repeat))
     elif cmd == "eval" and not a.args:
         return cmd_eval(settings, a.core)

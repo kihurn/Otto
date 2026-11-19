@@ -1147,12 +1147,17 @@ class Otto:
         if tr.get("rule") or tr.get("answer_by") == "local":
             line += ", quick path"
         if calls:
-            size = max(c.get("prompt_size") or 0 for c in calls)
-            read = [c["prompt_read"] for c in calls if c.get("prompt_read") is not None]
+            failed = [c for c in calls if c.get("failed")]
+            calls_ok = [c for c in calls if not c.get("failed")]
+            size = max([c.get("prompt_size") or 0 for c in calls_ok] or [0])
+            read = [c["prompt_read"] for c in calls_ok if c.get("prompt_read") is not None]
             line += (f", model: {len(calls)} call{'s' if len(calls) > 1 else ''} "
                      f"({sum(c.get('seconds') or 0 for c in calls):.1f} s), prompt ~{size:,} tokens")
             if read:
-                line += f" (read {max(read):,})"
+                reused = any(c.get("reuse_reported") for c in calls_ok)
+                line += f" (read {max(read):,}" + ("" if reused else ", reuse not reported") + ")"
+            if failed:
+                line += f", {len(failed)} failed ({', '.join(sorted({c['failed'] for c in failed}))})"
             line += _rates(calls)
             if any(c.get("thinking") for c in calls):
                 line += ", thinking ON"
