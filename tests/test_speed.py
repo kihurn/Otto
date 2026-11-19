@@ -66,3 +66,18 @@ def test_spoken_volume_phrasings_take_the_quick_path():
         assert intent and intent.action == "set_volume" and intent.params["level"] == level, said
     assert details.whole_command("turn the volume up to 80 and play lofi") is None
     assert details._t("now playing") == "now playing"
+
+
+def test_think_setting_is_dropped_for_a_model_without_thinking(tmp_path, monkeypatch):
+    from core.brain import BrainError
+    b = _brain(tmp_path, monkeypatch, "Rules.")
+    b.settings["brain"]["think"] = False
+    sent = []
+
+    def post(path, body, timeout):
+        sent.append(dict(body))
+        if "think" in body:
+            raise BrainError("http_400", '"qwen3-vl:8b-instruct" does not support thinking')
+        return {"message": {"content": "ok"}}
+    monkeypatch.setattr(b, "_post", post)
+    assert b.ask("chat", "hello").text == "ok" and "think" in sent[0] and "think" not in sent[1]

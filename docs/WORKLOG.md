@@ -29,7 +29,8 @@ Voice run 19 Nov: everything worked, about 70% satisfied; "increase the volume t
   requests so they still test the step limit and the flip-flop guard.
 - **Quick path:** fillers in front are ignored ("now", "hey", "okay so"...); volume to N also with increase,
   raise, lower, decrease, turn up/down, "turn the volume up to 80".
-- `brain.think` (unset by default): `otto set brain.think false` sends think=false to Ollama.
+- `brain.think` (unset by default): `otto set brain.think false` sends think=false to Ollama (replaces the
+  user's local edit that did this only for gemma4-12b-otto); a model that rejects the setting is asked again without it.
 - 670 tests pass (8 new). Not measured yet: the real time saved on the PC (needs the live test and a voice run).
 
 ### Skills, slice 1: search and save (12 Nov 2026, Claude Code, main)
