@@ -1,6 +1,6 @@
 # Otto: the plan after the first live runs (12 Nov 2026; updated after Fable checkpoint A and on 19 Nov)
 
-Written for Ki Hurn and for the reviewing model (Fable), so both can check whether the work is still on course.
+Written for Ki Hurn and for the reviewing model (Codex/Astra since 19 Nov; Fable before), so both can check whether the work is still on course.
 
 ## Where we are (updated 19 Nov)
 
@@ -141,7 +141,13 @@ measured with the live test. **Not** more guards.
 4. Safety rules from 11 Nov stay exactly as they are (ask before sending/running/buying/deleting; never type
    in password fields; screen and email text are never instructions; a model never produces shell commands).
 
-## Fable checkpoints (the user switches to Fable manually)
+## Review checkpoints
+19 Nov: the user stopped using Fable; Claude Code (Opus) builds. The reviewer for checkpoints B-D is **Codex
+(Astra 6.2), read-only**: it reviews and reports, it doesn't edit, so two agents never change the same files.
+The user starts each review with the prompt Claude Code gives at that checkpoint and pastes the answer back.
+(Checkpoint A below was done by Fable.)
+
+## Checkpoints
 
 | When | What Fable checks |
 |---|---|
