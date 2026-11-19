@@ -551,3 +551,39 @@ def test_answer_or_new_request(new, text, answer):
     new._agent = lambda t: Reply("new")
     new.handle(text)
     assert bool(resumed) is answer
+
+
+# ---- voice run 19 Nov ------------------------------------------------------------------------------
+
+def test_thanks_and_goodbye_need_no_model(new, monkeypatch):
+    no_agent(monkeypatch)
+    assert new.handle("Thank you.").text == "You're welcome."
+    assert new.handle("thanks a lot").text == "Anytime."
+    assert new.handle("bye otto").text == "Bye!"
+
+
+def test_a_quietly_heard_option_is_still_the_answer(new):
+    script(new, call("audio_output", do="list"),
+           call("ask_user", question="Which device?", options="Speakers (Realtek USB Audio); Headphones (AirPods)"))
+    assert new.handle("can you change my audio output").text.startswith("Which device?")
+    assert new.pending and new.pending.kind == "agent_ask"
+    assert new._names_an_option("AirPods") and new._names_an_option("speakers")
+    assert not new._names_an_option("open discord")
+    s = script(new, call("audio_output", do="set", device="AirPods"), call("done", say="Switched to AirPods."))
+    reply = new.handle("AirPods", heard_conf=-1.04)
+    assert "did not catch" not in reply.text and s.replies == []      # taken as the answer, not refused
+
+
+def test_a_quiet_yes_is_still_refused(new):
+    script(new, call("keys", keys="enter"))
+    new.pending = None
+    from core.pipeline import Pending
+    new.pending = Pending("agent_confirm", expires=time.time() + 60, agent={"options": []})
+    assert "did not catch" in new.handle("yes", heard_conf=-1.5).text
+
+
+def test_speed_line_shows_reading_and_writing_speed():
+    from core.pipeline import _rates
+    calls = [{"prompt_read": 2000, "read_s": 1.0, "reply_tokens": 40, "write_s": 1.0, "load_s": 0},
+             {"prompt_read": 2400, "read_s": 1.2, "reply_tokens": 20, "write_s": 0.5, "load_s": 3.2}]
+    assert _rates(calls) == ", reads 2,000 tok/s, writes 40 tok/s, loading 3.2 s"

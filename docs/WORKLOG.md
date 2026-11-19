@@ -13,6 +13,19 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Voice run after the speed batch (19 Nov 2026, Claude Code, main)
+The time lines showed: each Gemma call takes about 3.5-7 s, and "read" is as big as the whole prompt on every
+call (~2,200-2,700 tokens), so Ollama re-reads the full prompt each time and the new prompt order did not lead to
+reuse. Likely (not confirmed): Gemma's sliding-window attention, for which llama.cpp (inside Ollama) can't reuse a
+partly matching prompt. The one-step finish worked ("change my audio output to AirPods": 1 call, 4.0 s, against
+8-11 s for the requests that needed 2-3 calls).
+- The details line now also shows Ollama's reading and writing speed (tok/s) and model loading time, to tell a
+  slow prompt from a model running partly off the card.
+- Low-confidence answers to Otto's own question are accepted when they name one of the offered options
+  ("AirPods" heard at -1.04 was refused). A quiet "yes" to a confirm question is still refused.
+- Thanks and goodbyes answer instantly with no model ("Thank you." had gone to Gemma and ended "I got confused").
+- 675 tests pass (4 new).
+
 ### Speed batch, step 3a (19 Nov 2026, Claude Code, main)
 Voice run 19 Nov: everything worked, about 70% satisfied; "increase the volume to 80" was slow (Gemma, two calls).
 - **Measure:** every reply's details line starts with its time and path, e.g. "4.2 s, model: 2 calls (3.5 s),

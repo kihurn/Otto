@@ -171,6 +171,9 @@ class Brain:
             "prompt_size": sum(len(str(m.get("content", ""))) for m in messages) // 4,
             # How much Ollama really had to read; much smaller than prompt_size when it reused the unchanged start.
             "prompt_read": out.get("prompt_eval_count"), "reply_tokens": out.get("eval_count"),
+            # Ollama's own timings (nanoseconds): reading speed and writing speed show whether the model is slow.
+            "read_s": (out.get("prompt_eval_duration") or 0) / 1e9, "write_s": (out.get("eval_duration") or 0) / 1e9,
+            "load_s": (out.get("load_duration") or 0) / 1e9,
             "thinking": len(message.get("thinking") or "")})
         return (message.get("content") or "").strip()
 

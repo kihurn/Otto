@@ -30,6 +30,12 @@ OTTO_PERSONA = ("You're chatting as Otto: friendly, upbeat, a bit playful. Reply
                 "(under 15 words).")
 
 CHAT_FALLBACK = {"hi": "Hey!", "hello": "Hello!", "thanks": "Anytime.", "thank you": "You're welcome."}
+# Thanks and goodbyes need no model at all (19 Nov: "Thank you." went to Gemma and ended "I got confused").
+CLOSERS = {"thanks": "Anytime.", "thank you": "You're welcome.", "thanks otto": "Anytime.",
+           "thank you otto": "You're welcome.", "thank you so much": "You're welcome!", "thanks a lot": "Anytime.",
+           "cheers": "Anytime.", "ok thanks": "Anytime.", "okay thanks": "Anytime.", "ok thank you": "You're welcome.",
+           "okay thank you": "You're welcome.", "bye": "Bye!", "goodbye": "Bye!", "bye otto": "Bye!",
+           "good night": "Good night!", "goodnight": "Good night!"}
 
 
 _STOP = {"the", "a", "an", "can", "you", "could", "please", "pls", "my", "me", "to", "on", "in", "it", "this",
@@ -65,6 +71,24 @@ class Pending:
     scope: str = ''
     revision: int = 0
     agent: dict | None = None     # the agent loop's state, for agent_ask / agent_confirm
+
+
+def _rates(calls: list[dict]) -> str:
+    """Ollama's reading and writing speed over this turn's calls, e.g. ", reads 1,800 tok/s, writes 38 tok/s".
+    Slow reading points at the prompt (no reuse), slow writing at the card (model partly off the GPU)."""
+    read = sum(c.get("prompt_read") or 0 for c in calls)
+    read_s = sum(c.get("read_s") or 0 for c in calls)
+    wrote = sum(c.get("reply_tokens") or 0 for c in calls)
+    write_s = sum(c.get("write_s") or 0 for c in calls)
+    load = sum(c.get("load_s") or 0 for c in calls)
+    out = ""
+    if read and read_s:
+        out += f", reads {read / read_s:,.0f} tok/s"
+    if wrote and write_s:
+        out += f", writes {wrote / write_s:,.0f} tok/s"
+    if load >= 1:
+        out += f", loading {load:.1f} s"
+    return out
 
 
 class Otto:
@@ -181,7 +205,8 @@ class Otto:
 
         # "save that", "no" and "cancel" are fixed phrases that can't approve anything risky, so a quiet or
         # short recording of them is still accepted. A mumbled "yes" is NOT: it could approve closing an app.
-        fixed_phrase = bool(guards.memory_command(t) or guards.reply_kind(t) == 'no' or guards.is_cancel(t))
+        fixed_phrase = bool(guards.memory_command(t) or guards.reply_kind(t) == 'no' or guards.is_cancel(t)
+                            or self._names_an_option(t))
         if (self.pending and heard_conf is not None and not fixed_phrase
                 and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9))):
             return Reply('I did not catch that clearly. Please repeat your answer.')
@@ -821,6 +846,10 @@ class Otto:
         if guards.is_gibberish(t, self.apps.known_words()):
             self.trace["guard"] = "gibberish"
             return Reply("Sorry, I didn't catch that.")
+        closer = CLOSERS.get(guards._simple(t))
+        if closer:
+            self.trace["answer_by"] = "local"
+            return Reply(closer)
         quick = answers.whole_local_answer(t)        # time, date, maths: no model needed
         if quick:
             self.trace["answer_by"] = "local"
@@ -838,6 +867,17 @@ class Otto:
             self.trace["rule"] = "whole_sentence"
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
+
+    def _names_an_option(self, t: str) -> bool:
+        """One of the choices Otto just offered ("AirPods" for "Speakers or AirPods?"). Short answers are often heard
+        with low confidence (19 Nov: "AirPods" at -1.04 was refused), but picking an offered option is safe: it is
+        not a yes to anything risky, and a wrong pick still has to match an option."""
+        p = self.pending
+        if not p or p.kind != "agent_ask":
+            return False
+        said = " ".join(re.findall(r"[a-z0-9]+", t.lower()))
+        options = [" ".join(re.findall(r"[a-z0-9]+", str(o).lower())) for o in (p.agent or {}).get("options", [])]
+        return bool(said) and any(said == o or re.search(rf"\b{re.escape(said)}\b", o) for o in options if o)
 
     _NEW_REQUEST = re.compile(r"^(?:you\b|please\b|open|close|play|search|google|type|click|press|send|reply|"
                               r"what|who|where|when|why|how)\b|\b(?:can|could|would|will) you\b", re.I)
@@ -1103,6 +1143,7 @@ class Otto:
                      f"({sum(c.get('seconds') or 0 for c in calls):.1f} s), prompt ~{size:,} tokens")
             if read:
                 line += f" (read {max(read):,})"
+            line += _rates(calls)
             if any(c.get("thinking") for c in calls):
                 line += ", thinking ON"
         return line
