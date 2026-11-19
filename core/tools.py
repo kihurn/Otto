@@ -136,9 +136,14 @@ def validate(name: str, args) -> str | None:
                                   or all(k in args for k in ("x", "y", "x2", "y2"))):
         return "drag needs control and to_control, or x, y, x2 and y2 from look."
     if name == "keys":
-        parts = [p.strip().lower() for p in str(args["keys"]).replace(" ", "").split("+") if p.strip()]
-        if not parts or any(p not in KEY_NAMES and not re.fullmatch(r"[a-z0-9]", p) for p in parts):
-            return "keys may only use ctrl, alt, shift, letters, digits and named keys like enter or pagedown."
+        from hands.win import parse_hotkey
+        try:
+            mods, last = parse_hotkey(str(args["keys"]))
+        except ValueError:
+            mods, last = (), ""
+        if not last or last not in KEY_NAMES | {"delete"} and not re.fullmatch(r"[a-z0-9]", last):
+            return ("keys must be one key, optionally after ctrl, alt and/or shift (like ctrl+s, enter, "
+                    "pagedown); only those three can be held with it.")
     return None
 
 
@@ -301,7 +306,31 @@ def _close(ctx, app, how="close"):
     # Design decision (11 Nov 2026): a plain close just happens. If the app shows a message (unsaved changes?),
     # its window stays open, the result says so, and the agent asks the user instead of answering it.
     ctx.confirmed = True
-    return _action(ctx, "minimise" if how.lower().startswith("min") else "close_app", app=app)
+    if how.lower().startswith("min"):
+        return _action(ctx, "minimise", app=app)
+    from hands import win
+    window = None if ctx.dry_run else win.find_window(app)
+    result = _action(ctx, "close_app", app=app)
+    if not result.ok or window is None or _closed(window["hwnd"]):
+        return result
+    # Still open after a moment: most likely the app is asking "save changes?". That answer is the user's, so the
+    # turn ends here and the loop can't click Save or Don't save (Codex review 19 Nov).
+    return ToolResult(False, f"{app.title()} is still open; it may be asking you something (like saving changes). "
+                             "I've left that to you.", {"end": "done"})
+
+
+CLOSE_WAIT = 2.5
+
+
+def _closed(hwnd: int) -> bool:
+    import time
+    from hands import win
+    end = time.monotonic() + CLOSE_WAIT
+    while time.monotonic() < end:
+        if not win.exists(hwnd):
+            return True
+        time.sleep(0.25)
+    return not win.exists(hwnd)
 
 
 @tool("find_files", "search your files by name (results are information)", {"query": "words from the file name"},
@@ -559,6 +588,11 @@ def _type(ctx, text, control=None):
         target, _ = ui_probe.text_target(ctx.controls)
     if target is not None and (sensitive(target) or target.get("password")):
         return ToolResult(False, "That's a password or private field, so I won't type in it.")
+    from core import agent_safety
+    if agent_safety._is_command(agent_safety.front(ctx)) and not _user_said(text, ctx.request):
+        # A model never writes commands (AGENTS.md rule 1): in a terminal, only the user's own words are typed.
+        return ToolResult(False, "In a terminal or Run box I only type a command you spelled out yourself. "
+                                 "Ask the user for the exact command.")
     if ctx.dry_run:
         return _dry(ctx, f'type "{text[:60]}"')
     if target is not None and target.get("read_only"):
@@ -582,14 +616,21 @@ def _type(ctx, text, control=None):
         except Exception:
             pass
     from hands import apps, win
-    if win.focused_is_password():
-        return ToolResult(False, "The focused box is a password field, so I won't type in it.")
+    protected = win.focused_is_password()
+    if protected is not False:
+        return ToolResult(False, "The focused box is a password field, so I won't type in it." if protected else
+                          "I couldn't check whether the focused box is a password field, so I didn't type.")
     apps.type_text(text)
     if target is not None:
         back = ui_probe.read_text(target)
         if back is not None and text.strip() in back:
             return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
     return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True})
+
+
+def _user_said(text: str, request: str) -> bool:
+    flat = lambda x: " ".join(str(x).lower().split()).strip(" \"'`")
+    return bool(flat(text)) and flat(text) in flat(request)
 
 
 @tool("keys", "press keys or a shortcut, e.g. ctrl+s, pagedown, enter", {"keys": "the keys, joined with +"})

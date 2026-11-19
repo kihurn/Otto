@@ -12,7 +12,9 @@ def live(monkeypatch):
     opened, shown = [], []
     monkeypatch.setattr(agent_safety, "otto_in_front", lambda c: False)
     monkeypatch.setattr(skills, "_action", lambda ctx, do, **w: opened.append((do, w)) or tools.ToolResult(True, "ok"))
-    monkeypatch.setattr(web, "chrome_addresses", lambda only=None: list(shown))
+    monkeypatch.setattr(web, "chrome_addresses", lambda only=None: list(shown) if only == 9 else [])
+    from hands import win
+    monkeypatch.setattr(win, "foreground", lambda: 9)                 # Chrome window 9 is in front
     monkeypatch.setattr(skills, "SEARCH_WAIT", 0)
     return tools.ToolContext(dry_run=False), opened, shown
 
@@ -116,3 +118,52 @@ def test_a_failed_save_overrides_qwens_saved(notepad):
 def test_skills_keep_the_menu_small():
     assert "google" not in tools.TOOLS and {"search", "save"} <= set(tools.TOOLS)
     assert len(tools.TOOLS) <= 20
+
+
+
+def test_search_needs_the_words_in_the_search_field_of_the_front_window(live, monkeypatch):
+    c, opened, shown = live
+    shown.append("https://www.google.com/search?q=lofi+beats")
+    assert not tools.call("search", {"query": "lofi"}, c).ok            # other words, even if "lofi" is in them
+    shown[:] = ["https://www.google.com/search?q=cats&oq=lofi"]
+    assert not tools.call("search", {"query": "lofi"}, c).ok            # the words elsewhere in the address
+    shown[:] = ["https://www.google.com/search?q=lofi"]
+    r = tools.call("search", {"query": "lofi"}, c)
+    assert r.ok and c.hwnd == 9                                          # next steps go to this window
+    from hands import win
+    monkeypatch.setattr(win, "foreground", lambda: 4)                   # a different window in front
+    assert not tools.call("search", {"query": "lofi"}, c).ok
+
+
+def test_save_check_stays_with_its_own_window(notepad, monkeypatch):
+    from core import agent_safety
+    c, state = notepad
+    fronts = iter([{"hwnd": 7, "title": "notes.txt - Notepad"}] * 2 + [{"hwnd": 8, "title": "Clean - Word"}] * 9)
+    monkeypatch.setattr(agent_safety, "front", lambda ctx: dict(next(fronts), exe="x", focused=""))
+    r = tools.call("save", {}, c)
+    assert r.observed["saved"] is False and "another window" in r.say
+
+
+def test_typing_after_a_save_cancels_saved(notepad):
+    from core import agent
+    from tests.test_agent import Scripted, call
+    c, state = notepad
+    from hands import apps, win
+    import pytest as _p
+    mp = _p.MonkeyPatch()
+    mp.setattr(apps, "type_text", lambda t: None)
+    try:
+        r = agent.run("save it and add a line", [], Scripted(call("save"), call("type", text="more"),
+                                                              call("done", say="Saved it!")), c)
+    finally:
+        mp.undo()
+    assert not r.ok and "latest changes aren't saved" in r.say
+
+
+def test_an_unconfirmed_save_is_not_a_finished_job(notepad):
+    from core import agent
+    from tests.test_agent import Scripted, call
+    c, state = notepad
+    state["tab"] = state["after"] = "other.txt. Unmodified."             # nothing tells us it saved
+    r = agent.run("save it", [], Scripted(call("save"), call("done", say="I pressed save.")), c)
+    assert r.status == "done" and not r.ok

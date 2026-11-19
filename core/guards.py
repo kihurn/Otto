@@ -64,6 +64,12 @@ def _simple(text: str) -> str:
     return re.sub(r"[^a-z' ]", "", text.lower()).strip()
 
 
+def exact_yes(text: str) -> bool:
+    """Only a plain yes ("yes", "yeah", "go ahead", ...), nothing added. Approving a send, a run or a delete
+    needs this (Codex review 19 Nov: "okay stop", "ok cancel" and "okay save that" all read as yes)."""
+    return _simple(text) in YES
+
+
 def reply_kind(text: str) -> str | None:
     """'yes', 'no', or None for anything that isn't a short yes/no answer."""
     s = _simple(text)

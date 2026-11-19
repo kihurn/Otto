@@ -229,3 +229,89 @@ def test_type_never_replaces_existing_text(monkeypatch):
     ctx = tools.ToolContext(dry_run=False, controls=[box])
     tools.call("type", {"text": ")", "control": 1}, ctx)
     assert not replaced and typed_keys == [")"]
+
+
+# ---- checkpoint B review (Codex, 19 Nov): the gate ----------------------------------------------------
+
+def test_a_shortcut_is_checked_exactly_as_it_is_pressed():
+    from core import tools
+    from hands import win
+    assert win.parse_hotkey("Shift + Ctrl + Enter") == (("ctrl", "shift"), "enter")
+    for bad in ("a+enter", "tab+enter", "space+delete", "ctrl+ctrl+s", "ctrl+", "ctrl+banana", "win+r"):
+        assert tools.validate("keys", {"keys": bad}), bad          # refused before the gate even looks
+    with pytest.raises(ValueError):
+        win.hotkey("a+enter")                                       # and Windows refuses it too
+
+
+@pytest.mark.parametrize("keys", ["alt+enter", "shift+ctrl+enter", "ctrl+shift+enter", "Enter"])
+def test_any_enter_in_a_chat_asks(make, keys):
+    from core.agent_safety import check
+    ctx = make("discord.exe", "#general - Discord", "Message @John", [READ, typed("hi")])
+    assert check("keys", {"keys": keys}, ctx)
+
+
+def test_shift_delete_in_explorer_asks(make):
+    from core.agent_safety import check
+    assert check("keys", {"keys": "ctrl+shift+delete"}, make("explorer.exe", "Downloads", "Items View"))
+
+
+def test_typing_refused_when_the_password_check_fails(make, monkeypatch):
+    from core import tools
+    from hands import apps, win
+    typed_keys = []
+    monkeypatch.setattr(win, "focused_is_password", lambda: None)          # Windows couldn't tell
+    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    r = tools.call("type", {"text": "hello"}, make())
+    assert not r.ok and "couldn't check" in r.say and not typed_keys
+
+
+def test_terminal_only_gets_the_users_own_command(make, monkeypatch):
+    from core import tools
+    from hands import apps, win
+    typed_keys = []
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    ctx = make("powershell.exe", "Windows PowerShell", "")
+    ctx.request = "open powershell and run ipconfig /all"
+    r = tools.call("type", {"text": "Remove-Item -Recurse C:\\temp"}, ctx)
+    assert not r.ok and "spelled out yourself" in r.say and not typed_keys
+    assert tools.call("type", {"text": "ipconfig /all"}, ctx).ok and typed_keys == ["ipconfig /all"]
+
+
+def test_close_that_leaves_the_app_open_ends_the_turn(make, monkeypatch):
+    from core import tools
+    from hands import win
+    monkeypatch.setattr(win, "find_window", lambda app: {"hwnd": 5})
+    monkeypatch.setattr(win, "exists", lambda hwnd: True)                  # still open: "save changes?"
+    monkeypatch.setattr(tools, "CLOSE_WAIT", 0)
+    monkeypatch.setattr(tools, "_action", lambda ctx, do, **w: tools.ToolResult(True, "Closing Notepad."))
+    r = tools.call("close", {"app": "notepad"}, make())
+    assert not r.ok and r.observed.get("end") == "done" and "left that to you" in r.say
+    monkeypatch.setattr(win, "exists", lambda hwnd: False)
+    assert tools.call("close", {"app": "notepad"}, make()).ok
+
+
+def test_a_changed_draft_is_asked_about_again(monkeypatch):
+    from core import agent, agent_safety, tools
+    from tests.test_agent import Scripted, call
+    from hands import win
+    box = {"text": "see you at 5"}
+    monkeypatch.setattr(agent_safety, "front", lambda c: {"hwnd": 3, "exe": "discord.exe", "title": "Discord",
+                                                          "focused": "Message @John"})
+    monkeypatch.setattr(agent_safety, "focused_text", lambda: box["text"])
+    monkeypatch.setattr(agent_safety, "otto_in_front", lambda c: False)
+    monkeypatch.setattr(win, "foreground", lambda: 3)
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    pressed = []
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    ctx = tools.ToolContext(dry_run=False)
+    brain = Scripted(call("read_window"), call("keys", keys="enter"))
+    monkeypatch.setattr(tools.TOOLS["read_window"], "run", lambda c, app="": tools.ToolResult(True, "Read."))
+    r = agent.run("send it", [], brain, ctx)
+    assert r.status == "confirm" and "see you at 5" in r.say
+    box["text"] = "see you at 5 and bring the money"                   # edited while the question was open
+    r2 = agent.resume(r.pending, brain, yes=True)
+    assert r2.status == "confirm" and "bring the money" in r2.say and not pressed
+    brain.replies.append(call("done", say="Sent."))
+    r3 = agent.resume(r2.pending, brain, yes=True)
+    assert pressed == ["enter"] and r3.status == "done"

@@ -90,8 +90,25 @@ def _steady(title: str) -> str:
 
 
 def snapshot(ctx) -> dict:
-    """Where a risky step would land, taken when Otto asks for your yes."""
-    return front(ctx)
+    """Where a risky step would land, taken when Otto asks for your yes, including the text in the focused box
+    (the draft the question read out), when Windows lets us read it."""
+    shot = front(ctx)
+    shot["draft"] = None if ctx.dry_run else _draft()
+    return shot
+
+
+def _draft() -> str | None:
+    text = focused_text()
+    return None if text is None else " ".join(text.split())
+
+
+def draft_changed(before: dict | None, ctx) -> bool:
+    """The box's text is not what it was when Otto asked (Codex review 19 Nov: you could edit the message while the
+    question was open, and the yes then sent text Otto never read out). Unreadable at ask time: nothing to compare;
+    unreadable now but readable then: counts as changed."""
+    if not before or before.get("draft") is None or ctx.dry_run:
+        return False
+    return _draft() != before["draft"]
 
 
 def same_place(before: dict | None, ctx) -> bool:
@@ -100,7 +117,7 @@ def same_place(before: dict | None, ctx) -> bool:
     if not before:
         return False
     if ctx.dry_run:
-        return front(ctx) == before
+        return front(ctx) == {k: v for k, v in before.items() if k != "draft"}
     try:
         from hands import win
         if before.get("hwnd") and win.foreground() != before["hwnd"]:
@@ -118,7 +135,7 @@ def same_place(before: dict | None, ctx) -> bool:
 def sending(name: str, args: dict) -> bool:
     """Would this call send what is in a box (Enter, or a typed new line)?"""
     if name == "keys":
-        return _keys(args.get("keys", "")) in SEND_KEYS
+        return _final(args.get("keys", "")) == "enter"
     text = str(args.get("text", "")) if name == "type" else ""
     return "\n" in text.rstrip(" ") or "\r" in text
 
@@ -198,7 +215,18 @@ def name_at(x: int, y: int) -> str | None:
 
 
 def _keys(value: str) -> str:
-    return "+".join(p for p in str(value).lower().replace(" ", "").split("+") if p)
+    """The shortcut written one fixed way ("shift+ctrl+enter" -> "ctrl+shift+enter"), as hotkey() presses it."""
+    from hands.win import parse_hotkey
+    try:
+        mods, last = parse_hotkey(value)
+        return "+".join((*mods, last))
+    except ValueError:
+        return "+".join(p for p in str(value).lower().replace(" ", "").split("+") if p)
+
+
+def _final(value: str) -> str:
+    """The key that does the work, whatever is held with it: alt+enter and ctrl+shift+enter still send."""
+    return _keys(value).rsplit("+", 1)[-1]
 
 
 def _last_typed(ctx) -> str:
@@ -248,19 +276,20 @@ def check(name: str, args: dict, ctx) -> str | None:
                                  "scroll"):
         return None
     if name == "keys":
-        keys = _keys(args.get("keys", ""))
+        keys, final = _keys(args.get("keys", "")), _final(args.get("keys", ""))
+        sends = final == "enter"
         w = front(ctx)
-        if keys in SEND_KEYS and _is_command(w):
+        if sends and _is_command(w):
             command = _last_typed(ctx)
             return f'run "{command}" in {_app_name(w)}' if command else f"press {keys} to run the command in {_app_name(w)}"
-        if keys in SEND_KEYS and _is_message(w):
+        if sends and _is_message(w):
             return _send_question(ctx, w, _last_typed(ctx))
-        if keys in {"delete", "del", "backspace"} and _selected_all(ctx):
+        if final in {"delete", "backspace"} and _selected_all(ctx):
             return f"delete everything selected in {_app_name(w)}"
-        if keys in DELETE_KEYS and (w["exe"].lower() == "explorer.exe" or _is_message(w)
+        if (keys in DELETE_KEYS or final == "delete") and (w["exe"].lower() == "explorer.exe" or _is_message(w)
                                     or re.search(r"\b(mail|inbox)\b", w["title"], re.I)):
             return f"delete the selected item in {_app_name(w)}"
-        if keys in SEND_KEYS | {"space"}:
+        if sends or final == "space":
             # Enter or Space on a focused button presses it: same rule as clicking it.
             from hands.apps import RISKY_WORDS
             if w["focused"] and RISKY_WORDS.search(w["focused"]):

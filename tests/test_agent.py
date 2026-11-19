@@ -522,3 +522,34 @@ def test_looking_up_or_a_joined_request_keeps_going(ctx):
     brain = Scripted(call("media", do="volume_set", level=30), call("done", say="Done both."))
     agent.run("turn it down to 30 and play lofi", [], brain, ctx)
     assert len(brain.seen) == 2
+
+
+def test_one_step_finish_needs_the_rules_to_read_the_whole_request(ctx):
+    from core import agent
+    # Only part of the job: the output switch for "play lofi through my headphones" (Codex review 19 Nov).
+    brain = Scripted(call("audio_output", do="set", device="headphones"), call("done", say="Done."))
+    agent.run("play lofi through my headphones", [], brain, ctx)
+    assert len(brain.seen) == 2
+    # The play part alone isn't it either: the rules read the whole sentence as the query.
+    brain = Scripted(call("media", do="play", query="lofi"), call("done", say="Done."))
+    agent.run("play lofi through my headphones", [], brain, ctx)
+    assert len(brain.seen) == 2
+    # The whole request, read the same way by the rules: one call.
+    for request, step in [("swap my audio output", call("audio_output", do="swap")),
+                          ("put the audio back", call("audio_output", do="undo")),
+                          ("play the hills", call("media", do="play", query="the hills")),
+                          ("change my audio output to airpods", call("audio_output", do="set", device="Headphones (AirPods)")),
+                          ("set a timer for 5 minutes", call("timer", do="set", seconds=300))]:
+        brain = Scripted(step)
+        r = agent.run(request, [], brain, ctx)
+        assert r.status == "done" and len(brain.seen) == 1, request
+
+
+def test_save_a_copy_is_not_finished_by_a_plain_save(ctx, monkeypatch):
+    from core import agent, tools
+    monkeypatch.setattr(tools.TOOLS["save"], "run", lambda c: tools.ToolResult(True, "Saved.", {"saved": True}))
+    brain = Scripted(call("save"), call("done", say="Saved a copy."))
+    agent.run("save a copy as essay-final.txt", [], brain, ctx)
+    assert len(brain.seen) == 2
+    brain = Scripted(call("save"))
+    assert agent.run("save it", [], brain, ctx).status == "done" and len(brain.seen) == 1

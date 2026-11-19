@@ -18,6 +18,7 @@ from core.tools import ToolResult, _action, _dry, tool
 # ---- search --------------------------------------------------------------------------------------
 WEB_SEARCH = {"google": "https://www.google.com/search?q={q}",
               "youtube": "https://www.youtube.com/results?search_query={q}"}
+SEARCH_FIELD = {"google": "q", "youtube": "search_query"}     # where each site keeps the searched words
 SEARCH_WAIT = 6.0
 
 
@@ -28,35 +29,41 @@ def search(ctx, query, where="google"):
     where = (where or "google").lower().strip().removesuffix(".com")
     if ctx.dry_run:
         return _dry(ctx, f'search {where} for "{query}"')
-    ctx.controls, ctx.look = [], {}                 # a new page: earlier reads are stale
+    ctx.controls, ctx.look, ctx.hwnd = [], {}, None  # a new page: earlier reads and windows are stale
     if where in WEB_SEARCH:
         url = WEB_SEARCH[where].format(q=urllib.parse.quote_plus(query))
         opened = _action(ctx, "open_site", site=url)
         if not opened.ok:
             return opened
         ctx.app = "Google Chrome"
-        if _shown(url, query):
+        shown_in = _shown(url, query, SEARCH_FIELD[where])
+        if shown_in:
+            ctx.hwnd = shown_in                     # the next read, look or scroll goes to this window
             return ToolResult(True, f'{where.title()} is showing results for "{query}".', {"searched": where})
         return ToolResult(False, f"I opened the {where.title()} search, but Chrome's address bar doesn't show it.")
     # Apps with their own search (Spotify, Steam, Settings...): the existing action checks what it can.
     return _action(ctx, "search_in_app", app=where, query=query)
 
 
-def _shown(url: str, query: str) -> bool:
-    """Chrome's address bar shows that site with the searched words (sites add their own extras to the address)."""
+def _shown(url: str, query: str, field: str) -> int | None:
+    """The Chrome window IN FRONT shows that site's results for these words, in the site's own search field (sites
+    add their own extras to the address). Returns that window, or None. Not any Chrome window, and not the words
+    anywhere in the address (Codex review 19 Nov: an old background search could pass)."""
+    from hands import win
     from hands.web import chrome_addresses
     host = urllib.parse.urlparse(url).hostname.removeprefix("www.")
     words = re.findall(r"\w+", query.casefold())
     end = time.monotonic() + SEARCH_WAIT
     while True:
-        for shown in chrome_addresses():
+        hwnd = win.foreground()
+        for shown in chrome_addresses(only=hwnd):
             parts = urllib.parse.urlparse(shown if "://" in shown else "https://" + shown)
-            seen = set(re.findall(r"\w+", urllib.parse.unquote_plus(parts.query).casefold()))
+            asked = urllib.parse.parse_qs(parts.query).get(field, [""])[0]
             # Whole words: "lofilofilofi" (typed three times, 12 Nov) is not a search for "lofi".
-            if (parts.hostname or "").removeprefix("www.") == host and all(w in seen for w in words):
-                return True
+            if (parts.hostname or "").removeprefix("www.") == host and re.findall(r"\w+", asked.casefold()) == words:
+                return hwnd
         if time.monotonic() >= end:
-            return False
+            return None
         time.sleep(0.3)
 
 
@@ -74,14 +81,20 @@ def save(ctx):
     from hands import win
     if ctx.dry_run:
         return _dry(ctx, "press ctrl+s and check it saved")
+    window = agent_safety.front(ctx).get("hwnd")
     before = _save_state(ctx)
     win.hotkey("ctrl+s")
     end = time.monotonic() + SAVE_WAIT
     while True:
-        title = agent_safety.front(ctx).get("title", "")
+        now = agent_safety.front(ctx)
+        title = now.get("title", "")
         if SAVE_AS.search(title):
             return ToolResult(False, "The Save As window is open. Tell me the file name (and folder) to use.",
                               {"saved": False, "save_as": True})
+        if window and now.get("hwnd") != window:
+            # Another window came to the front: what it shows says nothing about this document (Codex review).
+            return ToolResult(True, "I pressed Save, but another window came up, so I couldn't confirm it saved.",
+                              {"saved": False})
         after = _save_state(ctx)
         if after["unsaved"] is False and (before["unsaved"] or after["tab"]):
             return ToolResult(True, "Saved (the window no longer shows unsaved changes).", {"saved": True})

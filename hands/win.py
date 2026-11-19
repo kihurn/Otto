@@ -6,6 +6,7 @@ loaded (and tested in --dry-run) on other systems.
 
 from __future__ import annotations
 
+import re
 import ctypes
 import os
 import time
@@ -127,17 +128,37 @@ _KEYS = {"enter": "{ENTER}", "return": "{ENTER}", "tab": "{TAB}", "esc": "{ESC}"
          "win": "{VK_LWIN}", "f5": "{F5}", "f11": "{F11}"}
 
 
+MODIFIERS = ("ctrl", "alt", "shift")          # the order every shortcut is written in after parse_hotkey
+_KEY_NAMES = {"enter", "return", "tab", "esc", "escape", "space", "backspace", "delete", "del", "insert", "home",
+              "end", "pageup", "pagedown", "up", "down", "left", "right", "win", *(f"f{n}" for n in range(1, 13))}
+
+
+def parse_hotkey(keys: str) -> tuple[tuple[str, ...], str]:
+    """'Shift + Ctrl + Enter' -> (("ctrl", "shift"), "enter"). Only ctrl/alt/shift may come before the last key and
+    the last key must be one real key, otherwise ValueError. The safety gate and hotkey() both use this, so what
+    is checked is exactly what is pressed (Codex review 19 Nov: "a+enter" was checked as harmless, then the "a"
+    was silently dropped and a plain Enter was pressed)."""
+    parts = [p for p in str(keys).lower().replace(" ", "").split("+") if p]
+    if not parts:
+        raise ValueError("no keys")
+    *mods, last = ["ctrl" if p == "control" else p for p in parts]
+    if any(m not in MODIFIERS for m in mods) or len(set(mods)) != len(mods):
+        raise ValueError(f"only ctrl, alt and shift can come before the last key: {keys!r}")
+    if last in MODIFIERS or not (last in _KEY_NAMES or re.fullmatch(r"[a-z0-9]", last)):
+        raise ValueError(f"not a key: {last!r}")
+    last = {"return": "enter", "escape": "esc", "del": "delete"}.get(last, last)
+    return tuple(m for m in MODIFIERS if m in mods), last
+
+
 def hotkey(keys: str) -> None:
-    """'ctrl+l', 'ctrl+shift+t', 'enter'."""
+    """'ctrl+l', 'ctrl+shift+t', 'enter'. Refuses anything parse_hotkey can't read in full."""
+    mods, last = parse_hotkey(keys)
     from core.action_runtime import check
     check()
     from pywinauto.keyboard import send_keys
 
-    parts = [p.strip().lower() for p in keys.replace(" ", "").split("+") if p.strip()]
-    mods = "".join(_SPECIAL[p] for p in parts[:-1] if p in _SPECIAL)
-    last = parts[-1]
     key = _KEYS.get(last, last if len(last) == 1 else "{" + last.upper() + "}")
-    send_keys(mods + key, pause=0.02)
+    send_keys("".join(_SPECIAL[m] for m in mods) + key, pause=0.02)
 
 
 def type_text(text: str) -> None:
@@ -150,9 +171,19 @@ def type_text(text: str) -> None:
     send_keys(escaped, with_spaces=True, with_newlines=True, pause=0.005)
 
 
-def focused_is_password() -> bool:
+def focused_is_password() -> bool | None:
+    """True / False, or None when Windows couldn't tell. Typing treats None as "maybe a password" and refuses
+    (Codex review 19 Nov: a failed check used to count as "not a password")."""
     try:
         from pywinauto.uia_defines import IUIA
         return bool(IUIA().get_focused_element().CurrentIsPassword)
+    except Exception:
+        return None
+
+
+def exists(hwnd: int) -> bool:
+    try:
+        import win32gui
+        return bool(win32gui.IsWindow(hwnd)) and bool(win32gui.IsWindowVisible(hwnd))
     except Exception:
         return False

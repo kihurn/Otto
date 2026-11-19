@@ -587,3 +587,20 @@ def test_speed_line_shows_reading_and_writing_speed():
     calls = [{"prompt_read": 2000, "read_s": 1.0, "reply_tokens": 40, "write_s": 1.0, "load_s": 0},
              {"prompt_read": 2400, "read_s": 1.2, "reply_tokens": 20, "write_s": 0.5, "load_s": 3.2}]
     assert _rates(calls) == ", reads 2,000 tok/s, writes 40 tok/s, loading 3.2 s"
+
+
+def test_an_unclear_yes_never_approves(new):
+    from core.pipeline import Pending
+    for said in ("okay stop", "ok cancel", "yeah wait", "okay save that", "yes send it"):
+        new.pending = Pending("agent_confirm", expires=time.time() + 60, text="send it", agent={"options": []})
+        assert new.handle(said).text == 'Please answer just "yes" or "no".', said
+        assert new.pending and new.pending.kind == "agent_confirm"           # the question is still open
+    new.pending = None
+
+
+def test_an_option_must_match_exactly_one_choice(new):
+    from core.pipeline import Pending
+    new.pending = Pending("agent_ask", expires=time.time() + 60, text="switch output",
+                          agent={"options": ["USB speakers", "Monitor speakers", "Headphones (AirPods)"]})
+    assert not new._names_an_option("speakers") and new._names_an_option("monitor speakers")
+    assert new._names_an_option("airpods")

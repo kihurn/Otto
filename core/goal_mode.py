@@ -379,7 +379,7 @@ def pursue(app: str, goal: str, text: str = '', target_name: str = '', end: floa
         from hands import indicator
         indicator.point(target['rect'])
         check()
-        if win.foreground() != hwnd or win.focused_is_password():
+        if win.foreground() != hwnd or win.focused_is_password() is not False:
             return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I did not type.')
         win.type_text(text)
         for _ in range(8):

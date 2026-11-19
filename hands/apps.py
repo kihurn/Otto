@@ -298,8 +298,8 @@ def hotkey(keys: str) -> Result:
 @action("type_text", UNDOABLE, {"text": "text to type"}, lambda text: f"type \"{text[:40]}\"",
         for_brain=True, note="types into the window in front; never into password boxes")
 def type_text(text: str) -> Result:
-    if win.focused_is_password():
-        return Result(False, "That's a password box, and I never type into those.")
+    if win.focused_is_password() is not False:
+        return Result(False, "That's a password box (or I couldn't check), and I never type into those.")
     win.type_text(text)
     return Result(True, "Typed it.")
 

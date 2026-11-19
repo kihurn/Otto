@@ -113,6 +113,11 @@ def test_quiet_save_that_is_accepted_but_a_quiet_yes_is_not(otto):
     otto.handle('close discord')                       # leaves a "should I close Discord?" question open
     assert otto.pending is not None
     assert 'repeat your answer' in otto.handle('yes', heard_conf=-1.2).text
+    # While a yes would approve something, a quiet "save that" is no exception (Codex review 19 Nov: "okay save
+    # that" also reads as yes). With nothing waiting for a yes, it is still accepted.
+    assert 'repeat your answer' in otto.handle('okay save that', heard_conf=-1.2).text
+    otto.handle('no')
+    assert otto.pending is None
     assert 'repeat your answer' not in otto.handle('save that', heard_conf=-1.2).text
 
 

@@ -255,8 +255,11 @@ def _media(text: str) -> Intent | None:
         return Intent('media', 'list_audio_outputs')
     if re.fullmatch(r"(?:which|what)(?: is| are|'s)? (?:the |my |current |default )*(?:audio |sound )?output(?: device)?(?: am i using)?", t):
         return Intent('media', 'get_audio_output')
-    if re.fullmatch(r'undo (?:that |the |my )?(?:audio )?output(?: change)?', t):
+    if re.fullmatch(r'undo (?:that |the |my )?(?:audio )?output(?: change)?', t) or re.fullmatch(
+            r"(?:put|switch|change|set|move) (?:the |my )?(?:audio|sound|output)(?: output)? back(?: again)?", t):
         return Intent('media', 'undo_audio_output')
+    if re.fullmatch(r"swap (?:my |the )?(?:audio |sound )?outputs?(?: device)?(?: over)?", t):
+        return Intent('media', 'swap_audio_output')
     device = re.fullmatch(r'make (?:my |the )?(.+?) (?:as )?(?:the )?default (?:audio |sound )?output', t)
     if not device:
         device = re.fullmatch(r'(?:set|switch|change) (?:my |the )?(?:default )?(?:audio |sound )?output to (.+)', t)

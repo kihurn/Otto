@@ -205,8 +205,10 @@ class Otto:
 
         # "save that", "no" and "cancel" are fixed phrases that can't approve anything risky, so a quiet or
         # short recording of them is still accepted. A mumbled "yes" is NOT: it could approve closing an app.
-        fixed_phrase = bool(guards.memory_command(t) or guards.reply_kind(t) == 'no' or guards.is_cancel(t)
-                            or self._names_an_option(t))
+        # Never for a question that approves something risky: there only a clearly heard plain yes counts.
+        approving = bool(self.pending and self.pending.kind in self.APPROVALS)
+        fixed_phrase = bool((guards.memory_command(t) and not approving) or guards.reply_kind(t) == 'no'
+                            or guards.is_cancel(t) or self._names_an_option(t))
         if (self.pending and heard_conf is not None and not fixed_phrase
                 and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9))):
             return Reply('I did not catch that clearly. Please repeat your answer.')
@@ -519,6 +521,11 @@ class Otto:
                 p.task.cancel.set()
             self.pending = None
             return Reply("Okay, cancelled.")
+
+        if p.kind in self.APPROVALS and kind == "yes" and not guards.exact_yes(t):
+            # "okay stop", "ok cancel", "yeah wait": not a clear yes, so nothing is approved; the question stays.
+            p.expires = time.time() + 60
+            return Reply('Please answer just "yes" or "no".')
 
         if p.kind == "agent_confirm":
             self.pending = None
@@ -868,6 +875,8 @@ class Otto:
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
 
+    APPROVALS = ("agent_confirm", "confirm_plan", "confirm_forget")    # a yes here lets something risky happen
+
     def _names_an_option(self, t: str) -> bool:
         """One of the choices Otto just offered ("AirPods" for "Speakers or AirPods?"). Short answers are often heard
         with low confidence (19 Nov: "AirPods" at -1.04 was refused), but picking an offered option is safe: it is
@@ -877,7 +886,8 @@ class Otto:
             return False
         said = " ".join(re.findall(r"[a-z0-9]+", t.lower()))
         options = [" ".join(re.findall(r"[a-z0-9]+", str(o).lower())) for o in (p.agent or {}).get("options", [])]
-        return bool(said) and any(said == o or re.search(rf"\b{re.escape(said)}\b", o) for o in options if o)
+        # Exactly one option: "speakers" with "USB speakers" and "monitor speakers" offered is not an answer.
+        return bool(said) and sum(1 for o in options if o and (said == o or re.search(rf"\b{re.escape(said)}\b", o))) == 1
 
     _NEW_REQUEST = re.compile(r"^(?:you\b|please\b|open|close|play|search|google|type|click|press|send|reply|"
                               r"what|who|where|when|why|how)\b|\b(?:can|could|would|will) you\b", re.I)
@@ -1000,7 +1010,7 @@ class Otto:
             return Reply(f"Just checking: should I {result.say}?")
         # Saveable only if it really ran (not a dry run), finished, and every step that acted worked.
         saveable = (not self.dry_run and result.status == "done" and result.ok and bool(acting)
-                    and all(c.get("ok") for c in acting))
+                    and all(c.get("ok") for c in acting) and not agent.unverified_save(calls))
         self.last = {"text": t, "intent": None, "plan": None, "ok": saveable,
                      "agent": [c for c in calls if c.get("ok") and not c.get("asked")]}
         self.learned = None

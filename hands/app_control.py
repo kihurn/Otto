@@ -96,7 +96,7 @@ def type_in_app(app: str, text: str) -> Outcome:
     indicator.point(target['rect'])
     check()
     # Last look before any key is sent: still the same window in front, and not a password box.
-    if win.foreground() != hwnd or win.focused_is_password():
+    if win.foreground() != hwnd or win.focused_is_password() is not False:
         return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I did not type.')
     win.type_text(text)
     for _ in range(8):
