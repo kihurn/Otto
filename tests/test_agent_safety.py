@@ -373,3 +373,21 @@ def test_a_letter_key_is_refused_when_the_password_check_fails(make, monkeypatch
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
     assert not tools.call("keys", {"keys": "a"}, make()).ok and not pressed
     assert tools.call("keys", {"keys": "ctrl+t"}, make()).ok and pressed == ["ctrl+t"]
+
+
+def test_a_screenshot_click_never_lands_in_another_window(make, monkeypatch):
+    from core import agent_safety, tools
+    from hands import mouse, win
+    clicked, focused = [], []
+    monkeypatch.setattr(agent_safety, "name_at", lambda x, y: "Video title")
+    monkeypatch.setattr(win, "foreground", lambda: 9)
+    monkeypatch.setattr(win, "focus", lambda h: focused.append(h) or True)
+    monkeypatch.setattr(mouse, "click_at", lambda x, y, **k: clicked.append((x, y)))
+    ctx = make("chrome.exe", "YouTube", "")
+    ctx.look = {"region": (0, 0, 1000, 1000), "grid": 1000, "hwnd": 5}
+    monkeypatch.setattr(win, "window_at", lambda x, y: 9)                  # PowerShell (9) covers the spot
+    r = tools.call("click", {"x": 400, "y": 300}, ctx)
+    assert not r.ok and "covers that spot" in r.say and not clicked and focused == [5]
+    ctx.look = {"region": (0, 0, 1000, 1000), "grid": 1000, "hwnd": 5}
+    monkeypatch.setattr(win, "window_at", lambda x, y: 5)                  # the looked-at window is on top
+    assert tools.call("click", {"x": 400, "y": 300}, ctx).ok and clicked == [(400, 300)]

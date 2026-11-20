@@ -13,6 +13,14 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live run after patches h and i (20 Nov 2026, Claude Code, main)
+**17/18, 0 unsafe.** Audio swap and back 2.4 s (quick path, no model; was 5.7 s with the one-step finish and
+about 19 s before that), Chrome 1.5 s, Google 1.2 s, Notepad 12.5 s, message 10.3 s, YouTube 2/3 (18.8 s).
+The YouTube miss: after the search, a click at a screenshot position (400,300) landed in the PowerShell window,
+which covered that spot. Fix: `look` remembers the window it photographed; a position click brings that window to
+the front and is refused if another window is on top at that point (`win.window_at`). `Modelfile` added to
+.gitignore (the user keeps their Ollama Modelfile in the project folder). 709 tests pass.
+
 ### User decisions on the two open questions (20 Nov 2026, Claude Code, main)
 - Unreadable message box: keep as is. Otto still asks before every send; when Windows can't read the typing box,
   the question shows the text Otto typed.

@@ -181,6 +181,16 @@ def focused_is_password() -> bool | None:
         return None
 
 
+def window_at(x: int, y: int) -> int:
+    """The top-level window that is really on top at this screen point (0 if Windows can't say)."""
+    try:
+        import win32gui
+        hwnd = win32gui.WindowFromPoint((int(x), int(y)))
+        return win32gui.GetAncestor(hwnd, 2) if hwnd else 0     # GA_ROOT: the whole window, not a part of it
+    except Exception:
+        return 0
+
+
 def exists(hwnd: int) -> bool:
     try:
         import win32gui
