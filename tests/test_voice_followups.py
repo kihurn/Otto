@@ -2,14 +2,15 @@ import pytest
 from core.guards import filler_only
 
 from hands.spotify_desktop import matches, normalized
+from tests.test_pipeline import otto  # noqa: F401  (the fake-Laya, fake-brain Otto)
 
 
-@pytest.mark.parametrize('text', ['um', 'uhh', 'uhms', 'umm, uh', 'erm'])
+@pytest.mark.parametrize('text', ['um', 'uhh', 'uhms', 'umm, uh', 'erm', 'Oh', 'oh.', 'ahh', 'huh?', 'mm', 'mhm', 'oh, hmm'])
 def test_fillers(text):
     assert filler_only(text)
 
 
-@pytest.mark.parametrize('text', ['play um', 'search for uhm', 'hmm play music'])
+@pytest.mark.parametrize('text', ['play um', 'search for uhm', 'hmm play music', 'oh no', 'oh yeah', 'ah pause'])
 def test_real_content_not_discarded(text):
     assert not filler_only(text)
 
@@ -59,3 +60,9 @@ def test_desktop_invokes_one_matching_control(monkeypatch, count):
     outcome = ui.play(Step('s', 'play_music', {'query': 'Over the Moon', 'artist': 'The Marias'}),
                       task, float('inf'), lambda m: None)
     assert outcome.ok and len(clicked) == 1
+
+
+def test_a_quiet_oh_gets_no_question(otto):
+    # 20 Nov voice run: "Oh" (heard at -1.12) got "Sorry, did you say "Oh"?". A filler gets no reply at all.
+    assert otto.handle("Oh", heard_conf=-1.12).text == ""
+    assert otto.pending is None or otto.pending.kind != "heard"

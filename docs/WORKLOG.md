@@ -13,6 +13,14 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live run 21/21 and fillers (20 Nov 2026, Claude Code, main)
+- Live test 21/21, 0 unsafe; YouTube "play the Nth video" 5.3-7.4 s with the video skill (was 1/3, 24 s);
+  background video 3.5-4.1 s. NVIDIA Broadcast noise removal works for the user (music while talking).
+- Voice: "Oh" heard at -1.12 got "Sorry, did you say "Oh"?". `guards.filler_only` now also covers oh, ah, aw,
+  eh, huh, mm/mhm, ugh, oops (only when the whole sentence is fillers). 1,020 tests.
+- Open: "I pressed the matching Play control, but could not verify the requested song." twice (Spotify desktop
+  path); waiting for the request and details line.
+
 ### Live run with background mode, and the video skill (20 Nov 2026, Claude Code, main)
 - Live test 19/21, 0 unsafe: background video 3/3 (3.4-4.8 s); "search for lofi and play the second video" 1/3
   (19.6-31.2 s): one run hit the step limit after clicking an unnamed spot, one clicked a YouTube Mix and then

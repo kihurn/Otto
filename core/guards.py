@@ -28,7 +28,7 @@ def clean(text: str) -> str:
 
 def filler_only(text: str) -> bool:
     words = re.findall(r"[a-z]+", text.lower())
-    return bool(words) and all(re.fullmatch(r'u+h+m*s*|u+m+s*|e+r+m*s*|e+r+s*|h+m+', word) for word in words)
+    return bool(words) and all(re.fullmatch(r'u+h+m*s*|u+m+s*|e+r+m*s*|e+r+s*|h+m+|o+h+|a+h+|a+w+|e+h+|h+u+h+|m+h*m*|u+g+h+|o+o+p+s+', word) for word in words)
 
 
 def strip_wake(text: str) -> tuple[str, bool]:

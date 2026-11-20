@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.2 (in development)
+- Spoken fillers on their own ("oh", "ah", "huh", "mm") get no reply, instead of "Sorry, did you say...?".
 - Playing a YouTube video ("search for lofi and play the second video") no longer clicks on a screenshot: the
   search skill's new `play` option finds that result with the YouTube Data API (no Mixes or live streams), opens
   it, and is done only when Chrome shows that exact video (or plays it minimised with `background`). Without
