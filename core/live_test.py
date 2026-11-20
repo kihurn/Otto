@@ -308,34 +308,34 @@ def _google() -> Task:
 
 
 def _youtube() -> Task:
-    # What code can check: a video page in front. Whether it is the second result, and that it plays, is checked by
-    # eye. Tabs are left open: which tabs the test opened can't be proven (Chrome shows one address per window),
-    # so closing one could close yours (Codex re-review 20 Nov).
-    def setup(memo):
-        # Video pages already open (earlier attempts, the user's own) don't count for this attempt (Codex, 20 Nov).
-        from hands.web import chrome_addresses
-        try:
-            memo["shared"].setdefault("seen", set()).update(a for a in chrome_addresses() if "youtube.com/watch" in a)
-        except Exception:
-            pass
-        return None
-
-    def new_video(memo) -> bool:
-        address = front_address()
-        return "youtube.com/watch" in address and address not in memo["shared"].get("seen", set())
-
-    def check(memo):
-        ok = wait_for(lambda: new_video(memo), 6)
-        if ok:
-            memo["shared"].setdefault("seen", set()).add(front_address())
-        return ok, "" if ok else f"no new video page; the address bar shows {front_address()[:80]!r}"
+    # What code can check: a video page newly in front. Whether it is the right result and plays is checked by eye.
+    # Tabs are left open: which tabs the test opened can't be proven (Chrome shows one address per window), so
+    # closing one could close yours (Codex re-review 20 Nov).
     def say(memo):
-        # A different result each attempt: the same search gives the same second video every time, and a page already
-        # seen doesn't count (20 Nov, after the video skill).
+        from hands import win
+        from hands.web import chrome_addresses
+        # Each Chrome window's address right before the request: the video must be a change in the window in front.
+        # (20 Nov: comparing against every video ever open failed when the same result was still open in an old tab
+        # from an earlier run.)
+        memo["before"] = {}
+        for w in win.windows():
+            if w["exe"].casefold() == "chrome.exe":
+                found = chrome_addresses(only=w["hwnd"])
+                memo["before"][w["hwnd"]] = found[0] if found else ""
+        # A different result each attempt, so a run can't pass on the one before's page.
         shared = memo["shared"]
         shared["attempt"] = shared.get("attempt", 0) + 1
         return f"open youtube, search for lofi and play the {('second', 'third', 'fourth', 'fifth')[(shared['attempt'] - 1) % 4]} video"
-    return Task("youtube video page opens", [Step(say, check)], setup)
+
+    def new_video(memo) -> bool:
+        from hands import win
+        address = front_address()
+        return "youtube.com/watch" in address and address != memo["before"].get(win.foreground())
+
+    def check(memo):
+        ok = wait_for(lambda: new_video(memo), 6)
+        return ok, "" if ok else f"no new video page in front; the address bar shows {front_address()[:80]!r}"
+    return Task("youtube video page opens", [Step(say, check)])
 
 
 def _notepad() -> Task:

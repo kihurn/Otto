@@ -19,6 +19,7 @@ from hands.registry import UNDOABLE, Result, action
 SEARCH = "https://www.googleapis.com/youtube/v3/search"
 WATCH = "https://www.youtube.com/watch?v={}"
 PLAY_WAIT = 8.0              # seconds for the page to start playing before its window is minimised
+FRONT_PLAY_WAIT = 4.0        # in front it plays within a second or two; don't hold the reply longer
 
 
 class YouTubeError(Exception):
@@ -122,7 +123,7 @@ def play_video(query: str, which: str = "1", background: str = "yes") -> Result:
             if time.monotonic() >= end:
                 return Result(False, f"I opened {title}, but Chrome doesn't show it in front.", {"video": vid})
             time.sleep(0.3)
-        data = {"video": vid, "window": front, "playing": _wait(playing, PLAY_WAIT)}
+        data = {"video": vid, "window": front, "playing": _wait(playing, FRONT_PLAY_WAIT)}
         return Result(True, f"Playing {title}." if data["playing"] else
                       f"I opened {title}, but I couldn't confirm it's playing.", data)
     try:

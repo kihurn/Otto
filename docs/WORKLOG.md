@@ -13,6 +13,16 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live run after patches v and w: slower, diagnosed (20 Nov 2026, Claude Code, main)
+- 17/18, 0 unsafe. Audio skipped (Windows listed one output). Message task run with **claude** as the chat app:
+  5.9, 90.8, 35.6 s (was 5 s with Discord); still asked every time. Cause to confirm from the log: Claude is now a
+  chat app, so a send needs the chat read first (`blocked`), and reading an Electron window's controls can be slow.
+- YouTube 8.4-16.9 s (was 5-7): the video skill now hands back to the model (one more call) and waits to see
+  the video play. Front wait cut to 4 s (`FRONT_PLAY_WAIT`).
+- The miss ("fourth video", address a watch page) was the test: the same 4th result was still open in a tab
+  from the previous live run, and the test refused any video page ever open. Now it needs the address of the
+  Chrome window in front to have changed during this request. 1,055 tests.
+
 ### Codex checkpoint C2 fixes, part 2: items 5-10 (20 Nov 2026, Claude Code, main)
 - 5: `win.wait_for_pause()` returns False after 8 s of keys/mouse; `screen_borrowed` then raises `win.Busy` (the
   video says so; Spotify's launch is skipped and the player check reports it). No new window but an existing

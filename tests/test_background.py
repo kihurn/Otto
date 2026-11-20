@@ -206,6 +206,7 @@ def test_a_video_in_front_counts_only_when_chrome_shows_that_video(monkeypatch):
     monkeypatch.setattr(youtube, "find_video", lambda q, n=1: ("abc", "Lofi girl"))
     monkeypatch.setattr(youtube, "SHOW_WAIT", 0.01)
     monkeypatch.setattr(youtube, "PLAY_WAIT", 0.01)
+    monkeypatch.setattr(youtube, "FRONT_PLAY_WAIT", 0.01)
     now_playing = set()
     monkeypatch.setattr(youtube, "_chrome_playing", lambda: set(now_playing))
     monkeypatch.setattr(youtube.time, "sleep", lambda s: None)

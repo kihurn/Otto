@@ -277,17 +277,25 @@ def test_google_check_is_the_exact_query():
     assert not live_test._is_search("https://www.google.com/search?q=banana+bread+pudding", "banana bread")
 
 
-def test_youtube_needs_a_video_page_new_to_this_run(monkeypatch):
+def test_youtube_needs_a_change_in_the_window_in_front(monkeypatch):
+    # 20 Nov: the fourth result was still open in an old tab from an earlier run; that must not matter.
+    from hands import web, win
     task = live_test._youtube()
-    shared = {"seen": {"youtube.com/watch?v=old"}}
+    monkeypatch.setattr(win, "windows", lambda: [{"hwnd": 7, "exe": "chrome.exe"}])
+    monkeypatch.setattr(web, "chrome_addresses", lambda only=None: ["youtube.com/watch?v=old"])
+    monkeypatch.setattr(win, "foreground", lambda: 7)
     monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: test())
+    memo = {"shared": {}}
+    task.steps[0].say(memo)
     monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=old")
-    assert task.steps[0].check({"shared": shared})[0] is False
+    assert task.steps[0].check(memo)[0] is False                       # nothing changed in front
     monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=new")
-    assert task.steps[0].check({"shared": shared})[0] is True and "youtube.com/watch?v=new" in shared["seen"]
+    assert task.steps[0].check(memo)[0] is True
 
 
-def test_youtube_task_asks_for_a_different_result_each_attempt():
+def test_youtube_task_asks_for_a_different_result_each_attempt(monkeypatch):
+    from hands import win
+    monkeypatch.setattr(win, "windows", lambda: [])
     task = live_test._youtube()
     shared = {}
     said = [task.steps[0].say({"shared": shared}) for _ in range(3)]
