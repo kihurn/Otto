@@ -25,6 +25,16 @@ class YouTubeError(Exception):
     pass
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would carry the key's header to wherever it points (Codex checkpoint C2): refuse them all. The
+    API answers directly, so a redirect is an error."""
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_open = urllib.request.build_opener(_NoRedirect).open
+
+
 def key() -> str | None:
     return (os.environ.get("OTTO_YOUTUBE_API_KEY") or "").strip() or None
 
@@ -35,7 +45,7 @@ def find_videos(query: str, count: int = 5) -> list[tuple[str, str]]:
     params = urllib.parse.urlencode({"part": "snippet", "type": "video", "maxResults": count, "q": query})
     req = urllib.request.Request(f"{SEARCH}?{params}", headers={"X-Goog-Api-Key": key() or ""})
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with _open(req, timeout=8) as resp:
             data = json.load(resp)
     except urllib.error.HTTPError as e:
         try:

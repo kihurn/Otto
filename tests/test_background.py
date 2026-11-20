@@ -23,7 +23,7 @@ def test_the_key_goes_in_a_header_never_in_the_address(monkeypatch):
     def urlopen(req, timeout=0):
         seen.update(url=req.full_url, key=req.get_header("X-goog-api-key"))
         return Reply(json.dumps({"items": [{"id": {"videoId": "abc"}, "snippet": {"title": "Lofi &amp; chill"}}]}).encode())
-    monkeypatch.setattr(youtube.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(youtube, "_open", urlopen)
     assert youtube.find_video("lofi") == ("abc", "Lofi & chill")
     assert seen["key"] == "secret-123" and "secret" not in seen["url"] and "q=lofi" in seen["url"]
 
@@ -36,7 +36,7 @@ def test_youtube_errors_are_one_plain_sentence(monkeypatch, code, reason, said):
 
     def urlopen(req, timeout=0):
         raise urllib.error.HTTPError(req.full_url, code, "no", {}, body)
-    monkeypatch.setattr(youtube.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(youtube, "_open", urlopen)
     with pytest.raises(youtube.YouTubeError) as e:
         youtube.find_video("lofi")
     assert said in str(e.value) and "secret" not in str(e.value)
@@ -182,6 +182,7 @@ def test_live_task_repeats_wait_for_the_last_video_to_stop(monkeypatch):
         pc.windows.pop(hwnd)
         playing.clear()
     waited = []
+    monkeypatch.setattr(win, "is_minimised", lambda h: True)
     monkeypatch.setattr(win, "close", lambda h: None)
     monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: waited.append(test()) or close(3) or test())
     task.cleanup(memo)
@@ -195,7 +196,7 @@ def test_live_streams_are_skipped_and_the_nth_result_is_picked(monkeypatch):
     items = [{"id": {"videoId": "live"}, "snippet": {"title": "24/7 radio", "liveBroadcastContent": "live"}},
              {"id": {"videoId": "a"}, "snippet": {"title": "A", "liveBroadcastContent": "none"}},
              {"id": {"videoId": "b"}, "snippet": {"title": "B", "liveBroadcastContent": "none"}}]
-    monkeypatch.setattr(youtube.urllib.request, "urlopen", lambda req, timeout=0: Reply(json.dumps({"items": items}).encode()))
+    monkeypatch.setattr(youtube, "_open", lambda req, timeout=0: Reply(json.dumps({"items": items}).encode()))
     assert youtube.find_video("lofi", 2) == ("b", "B") and youtube.find_video("lofi", 3) is None
 
 

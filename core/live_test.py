@@ -493,8 +493,8 @@ def _background_video() -> Task:
         if not wait_for(lambda: youtube._chrome_playing() - memo["playing"], 6):
             return False, "no new video is playing"
         windows = opened(memo)
-        if not windows or not all(win.is_minimised(w["hwnd"]) for w in windows):
-            return False, "the video's window isn't minimised"
+        if len(windows) != 1 or not win.is_minimised(windows[0]["hwnd"]):
+            return False, "there isn't exactly one new, minimised video window"
         if win.foreground() != memo["front"]:
             return False, f"your window lost the front; {front().get('title', '')[:60]!r} is there"
         return True, ""
@@ -503,8 +503,9 @@ def _background_video() -> Task:
         # The same lofi video comes up every run, so wait until this run's one has stopped: otherwise the next run's
         # "something new is playing" can't be seen (closing a window takes a moment).
         from hands import win, youtube
-        for w in opened(memo):
-            win.close(w["hwnd"])
+        windows = opened(memo)
+        if len(windows) == 1 and win.is_minimised(windows[0]["hwnd"]):     # only Otto's own, never a second one
+            win.close(windows[0]["hwnd"])
         wait_for(lambda: not opened(memo) and not youtube._chrome_playing() - memo.get("playing", set()), 5)
 
     return Task("video in the background", [Step(say, check)], setup, cleanup)

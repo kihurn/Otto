@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Safety (Codex checkpoint C2): once Otto has typed something, Enter, a typed new line or an unnamed button asks
+  first in any app except known editors and search/address boxes (Enter in Claude went through unasked). Claude
+  and ChatGPT count as chat apps. "I've sent it" needs a send you said yes to. Background mode hides a window only
+  when exactly one new one appeared. The YouTube key is never sent on to a redirected address.
 - A video that really played (search with play) no longer reports "I didn't manage to play it". "At the back"
   also means in the background, and "... and youtube" (misheard "on youtube") still plays a background video.
   Still unclear after "did you say ...?": Otto lets it go instead of asking again.

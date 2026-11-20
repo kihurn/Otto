@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 
 MESSAGING_EXE = {"discord.exe", "whatsapp.exe", "ms-teams.exe", "teams.exe", "messenger.exe", "telegram.exe",
-                 "slack.exe", "outlook.exe", "olk.exe", "thunderbird.exe", "signal.exe"}
+                 "slack.exe", "outlook.exe", "olk.exe", "thunderbird.exe", "signal.exe", "claude.exe", "chatgpt.exe"}
 MESSAGING_TITLE = re.compile(r"\b(gmail|outlook|whatsapp|messenger|discord|teams|slack|telegram|instagram|"
-                             r"linkedin|messages)\b", re.I)
+                             r"linkedin|messages|claude|chatgpt)\b", re.I)
 MESSAGE_BOX = re.compile(r"\b(message|chat|reply|comment|post|compose|write to|send to|dm)\b", re.I)
 TERMINAL_EXE = {"powershell.exe", "pwsh.exe", "cmd.exe", "windowsterminal.exe", "wt.exe", "conhost.exe"}
 DELETE_KEYS = {"delete", "del", "shift+delete", "shift+del", "ctrl+d"}
@@ -265,6 +265,23 @@ def _is_message(w: dict) -> bool:
             or bool(MESSAGE_BOX.search(w["focused"])))
 
 
+# Where Enter after typing only adds a line or runs a search, never sends (Codex checkpoint C2, 20 Nov: Enter after
+# typing in Claude went through unasked because Claude wasn't on the messaging list). Everything else asks.
+EDITOR_EXE = {"notepad.exe", "wordpad.exe", "winword.exe", "excel.exe", "powerpnt.exe", "onenote.exe", "code.exe",
+              "notepad++.exe", "obsidian.exe"}
+SEARCH_FIELD = re.compile(r"\b(search|address|find|url|filter|go to)\b", re.I)
+
+
+def _typed_this_turn(ctx) -> bool:
+    return any(h.get("tool") == "type" and h.get("ok") for h in ctx.history)
+
+
+def _harmless_enter(w: dict) -> bool:
+    """Enter here can't send anything: a known editor, or a box Windows names as a search or address field.
+    An empty or unreadable name is not known to be harmless."""
+    return w["exe"].lower() in EDITOR_EXE or bool(w["focused"] and SEARCH_FIELD.search(w["focused"]))
+
+
 def _is_command(w: dict) -> bool:
     exe, title, focused = w["exe"].lower(), w["title"], w["focused"]
     if exe in TERMINAL_EXE:
@@ -309,7 +326,7 @@ def check(name: str, args: dict, ctx) -> str | None:
                 return question
         if final == "enter" and _is_command(w):
             return f'run "{command_just_typed(ctx)}" in {_app_name(w)}'
-        if final == "enter" and _is_message(w):
+        if final == "enter" and (_is_message(w) or (_typed_this_turn(ctx) and not _harmless_enter(w))):
             return _send_question(ctx, w, _last_typed(ctx))
         if final in {"delete", "backspace"} and _selected_all(ctx):
             return f"delete everything selected in {_app_name(w)}"
@@ -319,8 +336,12 @@ def check(name: str, args: dict, ctx) -> str | None:
         return None
     if name == "type":
         text = str(args.get("text", ""))
-        if ("\n" in text.rstrip(" ") or "\r" in text) and _is_command(front(ctx)):
-            return f'run "{text.strip()}" in {_app_name(front(ctx))}'
+        if "\n" in text.rstrip(" ") or "\r" in text:
+            w = front(ctx)
+            if _is_command(w):
+                return f'run "{text.strip()}" in {_app_name(w)}'
+            if _is_message(w) or not _harmless_enter(w):       # a typed new line can send, like Enter
+                return _send_question(ctx, w, text.strip())
         return None
     if name == "click":
         if args.get("control") is None:
@@ -363,6 +384,10 @@ def _pressing(label: str, shown: str, ctx, w: dict | None = None) -> str | None:
     the focus): one decision for all three (Codex re-review 20 Nov: they used to differ)."""
     from hands.apps import RISKY_WORDS
     if not label:
+        # An unnamed button right after typing may be the send arrow (Codex checkpoint C2).
+        w = w or front(ctx)
+        if _typed_this_turn(ctx) and (_is_message(w) or not _harmless_enter(w)):
+            return "press an unnamed button next to what I typed (it may send it)"
         return None
     if DISCARD.search(label):
         return f'press "{shown}" (unsaved changes would be lost)'

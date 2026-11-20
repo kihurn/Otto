@@ -245,8 +245,8 @@ def _new_windows(exe: str, before: set[int]) -> list[int]:
 
 class screen_borrowed:
     """Background mode (step 4c): `with screen_borrowed("chrome.exe") as b:` opens something without keeping the
-    screen. Waits for a pause in typing; afterwards only windows of `exe` that appeared inside the block are
-    minimised (b.new), and the user's window comes back only if one of those is in front (if the user has moved
+    screen. Waits for a pause in typing; afterwards the one window of `exe` that appeared inside the block is
+    minimised (b.new; with two new ones, neither), and the user's window comes back only if one of those is in front (if the user has moved
     on, they are left alone). The new windows are minimised even when the block fails or is cancelled (Windows then
     usually brings your window back by itself; a cancel can stop Otto putting it back)."""
 
@@ -264,10 +264,13 @@ class screen_borrowed:
             return
         end = time.monotonic() + (0 if kind else NEW_WINDOW_WAIT)
         while True:
-            self.b.new = _new_windows(self.exe, self.before)
-            if self.b.new or time.monotonic() >= end:
+            new = _new_windows(self.exe, self.before)
+            if new or time.monotonic() >= end:
                 break
             time.sleep(0.2)
+        # Exactly one new window is Otto's. Two (you opened one too while it loaded) can't be told apart: touch
+        # neither (Codex checkpoint C2).
+        self.b.new = new if len(new) == 1 else []
         front = foreground()
         for hwnd in self.b.new:
             minimise(hwnd)

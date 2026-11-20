@@ -13,6 +13,19 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Codex checkpoint C2 and fixes, part 1: items 1-4 (20 Nov 2026, Claude Code, main)
+- Codex held C2 (10 findings). Item 1 was a real unsafe step in the user's voice run: "Can you type in Claude that
+  everything works right now?" typed, then pressed Enter without a question, and said "I've sent that message".
+  Claude.exe was not on the messaging list and its box had no usable name.
+- 1: default flipped: after a successful `type` this turn, Enter (any modifier), a typed new line, or an unnamed
+  button asks with the send question unless the window is a known editor (`EDITOR_EXE`) or the focused box is
+  named as a search/address field. Claude/ChatGPT added to the messaging lists anyway.
+- 2: `SENT_CLAIM` (Otto's own "I've sent", "message was sent") is checked whatever the request said, and only a
+  step run on the user's yes (`approved`, set in `_resume`) backs it.
+- 3: `screen_borrowed` minimises only when exactly one new window appeared; the live task checks and closes only
+  that single minimised window.
+- 4: `hands/youtube._open` refuses redirects (the key header would be copied). 1,041 tests.
+
 ### Voice run: background video said "didn't manage" (20 Nov 2026, Claude Code, main)
 - "Can you play some lo-fi music and youtube in the background please?": the video played and was minimised,
   but the reply was "I didn't manage to play it". Cause: when a tool ends the turn, `_after_call` checked its

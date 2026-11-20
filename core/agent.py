@@ -181,6 +181,7 @@ def _resume(state: dict, brain, answer: str | None, yes: bool | None) -> AgentRe
         state["ctx"].approved = state.pop("waiting_question", "")
         state["ctx"].why = call.get("why", "")
         result = tools.call(call["tool"], call["args"], state["ctx"])
+        call = dict(call, approved=True)              # this step ran on the user's yes (backs a "sent" claim)
         after = _after_call(state, call, result)
         if after is not None:
             return after
@@ -315,13 +316,19 @@ def _unbacked_claim(say: str, calls: list[dict], request: str) -> str:
     for claim, asked, tools_needed, honest in CLAIMS:
         if re.search(claim, say, re.I) and re.search(asked, request, re.I) and not (done & tools_needed):
             return honest
-    if re.search(r"\bsent\b", say, re.I) and re.search(r"\b(?:send|reply|say|message|text|post|tell)\b", request, re.I):
-        sent = [c for c in calls if c.get("ok") and not c.get("asked") and (
-            c["tool"] == "keys" and agent_safety.sending("keys", c["args"])
-            or c["tool"] == "click" and re.search(r"\bsend\b", str(c.get("say", "")), re.I))]
+    # Otto saying it sent something needs a send the user said yes to, whatever the request's words were
+    # (Codex checkpoint C2: "type in Claude that ..." then "I've sent that message" passed both checks).
+    if SENT_CLAIM.search(say) or (re.search(r"\bsent\b", say, re.I)
+                                  and re.search(r"\b(?:send|reply|say|message|text|post|tell)\b", request, re.I)):
+        sent = [c for c in calls if c.get("ok") and c.get("approved") and (
+            c["tool"] in ("keys", "type") and agent_safety.sending(c["tool"], c["args"]) or c["tool"] == "click")]
         if not sent:
             return "Nothing was sent."
     return ""
+
+
+SENT_CLAIM = re.compile(r"\bI(?:'ve| have)?\s+(?:just\s+)?(?:sent|posted|submitted)\b|"
+                        r"\b(?:message|it|that|text|reply)\s+(?:has been|was|is)\s+(?:sent|posted|submitted)\b", re.I)
 
 
 def _back_and_forth(calls: list[dict], name: str, args: dict) -> str:
