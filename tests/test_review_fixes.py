@@ -90,7 +90,7 @@ def _ctrl(name, kind, parent=None):
 
 
 def test_r1_page_button_named_new_tab_is_rejected():
-    from hands.window_control import chrome_control_ok
+    from hands.web import chrome_control_ok
     page = _ctrl("Some site", "Document", parent=_ctrl("Chrome", "Pane"))
     assert not chrome_control_ok(_ctrl("New tab", "Button", parent=page))
     assert not chrome_control_ok(_ctrl("Address and search bar", "Edit", parent=page))
@@ -98,31 +98,11 @@ def test_r1_page_button_named_new_tab_is_rejected():
 
 
 def test_r1_real_toolbar_controls_are_allowed():
-    from hands.window_control import chrome_control_ok
+    from hands.web import chrome_control_ok
     toolbar = _ctrl("", "ToolBar", parent=_ctrl("Chrome", "Pane"))
     assert chrome_control_ok(_ctrl("Address and search bar", "Edit", parent=toolbar))
     assert chrome_control_ok(_ctrl("New tab", "Button", parent=toolbar))
     assert not chrome_control_ok(_ctrl("New tab", "Edit", parent=toolbar))       # wrong control type
-
-
-def test_r1_click_on_impersonating_page_button_sends_no_click(monkeypatch):
-    import sys
-    import pytest
-    from types import SimpleNamespace as NS
-    from hands.window_control import WindowProvider
-    clicks = []
-    page_button = _ctrl("New tab", "Button", parent=_ctrl("page", "Document"))
-    monkeypatch.setitem(sys.modules, "pywinauto", NS(mouse=NS(click=lambda **kw: clicks.append(kw)),
-                                                    Desktop=lambda **kw: NS(from_point=lambda *a: page_button)))
-    monkeypatch.setitem(sys.modules, "win32gui", NS(WindowFromPoint=lambda p: 1, GetAncestor=lambda *a: 1))
-    p = WindowProvider.__new__(WindowProvider)
-    p.hwnd = 1
-    p.identity = lambda: (123, 1, (0, 0, 100, 100))
-    snapshot = {"identity": p.identity()}
-    goal = {"app": "Chrome", "query": "Otto", "artist": ""}
-    with pytest.raises(ValueError, match="outside the allowed"):
-        p.act("click", {"x": .5, "y": .5}, snapshot, goal)
-    assert clicks == []
 
 
 # ---- R4: only the exact requested recording counts as success ---------------------------------

@@ -95,7 +95,7 @@ Codex found safety gaps and an evaluator that could over-report; fixed the same 
   and the model loaded together (to add to the voice log).
 - The model comparison (3b) is either done like-for-like or explicitly skipped by the user.
 
-### Step 4. Delete the old core (was "Task 9")
+### Step 4. Delete the old core (was "Task 9") — done 20 Nov 2026 (patch k; WORKLOG has the details)
 Only after steps 1-3 show the new core is better on the live test.
 - **Remove:** compiler, interpreter, computer_use, window_control, recovery, goal_mode, offline_eval,
   visual_task, methods, the old pipeline special cases and the `core.agent` switch.
@@ -139,9 +139,9 @@ over the screen. Windows has one mouse and keyboard focus, so: need the screen a
 5. Safety unchanged: sends, deletes and runs still ask; screenshot clicks only in the window looked at.
 6. Live-test task: "play a lofi video in the background" passes only if a video page opens AND the stand-in work
    window (Notepad) is still in front with its text unchanged.
-Decisions: (A) background only when asked (suggested) or media always in the background; (B) YouTube lookup by
-reading a minimised Chrome window (no new parts; test first, suggested), yt-dlp (new install, no key) or the
-YouTube API (key in .env); (C) before or after deleting the old core.
+Decisions (user, 20 Nov): (A) music always in the background; videos only when the user says "in the
+background" (they mostly watch YouTube). (B) the YouTube Data API with a key from the user's Google Cloud
+project, in .env (other Google APIs later). (C) after deleting the old core.
 
 ### Step 5. Teaching mode (step-by-step with your approval), on top of the skills
 Otto shows each step, you approve or correct; approved runs become saved examples (`core/examples.py` already

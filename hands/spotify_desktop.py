@@ -265,12 +265,7 @@ def play(step, task, end, progress):
     if task.cancel.is_set():
         return Outcome(OutcomeStatus.CANCELLED, 'Cancelled.')
     if chosen is None:
-        from core.recovery import recover
-        recovered = bool(window and recover(window['hwnd'], 'activate_spotify_track', query, artist))
-        if not recovered:
-            return Outcome(OutcomeStatus.UNCERTAIN, 'Spotify search opened, but I could not identify a safe matching Play control. Please focus the song manually.')
-    else:
-        recovered = False
+        return Outcome(OutcomeStatus.UNCERTAIN, 'Spotify search opened, but I could not identify a safe matching Play control. Please focus the song manually.')
     if time.monotonic() >= end:
         return Outcome(OutcomeStatus.UNCERTAIN, 'The task timed out before play was pressed.')
     if not window or win.foreground() != window['hwnd']:
@@ -278,8 +273,7 @@ def play(step, task, end, progress):
     progress('Starting the selected song and checking playback.')
     check()
     try:
-        if not recovered:
-            chosen.invoke()
+        chosen.invoke()
     except ActionInterrupted:
         raise
     except Exception:

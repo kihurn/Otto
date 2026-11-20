@@ -60,7 +60,7 @@ get the **Command-line interface** (ES). Put `es.exe` next to `Everything.exe` (
 | `otto label` | check the test set's labels (do this once, ~10 minutes) |
 | `otto score` | Laya's test score, confidence zones and mistakes |
 | `otto teach` | teach Laya by typing, without doing anything |
-| `otto train --offline --tasks 100 --seed 42` | simulated practice run and report (nothing on your PC is touched) |
+| `otto eval --live` | does 6 safe tasks for real (3 times each) and scores them by what the PC shows |
 | `otto candidate` | train a separate copy of Laya and test it; your current Laya keeps working |
 | `otto promote ID` / `otto rollback` | switch to a candidate that passed its test / go back to the previous one |
 | `otto help` | this list |
@@ -98,9 +98,8 @@ what's 15 percent of 80    who won the last world cup    what's on my screen
 close discord   (asks first)      search for taylor swift in discord, then "save that"
 list audio outputs    which output am I using?    make my speakers the default output    undo that output change
 ```
-**Screen control (opt-in, experimental):** `otto set computer_use.enabled true`, then
-"use Qwen to play The Hills by The Weeknd" or "use Qwen to search what is Otto". Otto looks at the Spotify or
-Chrome window and does one safe step at a time, checking the result itself.
+**Anything else on screen:** Otto's agent reads the window (or looks at it), does one step at a time and checks
+it; sending, running commands and deleting always wait for your yes.
 
 **The grey line** under each reply explains the decision: `laya: apps 94% -> high`, `understood as: "..."`
 for follow-ups, `split into 3 steps` for multi-step requests, `[rules]` or `[brain:...]` for the details,

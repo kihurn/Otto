@@ -78,10 +78,40 @@ def same_page(shown: str, wanted: str) -> bool:
     return True
 
 
+# Chrome's own toolbar controls Otto may use. Only these exact control types count, and only when they are
+# part of Chrome itself: anything inside a web page (a "Document") is page content, even if a page names a
+# button "New tab" or "Address and search bar" (review finding R1). Moved here from the old window controller, 20 Nov 2026.
+CHROME_CONTROLS = {'address and search bar': {'Edit'}, 'new tab': {'Button'}}
+
+
+def inside_web_page(control, limit: int = 40) -> bool:
+    """True if the control is (inside) a web page rather than part of the browser's own window frame.
+    Unknown/unreadable ancestry counts as 'inside a page', so we fail safe."""
+    node = control
+    for _ in range(limit):
+        if node is None:
+            return False
+        try:
+            if node.element_info.control_type == 'Document':
+                return True
+            node = node.parent()
+        except Exception:
+            return True
+    return True
+
+
+def chrome_control_ok(control) -> bool:
+    try:
+        name = (control.element_info.name or '').casefold()
+        kind = control.element_info.control_type
+    except Exception:
+        return False
+    return kind in CHROME_CONTROLS.get(name, set()) and not inside_web_page(control)
+
+
 def chrome_addresses(only: int | None = None) -> list[str]:
     """What the address bar of each open Chrome window shows right now (or only window `only`). Read-only."""
     from hands import win
-    from hands.window_control import chrome_control_ok
     from pywinauto.controls.uiawrapper import UIAWrapper
     from pywinauto.uia_defines import IUIA
     from pywinauto.uia_element_info import UIAElementInfo

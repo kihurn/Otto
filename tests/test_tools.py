@@ -21,12 +21,6 @@ def test_menu_lists_every_tool_once():
     assert len(text) < 6000                       # stays small: well under 1,500 tokens
 
 
-def test_native_schemas_match_menu():
-    from core import tools
-    schemas = tools.schemas()
-    assert {s["function"]["name"] for s in schemas} == set(tools.TOOLS)
-    opened = next(s for s in schemas if s["function"]["name"] == "open")["function"]["parameters"]
-    assert opened["required"] == ["what"]
 
 
 def test_validate_rejects_unknown_tool_and_args():

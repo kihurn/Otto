@@ -2,7 +2,7 @@
 import sys
 from types import SimpleNamespace as N
 import pytest
-from core import compiler, safety
+from core import safety
 from core.details import _web
 from core.search_goals import new_tab
 from hands import apps, registry, web, win
@@ -72,17 +72,8 @@ def test_new_tab_phrases(text, expected):
     assert new_tab(text) is expected
 
 
-def test_new_tab_then_search_is_one_web_search():
-    plan = compiler.compile_request('can you open a new tab on chrome and search hello world', apps.INDEX, None)
-    assert not plan.error
-    assert [(s['do'], s['with']) for s in plan.steps] == [('web_search', {'query': 'hello world'})]
 
 
-def test_new_tab_alone_opens_a_tab_not_a_file_search():
-    intent = _web('open a new tab on chrome')
-    assert (intent.action, intent.params) == ('open_site', {'site': 'new tab'})
-    plan = compiler.compile_request('open a new tab on chrome then set volume to 30', apps.INDEX, None)
-    assert [s['do'] for s in plan.steps] == ['open_site', 'set_volume']
 
 
 # --- 3. Opened websites are checked against Chrome's address bar -------------------------------------
@@ -144,8 +135,3 @@ def test_note_text_drops_the_notepad_part(text):
     assert _notes(text).params == {'text': 'hello world'}
 
 
-def test_compound_volume_pronoun_keeps_the_amount():
-    plan = compiler.compile_request('set volume to 70, then lower it by thirty two', apps.INDEX, None)
-    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('change_volume', {'step': -32})]
-    plan = compiler.compile_request('set volume to 70, then increase it to 80', apps.INDEX, None)
-    assert [(s['do'], s['with']) for s in plan.steps] == [('set_volume', {'level': 70}), ('set_volume', {'level': 80})]

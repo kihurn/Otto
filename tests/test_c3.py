@@ -2,7 +2,7 @@
 import time
 from types import SimpleNamespace
 import pytest
-from core import compiler, planner, safety
+from core import planner, safety
 from core.details import Intent, _media
 from core.tasks import Task, Step, Outcome, OutcomeStatus, Evidence
 from hands import apps, registry, media
@@ -30,15 +30,8 @@ def test_volume_read_never_writes(monkeypatch):
     assert result.ok and result.data['volume'] == 52
 
 
-def test_quotes_preserved_in_compiler():
-    assert compiler.clauses('play "Then and Now", then set a timer for 2 minutes') == [
-        'play "Then and Now"', 'set a timer for 2 minutes']
 
 
-def test_invalid_final_step_no_effects(monkeypatch):
-    monkeypatch.setattr(registry.ACTIONS['open_app'], 'fn', lambda **kw: pytest.fail('effect'))
-    plan = compiler.compile_request('open Discord then set volume to 101', apps.INDEX, None)
-    assert plan.error
 
 
 @pytest.mark.parametrize('status', [OutcomeStatus.UNCERTAIN, OutcomeStatus.FAILED, OutcomeStatus.NEEDS_INPUT])

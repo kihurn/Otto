@@ -1,6 +1,6 @@
 import pytest
 from core.guards import filler_only
-from core.search_goals import web_query
+
 from hands.spotify_desktop import matches, normalized
 
 
@@ -14,10 +14,6 @@ def test_real_content_not_discarded(text):
     assert not filler_only(text)
 
 
-def test_web_target_removed_from_query():
-    assert web_query("search for 'Otto' in Google Chrome") == 'otto'
-    assert web_query('can you search what is Otto') == 'what is otto'
-    assert web_query('search for taylor swift in discord') is None
 
 
 def test_spotify_desktop_matching():

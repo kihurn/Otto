@@ -156,18 +156,6 @@ def control_intent(text: str, apps) -> Intent | None:
     return None
 
 
-def app_goal_intent(text: str, apps) -> Intent | None:
-    """"export this as a pdf in Word": anything else that ends with an installed app's exact name."""
-    raw = re.sub(r"^(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)", "", text.strip(), flags=re.I).rstrip(" .!?")
-    m = re.fullmatch(r"(?P<goal>.{4,}?)\s+(?:in|on|inside)\s+(?:the\s+|my\s+)?(?P<app>[\w .]+)", raw, re.I)
-    if not m or apps is None:
-        return None
-    app = " ".join(m.group("app").lower().split())
-    if not apps.match_exact(app) or re.match(r"(?:open|launch|start|close|quit|search|find|look|play|google)\b", m.group("goal"), re.I):
-        return None
-    return Intent("apps", "app_goal", {"app": app, "goal": m.group("goal").strip()})
-
-
 def _apps(text: str, apps) -> Intent | None:
     t = _t(text)
     typed = type_in_app_intent(text, apps) or control_intent(text, apps)
@@ -413,7 +401,7 @@ def by_rules(area: str, text: str, apps) -> Intent | None:
         if area in ("question", "chitchat", "web") and _NOW_PLAYING.search(_t(text)):
             return Intent("media", "now_playing")
         if area == "apps":
-            return _apps(text, apps) or app_goal_intent(text, apps)
+            return _apps(text, apps)
         if area == "media":
             return _media(text)
         if area == "web":

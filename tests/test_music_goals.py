@@ -1,24 +1,15 @@
 import pytest
-from core.music_goals import compile_music
+
 from core import planner, recipes
 from core.details import Intent
 from hands.registry import InvalidPlan, load_all
 from core.tasks import Task, TaskStatus
 
 
-def test_spotify_compound():
-    i = compile_music('open spotify and search for the hills by the weeknd and play it')
-    assert i.action == 'play_music'
-    assert i.params == {'query': 'the hills', 'artist': 'the weeknd', 'kind': 'track'}
 
 
-def test_search_only():
-    i = compile_music('Can you search on Spotify the shade by Rex Orange County?')
-    assert i.action == 'search_in_app' and i.params['app'] == 'Spotify'
 
 
-def test_extra_goal_not_collapsed():
-    assert compile_music('open spotify and play the hills then set a timer') is None
 
 
 @pytest.mark.parametrize('query', ['the first result', 'the second song', 'it'])

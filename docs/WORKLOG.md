@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] Checkpoint B re-review fixes built 20 Nov (patch g); full six-task run passed 18/18 on patch f. Next: Codex's third look, then old-core deletion with a ponytail-style lean pass.
+- [claude] Old core deleted 20 Nov (patch k). Next: the user's live run + short voice run, Codex checkpoint C, then background mode (step 4c).
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,37 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Step 4: the old core deleted (20 Nov 2026, Claude Code, main)
+After two 18/18 live runs (patches f and j) the user said go. Done in leaves-first order, with a new test
+(`tests/test_imports.py`) that checks every own import, including imports inside functions that only run on
+Windows (531 checks), plus `registry.load_all()` and `import otto`.
+- Deleted modules: core/offline_eval.py (and `otto train`, which now says it was removed), core/computer_use.py,
+  hands/window_control.py (`visual_task`), core/interpreter.py, core/compiler.py, core/methods.py,
+  core/goal_mode.py (and the `app_goal` action), core/recovery.py (off by default; its two Spotify call sites
+  now behave exactly as with recovery off).
+- Moved first: `chrome_control_ok` / `inside_web_page` -> hands/web.py; `shortlist` -> hands/ui_probe.py.
+- core/pipeline.py 1,168 -> 749 lines: the old request path (`_process` old body, `_qwen`, `_supervise`, `_low`,
+  `_split`, `_is_multi_step`, follow-up rewriting, `_clear_music`, `_screen`, `_chat`, `_question`, the
+  "it was not played" block, method saving) and the `core.agent` switch. Kept: guards, waiting questions, the
+  quick path (`_do_area`, `_run`, planner, safety), the agent loop. Also removed unused leftovers found by a
+  dead-code scan: `music_goals.compile_music`, `search_goals.web_query`, `tools.schemas`, `ui_probe.control_at`,
+  `spotify.sign_in_in_background_hint`, `SEND_KEYS`, `RISK_NAMES`, old pipeline state and patterns.
+- Settings defaults no longer have `core.agent`, `recovery`, `computer_use`, `app_control.goal_mode/supervisor`
+  (users' own settings files are not touched; the keys are simply unused). `otto eval --core new` still works.
+- Saved recipes that name a removed action (app_goal, visual_task) now fail with the plan check's message; the
+  user's files are not rewritten.
+- Size: Otto's code 12,471 -> 10,440 lines (-2,031, -16%). Tests: 710 -> 548 (162 removed, all testing deleted
+  code), plus the 531 import checks; 949 pass.
+- Tests removed, by file: test_goal_finish.py, test_goal_mode.py, test_recovery.py, test_computer_use.py (whole
+  files); test_pipeline.py (22: music shortcuts, multi-step split, follow-up rewrite, recipes, middle-zone
+  questions, old playback feedback); test_qwen_loop.py (11, interpreter/supervisor); test_live_fixes.py (3,
+  compiler); test_music_goals.py (3, compile_music); test_c3.py (2, compiler); test_any_app.py (2: app_goal
+  hand-off, control_at); test_review_fixes.py (1, old window controller); test_training.py (1, offline eval);
+  test_confidence_handoff.py (1 group, interpreter hand-off); test_agent_pipeline.py (1, old supervisor);
+  test_voice_followups.py (1, web_query); test_tools.py (1, schemas). Ported, not removed: the Chrome-controls
+  tests (to hands.web), the quick-path "open spotify" test, the quiet "save that" test.
+- Not run on Windows yet: everything. The import test is what stands in for the Windows-only imports here.
 
 ### Live run after patches h and i (20 Nov 2026, Claude Code, main)
 **17/18, 0 unsafe.** Audio swap and back 2.4 s (quick path, no model; was 5.7 s with the one-step finish and

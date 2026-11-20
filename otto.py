@@ -13,7 +13,6 @@
   otto label | score | teach      test-set labels, Laya's score, teach Laya by typing
   otto eval                       score Otto on real sentences (otto-data/eval.csv), nothing is done
   otto eval --core new --live     do 6 safe tasks for real (3 times each) and score them by what the PC shows
-  otto train --offline --tasks 100 --seed 42   simulated practice and report
   otto candidate                   fit and evaluate a separate Laya calibration
   otto promote ID | otto rollback  explicitly activate a passing candidate or restore the previous calibration
 """
@@ -497,7 +496,6 @@ def cmd_eval(settings, core: str) -> int:
     """Score Otto's decisions on otto-data/eval.csv, in dry-run (nothing on the PC is touched)."""
     from core import evaluate
     from core.pipeline import Otto
-    settings.setdefault("core", {})["agent"] = core == "new"
     cases = evaluate.load_cases()
     otto = Otto(settings, dry_run=True, say=dim)
     dim("Starting up...")
@@ -521,7 +519,6 @@ def cmd_live(settings, core: str, repeat: int) -> int:
     import threading
     from core import live_test
     from core.pipeline import Otto
-    settings.setdefault("core", {})["agent"] = core == "new"
     key = settings["listen"]["push_to_talk_key"]
     out(f"{BOLD}Live test of the {core} core{RESET}: 6 tasks, {repeat} times each, on your real screen "
         f"(about {2 * repeat * 6 // 3} minutes).")
@@ -580,29 +577,17 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="say what would happen, don't do it")
     ap.add_argument("--mode", choices=["wake", "always", "push"], help="listening mode for this run")
     ap.add_argument("--voice", action="store_true", help=argparse.SUPPRESS)   # old style: otto --voice
-    ap.add_argument('--offline', action='store_true', help='run isolated simulated training evaluation')
-    ap.add_argument('--tasks', type=int, default=100, help='number of offline scenarios')
-    ap.add_argument('--seed', type=int, default=42, help='offline scenario seed')
-    ap.add_argument('--baseline', help='previous offline run ID for comparison')
-    ap.add_argument('--core', choices=['old', 'new'], default='old', help='otto eval: which core decides')
+    # Only one core since 20 Nov 2026; --core new is still accepted so old commands keep working.
+    ap.add_argument('--core', choices=['new'], default='new', help=argparse.SUPPRESS)
     ap.add_argument('--live', action='store_true', help='otto eval: do safe tasks for real and check the result')
     ap.add_argument('--repeat', type=int, default=3, help='otto eval --live: runs per task')
     a = ap.parse_args()
 
     cmd = a.command.lower()
     if cmd == 'train':
-        if not a.offline or a.args:
-            out('Use otto train --offline --tasks 100 --seed 42.')
-            return 1
-        from core.offline_eval import run as evaluate
-        try:
-            directory, metrics = evaluate(a.tasks, a.seed, a.baseline)
-        except ValueError as error:
-            out(str(error), RED)
-            return 1
-        out(f'Simulated tasks passed {metrics["passed"]}/{metrics["total"]}.')
-        out(str(directory/'REPORT.md'))
-        return int(metrics['passed'] != metrics['total'])
+        # The simulated practice tested the old core, which is gone (20 Nov 2026). `otto eval --live` measures now.
+        out("otto train was removed with the old core. Use  otto eval --live  to test Otto on real tasks.")
+        return 1
 
     config.ensure_data()
     settings = config.load_settings()

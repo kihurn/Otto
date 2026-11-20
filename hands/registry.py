@@ -15,7 +15,6 @@ import re
 from core.tasks import Outcome, OutcomeStatus
 
 READ, UNDOABLE, ASK = 0, 1, 2
-RISK_NAMES = {READ: "read", UNDOABLE: "undoable", ASK: "ask first"}
 
 
 @dataclass
@@ -122,4 +121,4 @@ def brain_menu() -> str:
 
 def load_all() -> None:
     """Import every hands module so their actions register themselves."""
-    from hands import app_control, apps, audio_devices, files, media, notes, timers, web, window_control  # noqa: F401
+    from hands import app_control, apps, audio_devices, files, media, notes, timers, web  # noqa: F401

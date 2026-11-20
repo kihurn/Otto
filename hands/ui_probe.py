@@ -79,6 +79,18 @@ def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     return controls
 
 
+# What the agent's read_window shows (moved from the old goal mode, 20 Nov 2026).
+MAX_LISTED = 90            # controls shown to the model per read
+
+
+def shortlist(controls: list[dict]) -> list[dict]:
+    """The controls worth showing: named ones and places to type, renumbered 1..n."""
+    kept = [c for c in controls if c['enabled'] and (c['name'] or c['type'] in TEXT_TYPES)
+            and not (c['type'] == 'Document' and c.get('read_only'))]
+    kept = kept[:MAX_LISTED]
+    return [dict(c, id=index + 1) for index, c in enumerate(kept)]
+
+
 def name_score(candidate: str, want: str) -> int:
     """How well a control's name matches the name asked for (100 exact ... 0 no match)."""
     c, w = (candidate or '').strip().casefold(), (want or '').strip().casefold()
@@ -122,18 +134,6 @@ def closest(controls: list[dict], name: str, least: int = 85, lead: int = 8) -> 
     if not scored or scored[0][0] < least or (len(scored) > 1 and scored[0][0] - scored[1][0] < lead):
         return None, False
     return controls[scored[0][1]], True
-
-
-def control_at(controls: list[dict], x: int, y: int) -> dict | None:
-    """The smallest listed control containing a screen point (a label inside a button is not the button)."""
-    best, best_area = None, None
-    for control in controls:
-        left, top, right, bottom = control['rect']
-        if left <= x < right and top <= y < bottom:
-            area = (right - left) * (bottom - top)
-            if best_area is None or area < best_area:
-                best, best_area = control, area
-    return best
 
 
 def text_target(controls: list[dict]) -> tuple[dict | None, str]:

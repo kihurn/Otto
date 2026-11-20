@@ -1,5 +1,22 @@
 # Otto: Architecture
 
+## Current design (20 November 2026)
+
+One core. `core/pipeline.py` handles guards (wake word, gibberish, yes/no, cancel, "save that"), questions Otto
+is waiting on, and then either the **quick path** (Laya is sure and a whole-sentence rule in `core/details.py`
+covers the request: planner -> `core/safety.py` -> `hands/`, no model) or the **agent loop** (`core/agent.py`):
+the local model (Gemma 4 12B or Qwen3-VL 8B through C0RE/Ollama) picks one tool at a time from `core/tools.py`
+(about 20 tools, including the skills in `core/skills.py`). Every tool call passes `core/agent_safety.py`:
+sends, typed commands, deletes, discards and risky buttons wait for a plain yes, tied to the exact draft; a
+screenshot click only lands in the window Otto looked at; password fields are never typed into. `otto eval
+--live` (`core/live_test.py`) measures the whole thing on the real PC.
+
+Deleted on 20 Nov 2026 (the sections below that describe them are history): goal mode, saved methods, the
+Qwen interpreter and supervisor, the multi-step compiler, computer use / `visual_task`, Spotify recovery and the
+offline training evaluation (`otto train`).
+
+## History
+
 Current user routing preference is a 90% Laya acting minimum (`zones.act_bar` and
 `zones.act_bar_floor` both 0.90). Calibration may raise that threshold but cannot lower the floor.
 Below-threshold Laya predictions go to the existing Qwen interpreter, including split requests.

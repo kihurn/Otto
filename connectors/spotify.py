@@ -339,7 +339,3 @@ def is_playing() -> bool | None:
         return None
 
 
-def sign_in_in_background_hint() -> str:
-    return "Spotify isn't connected yet. Run  otto spotify  once to sign in."
-
-

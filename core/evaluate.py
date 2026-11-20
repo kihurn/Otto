@@ -43,9 +43,8 @@ OLD_TO_TOOL = {
     "close_app": "close", "minimise": "close",
     "click_button": "click", "toggle": "click", "set_field": "type",
     "type_in_app": "type", "type_text": "type", "hotkey": "keys",
-    "app_goal": "", "visual_task": "",
 }
-LOOP_ACTIONS = {"app_goal", "visual_task"}
+LOOP_ACTIONS: set[str] = set()
 SAME_AS = {"search": {"google", "open"}, "save": {"keys"}}
 # ...but only where the sentence is about that: save counts as keys only for a save request (Codex review 19 Nov:
 # "open a new tab" expects keys too, and save must not pass for it).

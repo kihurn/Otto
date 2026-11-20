@@ -2,7 +2,7 @@
 Everything Windows-specific is faked, so these run on any computer."""
 from types import SimpleNamespace as N
 import pytest
-from core import compiler, details
+from core import details
 from core.sensitive import sensitive
 from core.tasks import OutcomeStatus
 from hands import app_control, apps, registry, ui_probe, win
@@ -45,12 +45,6 @@ def test_find_control_prefers_exact_name_and_reports_ties():
     assert ui_probe.find_control([save], 'Print') == (None, False)
 
 
-def test_control_at_picks_the_smallest_control_under_the_point():
-    panel = control('ListItem', 'Row', rect=(0, 0, 400, 100))
-    button = control('Button', 'Play', rect=(10, 10, 50, 50))
-    assert ui_probe.control_at([panel, button], 20, 20) is button
-    assert ui_probe.control_at([panel, button], 300, 20) is panel
-    assert ui_probe.control_at([panel, button], 900, 900) is None
 
 
 @pytest.mark.parametrize('controls,expected', [
@@ -120,14 +114,6 @@ def word_installed(monkeypatch):
     monkeypatch.setattr(apps.INDEX, 'match_exact', lambda name: name in {'word', 'notepad'}, raising=False)
 
 
-def test_open_app_then_write_types_into_that_app(word_installed):
-    plan = compiler.compile_request('open word and write "Whats up dawg"', apps.INDEX, None)
-    assert [(s['do'], s['with']) for s in plan.steps] == [
-        ('open_app', {'app': 'Word'}), ('type_in_app', {'app': 'Word', 'text': 'Whats up dawg'})]
-    # Notepad is where Otto's notes open anyway, and an explicit note request is still a note.
-    for text in ('open notepad and write "whats up dawg"', 'open word and write a note saying whats up dawg'):
-        plan = compiler.compile_request(text, apps.INDEX, None)
-        assert [s['do'] for s in plan.steps] == ['open_app', 'new_note'], text
 
 
 @pytest.mark.parametrize('text,expected', [

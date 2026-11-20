@@ -22,7 +22,6 @@ MESSAGING_TITLE = re.compile(r"\b(gmail|outlook|whatsapp|messenger|discord|teams
                              r"linkedin|messages)\b", re.I)
 MESSAGE_BOX = re.compile(r"\b(message|chat|reply|comment|post|compose|write to|send to|dm)\b", re.I)
 TERMINAL_EXE = {"powershell.exe", "pwsh.exe", "cmd.exe", "windowsterminal.exe", "wt.exe", "conhost.exe"}
-SEND_KEYS = {"enter", "ctrl+enter", "shift+enter"}
 DELETE_KEYS = {"delete", "del", "shift+delete", "shift+del", "ctrl+d"}
 SELECT_ALL = {"ctrl+a"}
 RUN_BUTTONS = re.compile(r"^(run|ok|open|execute)$", re.I)

@@ -93,18 +93,6 @@ def menu(names=None) -> str:
     return "\n".join(lines)
 
 
-def schemas() -> list[dict]:
-    """The same menu in Ollama's native tool format."""
-    out = []
-    for t in TOOLS.values():
-        props = {k: {"type": "integer" if k in NUMBER_PARAMS else "string",
-                     "description": v.removeprefix("optional: ")} for k, v in t.params.items()}
-        out.append({"type": "function", "function": {
-            "name": t.name, "description": t.description,
-            "parameters": {"type": "object", "properties": props, "required": t.required()}}})
-    return out
-
-
 # Old tool names that may still appear in saved examples (otto-data/agent_examples.jsonl).
 ALIASES = {"web_search": "look_up", "google": "search"}   # google: now the search skill
 
@@ -423,7 +411,6 @@ def _look_up(ctx, query):
 @tool("read_window", "list the buttons, boxes, tabs and links in an app's window, numbered (opens the app if needed)",
       {"app": "optional: app name; empty = the window in front"}, read_only=True)
 def _read_window(ctx, app=""):
-    from core.goal_mode import shortlist
     from hands import app_control, ui_probe, win
     if ctx.dry_run:
         return _dry(ctx, f"read the {app or 'front'} window")
@@ -444,7 +431,7 @@ def _read_window(ctx, app=""):
     indicator.show(ctx.hwnd)                 # the blue glow: this is the window Otto is working in
     everything = ui_probe.list_controls(ctx.hwnd, limit=400)
     # The numbers the model sees are the ones click/type use: keep exactly the listed controls.
-    ctx.controls = shortlist(everything)
+    ctx.controls = ui_probe.shortlist(everything)
     lines = []
     for c in ctx.controls:
         line = f'[{c["id"]}] {c.get("type") or "control"} "{c.get("name", "")}"'

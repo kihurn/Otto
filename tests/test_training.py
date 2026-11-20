@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 import pytest
-from core import offline_eval, training, router, config
+from core import training, router, config
 from hands import registry
 
 
@@ -16,18 +16,6 @@ def test_gate_rejects_regression_even_if_accuracy_unchanged():
 
 def test_unchecked_or_empty_evaluation_cannot_promote():
     assert not training.gate(scores(0), scores(0), .85)[0]
-
-
-def test_offline_evaluation_never_dispatches_live_actions(tmp_path, monkeypatch):
-    registry.load_all()
-    for name in ('set_timer','set_volume'):
-        monkeypatch.setattr(registry.ACTIONS[name], 'fn', lambda **kw: pytest.fail('live effect'))
-    first, before = offline_eval.run(15, 42, root=tmp_path)
-    _, after = offline_eval.run(15, 42, first.name, root=tmp_path)
-    assert before['passed'] == after['passed'] == 15
-    assert after['baseline_passed'] == 15 and not after['regressions']
-    with pytest.raises(ValueError, match='same scenario set'):
-        offline_eval.run(15, 43, first.name, root=tmp_path)
 
 
 def test_promotion_checks_artifacts_and_rollback_preserves_baseline(tmp_path, monkeypatch):

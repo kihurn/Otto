@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- One core: the old core is deleted (goal mode, saved methods, the Qwen interpreter and supervisor, the
+  multi-step compiler, "use Qwen to..." screen control, Spotify recovery, `otto train`). About 2,000 lines less
+  (-16%). Plain commands still take the instant quick path; everything else goes to the agent with its skills.
 - Safety fixes from the checkpoint B review: a "yes" to send/run/delete must be a plain yes ("okay stop" no
   longer counts) and is tied to the message text Otto read out; malformed shortcuts are refused instead of
   turning into Enter or Delete; in a terminal Otto only types your own command; typing stops if Windows can't

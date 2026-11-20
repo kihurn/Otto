@@ -1,4 +1,4 @@
-"""The new core inside the pipeline (agent core plan, task 7): the fast path or the agent loop, behind core.agent."""
+"""The core inside the pipeline: the quick path (rules) or the agent loop."""
 
 import time
 from types import SimpleNamespace
@@ -52,9 +52,9 @@ def no_agent(monkeypatch):
 
 # ---- which path ----------------------------------------------------------------------------------
 
-def test_flag_off_keeps_old_behaviour(otto, monkeypatch):  # noqa: F811
+def test_plain_commands_take_the_quick_path_without_the_agent(otto, monkeypatch):  # noqa: F811
+    # One core since 20 Nov 2026: no switch; "open spotify" never needs the model.
     no_agent(monkeypatch)
-    assert otto.settings.get("core", {}).get("agent") is False
     assert "would open Spotify" in otto.handle("open spotify").text
 
 
@@ -134,13 +134,6 @@ def test_answer_clears_stale_screen_reads(new):
     assert ctx.controls == [] and ctx.look == {}
 
 
-def test_old_supervisor_is_off_with_the_new_core(new, monkeypatch):
-    from core import interpreter
-    monkeypatch.setattr(interpreter, "review", lambda *a, **k: (_ for _ in ()).throw(AssertionError("old layer")))
-    new.dry_run = False
-    res = SimpleNamespace(ok=False, data={"outcome_status": "failed"}, say="It failed.")
-    plan = SimpleNamespace(steps=[{"do": "open_app", "with": {"app": "Notepad"}}])
-    assert new._supervise("open notepad", plan, res) is None
 
 
 def test_misheard_then_yes_uses_the_new_core(new):

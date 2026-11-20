@@ -79,12 +79,7 @@ def search(hwnd, query):
         log.write({'type': 'spotify_search_guard', 'reason': reason, 'observed': observed})
         return Result(False, f'Spotify search was not verified ({reason}); I stopped input.', {'error_code': reason})
     if reason != 'ready':
-        if reason not in {'focus_lost', 'protected_field'}:
-            from core.recovery import recover
-            if recover(hwnd, 'focus_spotify_search'):
-                reason, observed = field_state(hwnd)
-        if reason != 'ready':
-            return failure()
+        return failure()
     for operation in (lambda: win.hotkey('ctrl+a'), lambda: win.type_text(query), lambda: win.hotkey('enter')):
         check()
         reason, observed = field_state(hwnd)

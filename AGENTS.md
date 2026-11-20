@@ -72,7 +72,11 @@ understanding, writing, planning or looking at. Otto asks when unsure and learns
 
 ```text
 otto.py              the `otto` command: run (typing/voice), settings commands, check, spotify, tools
-core/pipeline.py     the request flow, follow-ups, multi-step, clarify questions, learning hooks  <- the heart
+core/pipeline.py     the request flow: guards, waiting questions, quick path (rules) or the agent loop  <- the heart
+core/agent.py        the agent loop: the local model picks one tool at a time (Gemma 4 12B / Qwen3-VL)
+core/tools.py        the agent's tool menu (~20); core/skills.py  search, save (whole jobs that check themselves)
+core/agent_safety.py what needs your yes (send, run, delete, discard), password fields, the draft check
+core/live_test.py    `otto eval --live`: safe tasks done for real, scored by what the PC shows
 core/router.py       Laya: area prediction, zones, relearn + test + keep-if-better (otto-data/laya/)
 core/details.py      rules: sentence -> Intent(area, action, params); music_intent(); brain fallback
 core/planner.py      Intent -> steps: recipe -> built-in -> brain plan from named actions
@@ -88,9 +92,6 @@ hands/registry.py    @action decorator: the only things that can touch the PC
 hands/*.py           apps, media (Spotify + Windows media sessions + volume), web, files, notes, timers, win helpers
 hands/ui_probe.py    reads any window's buttons/boxes/tabs from Windows (no screenshot);  hands/app_control.py  type_in_app, click by name, toggle, set_field
 core/sensitive.py    refuses password/card/ID fields in code
-core/goal_mode.py    goal mode: local Qwen picks the next step by number from a window's controls
-core/methods.py      worked-out methods saved on "save that" and replayed without a model
-core/interpreter.py  Qwen as interpreter (request + recent conversation -> one named action) and supervisor
 hands/indicator.py   glow around the window Otto is operating + a gliding Otto pointer (drawing only)
 senses/ears.py       mic + Whisper; wake / always / push-to-talk;  senses/keys.py  hotkeys (pynput)
 senses/mouth.py      Kokoro, sentence by sentence, mutes ears while speaking;  senses/eyes.py  screenshots, clipboard
@@ -129,7 +130,13 @@ python -m pytest -q tests
 - Things only the user's PC can confirm: mic/Whisper, hotkeys, Kokoro audio, Spotify API calls, window
   control, Everything, notifications. Say so when you hand over.
 
-## 7. Status (as of 11 November 2026)
+## 7. Status (as of 20 November 2026)
+
+**One core.** On 20 Nov 2026 the old core was deleted (goal mode, saved methods, the Qwen interpreter and
+supervisor, the compiler for multi-step sentences, computer use / visual tasks, Spotify recovery, `otto train`).
+A request now goes: guards and waiting questions -> the quick path (Laya + whole-sentence rules, no model) ->
+otherwise the agent loop with the tool menu and skills. Live test: 18/18, 0 unsafe (20 Nov). The paragraphs
+below describe earlier states and are kept as history.
 
 Latest checkpoint: the user selected a 90% minimum Laya acting confidence (both zones.act_bar and
 zones.act_bar_floor are 0.90 in their settings). Lower-confidence requests go to the Qwen interpreter.
