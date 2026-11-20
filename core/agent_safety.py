@@ -267,13 +267,18 @@ def _is_message(w: dict) -> bool:
 
 # Where Enter after typing only adds a line or runs a search, never sends (Codex checkpoint C2, 20 Nov: Enter after
 # typing in Claude went through unasked because Claude wasn't on the messaging list). Everything else asks.
-EDITOR_EXE = {"notepad.exe", "wordpad.exe", "winword.exe", "excel.exe", "powerpnt.exe", "onenote.exe", "code.exe",
+# (Not VS Code: it has a terminal and a chat panel.)
+EDITOR_EXE = {"notepad.exe", "wordpad.exe", "winword.exe", "excel.exe", "powerpnt.exe", "onenote.exe",
               "notepad++.exe", "obsidian.exe"}
+PASTE_KEYS = {"ctrl+v", "shift+insert", "ctrl+shift+v"}
 SEARCH_FIELD = re.compile(r"\b(search|address|find|url|filter|go to)\b", re.I)
 
 
 def _typed_this_turn(ctx) -> bool:
-    return any(h.get("tool") == "type" and h.get("ok") for h in ctx.history)
+    """Anything that may have put text in a box this turn: any typing (even one whose check failed: the keys went
+    out) or a paste."""
+    return any(h.get("tool") == "type" or h.get("tool") == "keys" and _keys(h["args"].get("keys", "")) in PASTE_KEYS
+               for h in ctx.history)
 
 
 def _harmless_enter(w: dict) -> bool:

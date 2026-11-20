@@ -221,16 +221,23 @@ def idle_seconds() -> float | None:
 
 
 PAUSE = 1.0           # seconds without typing before Otto borrows the screen
-PAUSE_WAIT = 5.0      # ...but never waits longer than this (the user's own Enter to Otto also counts as typing)
+PAUSE_WAIT = 8.0      # ...and gives up after this (the mouse counts too; so does your own Enter to Otto)
 NEW_WINDOW_WAIT = 4.0
 
 
-def wait_for_pause() -> None:
+class Busy(Exception):
+    """You kept typing or moving the mouse: Otto doesn't take the screen from you (Codex checkpoint C2)."""
+
+
+def wait_for_pause() -> bool:
+    """True once there has been a second without keys or mouse; False if that didn't happen within PAUSE_WAIT."""
     end = time.monotonic() + PAUSE_WAIT
-    while time.monotonic() < end:
+    while True:
         idle = idle_seconds()
         if idle is None or idle >= PAUSE:
-            return
+            return True
+        if time.monotonic() >= end:
+            return False
         time.sleep(0.2)
 
 
@@ -255,7 +262,9 @@ class screen_borrowed:
 
     def __enter__(self) -> _Borrowed:
         if IS_WINDOWS:
-            wait_for_pause()
+            if not wait_for_pause():
+                raise Busy("You're busy with the keyboard or mouse, so I didn't take the screen; ask me again "
+                           "when you pause.")
             self.mine, self.before = foreground(), {w["hwnd"] for w in windows()}
         return self.b
 
@@ -274,7 +283,11 @@ class screen_borrowed:
         front = foreground()
         for hwnd in self.b.new:
             minimise(hwnd)
-        if front in self.b.new and self.mine and exists(self.mine):
+        # No new window, but Otto brought an existing one of that program forward (Spotify already open): put
+        # yours back, leaving that window as it was.
+        brought = (not self.b.new and front != self.mine and front in self.before
+                   and window_info(front).get("exe", "").casefold() == self.exe)
+        if (front in self.b.new or brought) and self.mine and exists(self.mine):
             try:
                 focus(self.mine)
             except BaseException:          # a cancel while putting the window back is fine: nothing else to do

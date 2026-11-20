@@ -264,6 +264,8 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
                       blocked=bool(result.observed.get("blocked"))))
     if "saved" in result.observed:
         calls[-1]["saved"] = result.observed["saved"]          # the save skill's own check
+    if "playing" in result.observed:
+        calls[-1]["playing"] = result.observed["playing"]      # the video skill's own check
     if end == "done":
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"]) and not unverified_save(calls[:-1])
@@ -313,13 +315,18 @@ def _unbacked_claim(say: str, calls: list[dict], request: str) -> str:
     step of that kind that worked; otherwise the reply says what really happened. (A plain answer such as
     "Ellee sent a clip" to "what is on my discord" is not a claim about Otto's own actions.)"""
     done = {c["tool"] for c in calls if c.get("ok") and not c.get("asked")}
+    if any(c.get("playing") for c in calls):
+        done.add("media")                     # the video skill saw it play
     for claim, asked, tools_needed, honest in CLAIMS:
         if re.search(claim, say, re.I) and re.search(asked, request, re.I) and not (done & tools_needed):
-            return honest
+            unsure = next((c["say"] for c in calls if c.get("playing") is False), "")
+            return unsure or honest           # "opened, but couldn't confirm it's playing" stays as the skill said
     # Otto saying it sent something needs a send the user said yes to, whatever the request's words were
     # (Codex checkpoint C2: "type in Claude that ..." then "I've sent that message" passed both checks).
-    if SENT_CLAIM.search(say) or (re.search(r"\bsent\b", say, re.I)
-                                  and re.search(r"\b(?:send|reply|say|message|text|post|tell)\b", request, re.I)):
+    acted = any(c["tool"] in ("type", "keys", "click") for c in calls)
+    if (SENT_CLAIM.search(say) or (acted and SENT_PASSIVE.search(say))
+            or (re.search(r"\bsent\b", say, re.I) and re.search(r"\b(?:send|reply|say|message|text|post|tell)\b",
+                                                          request, re.I))):
         sent = [c for c in calls if c.get("ok") and c.get("approved") and (
             c["tool"] in ("keys", "type") and agent_safety.sending(c["tool"], c["args"]) or c["tool"] == "click")]
         if not sent:
@@ -327,8 +334,10 @@ def _unbacked_claim(say: str, calls: list[dict], request: str) -> str:
     return ""
 
 
-SENT_CLAIM = re.compile(r"\bI(?:'ve| have)?\s+(?:just\s+)?(?:sent|posted|submitted)\b|"
-                        r"\b(?:message|it|that|text|reply)\s+(?:has been|was|is)\s+(?:sent|posted|submitted)\b", re.I)
+SENT_CLAIM = re.compile(r"\bI(?:'ve| have)?\s+(?:just\s+)?(?:sent|posted|submitted)\b", re.I)
+# "Your message was sent" is a claim only after Otto typed or pressed something ("the last message was sent by
+# Ellee" answers a question).
+SENT_PASSIVE = re.compile(r"\b(?:message|it|that|text|reply)\s+(?:has been|was|is)\s+(?:sent|posted|submitted)\b", re.I)
 
 
 def _back_and_forth(calls: list[dict], name: str, args: dict) -> str:

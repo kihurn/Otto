@@ -163,7 +163,9 @@ class Otto:
         if lead and self.apps is not None and self.apps.match_exact(' '.join(lead[1].lower().split())):
             t = f'{lead[2]} in {lead[1]}'
             self.trace['understood_as'] = t
-        if guards.filler_only(t):
+        # A filler is dropped, except a yes-sound ("mhm") answering a harmless question that is waiting.
+        if guards.filler_only(t) and not (self.pending and self.pending.kind not in self.APPROVALS
+                                          and guards.reply_kind(t) == "yes"):
             self.trace['guard'] = 'filler_only'
             return Reply('')
         if re.fullmatch(r"how do you know (?:it is|it's|its) (?:tonight|night|morning|afternoon|evening)[?.!]*", t, re.I):
@@ -173,6 +175,10 @@ class Otto:
         # short recording of them is still accepted. A mumbled "yes" is NOT: it could approve closing an app.
         # Never for a question that approves something risky: there only a clearly heard plain yes counts.
         approving = bool(self.pending and self.pending.kind in self.APPROVALS)
+        closer = None if self.pending else CLOSERS.get(guards._simple(t))     # only with nothing waiting
+        if closer:                                    # "Thank you" heard unclearly needs no "did you say ...?"
+            self.trace["answer_by"] = "local"
+            return Reply(closer)
         fixed_phrase = bool((guards.memory_command(t) and not approving) or guards.reply_kind(t) == 'no'
                             or guards.is_cancel(t) or self._names_an_option(t))
         if (self.pending and heard_conf is not None and not fixed_phrase
@@ -283,6 +289,8 @@ class Otto:
             self.pending = None
             if kind == "yes":
                 return self._process(p.text)
+            if re.match(r"(?:no|nope|nah)\b.*\b(?:did not|didn'?t|wasn'?t|not (?:you|talking))\b", t, re.I):
+                return Reply("Okay, never mind.")      # "No I did not": it wasn't for Otto (20 Nov voice run)
             if kind == "no":
                 return Reply("Sorry, what did you say?")
             return None
@@ -499,7 +507,7 @@ class Otto:
         if closer:
             self.trace["answer_by"] = "local"
             return Reply(closer)
-        quick = answers.whole_local_answer(t)        # time, date, maths: no model needed
+        quick = answers.whole_local_answer(details._t(t))   # time, date, maths: no model ("um, what's the time")
         if quick:
             self.trace["answer_by"] = "local"
             return self._finish(Reply(quick), "question", True)

@@ -25,7 +25,7 @@ SEARCH_WAIT = 6.0
 
 @tool("search", "search Google, YouTube or Spotify where the user can see the results (for search, google, find "
       "a video/song). Opens the results page directly, nothing is typed. To PLAY a YouTube video, give play: it "
-      "finds the video and plays it, checked, and finishes the request",
+      "finds the video, opens it and says whether it saw it play",
       {"query": "what to search for", "where": "optional: google (default), youtube, spotify, or another app",
        "play": "optional, YouTube only: play this result, 1 = first, 2 = second...",
        "background": "optional, with play: yes only if the user said in the background"})
@@ -56,8 +56,9 @@ def search(ctx, query, where="google", play="", background="no"):
 
 def _play(ctx, query: str, which: str, background: bool) -> ToolResult | None:
     """A YouTube video found with the API and checked on screen (20 Nov live run: picking "the second video" from a
-    screenshot clicked a Mix, then the sidebar). The checked result ends the request. None: no key, no quota or no
-    connection, so the normal search runs and the video is picked from the page as before."""
+    screenshot clicked a Mix, then the sidebar). The model goes on afterwards, so the rest of a request still
+    happens (Codex checkpoint C2); its "playing" is believed only if this saw the video play. None: no key, no
+    quota or no connection, so the normal search runs and the video is picked from the page as before."""
     if ctx.dry_run:
         return _dry(ctx, f'play result {which} for "{query}" on YouTube' + (" in the background" if background else ""))
     ctx.controls, ctx.look, ctx.hwnd = [], {}, None
@@ -66,7 +67,7 @@ def _play(ctx, query: str, which: str, background: bool) -> ToolResult | None:
         return None
     if res.ok and not background:
         ctx.app, ctx.hwnd = "Google Chrome", res.observed.get("window") or None
-    return ToolResult(res.ok, res.say, dict(res.observed, end="done") if res.ok else res.observed)
+    return res
 
 
 def shows_search(address: str, host: str, path: str, field: str, query: str) -> bool:

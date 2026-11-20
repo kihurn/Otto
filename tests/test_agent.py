@@ -521,16 +521,26 @@ def test_whole_audio_sentences_take_the_quick_path_and_partial_ones_do_not():
         assert details.whole("media", said, None) is None, said
 
 
-def test_a_skill_that_ends_the_turn_keeps_its_checked_sentence(ctx, monkeypatch):
-    # 20 Nov voice run: the video played minimised, but "Playing ... in the background" was replaced by
-    # "I didn't manage to play it" (only the model's own words are checked against the steps).
+def test_a_video_the_skill_saw_playing_backs_the_models_playing(ctx, monkeypatch):
+    # 20 Nov voice run: the video played, but the reply was "I didn't manage to play it". Codex C2: the skill hands
+    # back to the model (the rest of a request still runs) and its own check is what backs "playing".
     from core import agent, skills, tools
     monkeypatch.setattr(skills, "_action", lambda c, do, **a: tools.ToolResult(
-        True, "Playing Lofi girl in the background.", {"video": "abc", "window": 3}))
+        True, "Playing Lofi girl in the background.", {"video": "abc", "window": 3, "playing": True}))
     ctx.dry_run = False
-    brain = Scripted(call("search", query="lofi music", where="youtube", play="1", background="yes"))
+    brain = Scripted(call("search", query="lofi music", where="youtube", play="1", background="yes"),
+                     call("done", say="Playing Lofi girl in the background."))
     r = agent.run("can you play some lofi music on youtube in the background", [], brain, ctx)
     assert r.status == "done" and r.ok and r.say == "Playing Lofi girl in the background."
+
+
+def test_an_unconfirmed_video_keeps_the_skills_honest_sentence(ctx, monkeypatch):
+    from core import agent, skills, tools
+    said = "I opened Lofi girl, but I couldn't confirm it's playing."
+    monkeypatch.setattr(skills, "_action", lambda c, do, **a: tools.ToolResult(True, said, {"playing": False}))
+    ctx.dry_run = False
+    brain = Scripted(call("search", query="lofi", where="youtube", play="2"), call("done", say="Playing it now!"))
+    assert agent.run("play the second lofi video", [], brain, ctx).say == said
 
 
 def test_the_model_saying_playing_without_a_step_is_still_caught(ctx):

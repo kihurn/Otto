@@ -13,6 +13,29 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Codex checkpoint C2 fixes, part 2: items 5-10 (20 Nov 2026, Claude Code, main)
+- 5: `win.wait_for_pause()` returns False after 8 s of keys/mouse; `screen_borrowed` then raises `win.Busy` (the
+  video says so; Spotify's launch is skipped and the player check reports it). No new window but an existing
+  one of that program brought forward: your window comes back, theirs is left as it was.
+- 6: `play_video` reports "Playing" only when a Chrome media session's title matches the video's (fuzzy, 85);
+  otherwise "opened, but couldn't confirm" with `playing: False`. `search` with play no longer ends the turn;
+  `_after_call` keeps `playing`, which backs a "playing" claim; with `playing: False` the skill's own sentence
+  replaces the model's claim. (Undoes patch u's end-of-turn; tests rewritten.)
+- 7: `apps._terminal_check` reads the prompt from the terminal window's own text area (UIA element with the
+  text pattern), also for an already-open terminal; unreadable -> "couldn't check whether its prompt is ready".
+- 8: `load_settings` reads settings.json as utf-8-sig. 9: `whole_local_answer(details._t(t))`; `_t` strips more
+  hesitations (umm, erm, hmm, ah, oh, well). 10: closers answered before the unclear-speech check (never with a
+  send/run/delete question waiting); "No I did not" to "did you say" -> "Okay, never mind."; "mhm" answers a
+  harmless waiting question, stays ignored for approvals. 1,049 tests.
+- Own review before sending: any type (even a failed check) or a paste arms the Enter rule; VS Code removed from
+  the harmless editors (terminal, chat panel); a passive "message was sent" is a claim only after Otto typed or
+  pressed something; the early closer only with nothing waiting; the terminal prompt is read from the focused
+  box while that terminal is in front (the way confirmed on Windows), unknown otherwise, and an already-open
+  terminal gets one look ("it may be busy"); the search tool text no longer says play finishes the request.
+  1,053 tests.
+- Known limit (tell Codex): "type X" in one request and "send it" in the next, in an unlisted app whose box has
+  no readable name, still passes: the Enter rule only knows this turn's typing.
+
 ### Codex checkpoint C2 and fixes, part 1: items 1-4 (20 Nov 2026, Claude Code, main)
 - Codex held C2 (10 findings). Item 1 was a real unsafe step in the user's voice run: "Can you type in Claude that
   everything works right now?" typed, then pressed Enter without a question, and said "I've sent that message".

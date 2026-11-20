@@ -98,7 +98,7 @@ def load_settings() -> dict:
     base = json.loads((DEFAULTS / "settings.json").read_text(encoding="utf-8"))
     if SETTINGS_FILE.exists():
         try:
-            mine = _migrate(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
+            mine = _migrate(json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig")))   # PowerShell 5.1 adds a BOM
             return _merge(base, mine)
         except json.JSONDecodeError as e:
             print(f"  ! otto-data/settings.json has a mistake ({e}); using the defaults for now.")

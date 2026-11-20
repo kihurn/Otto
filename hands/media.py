@@ -89,8 +89,11 @@ def _launch_spotify():
     from core.action_runtime import check
     check()
     from hands.apps import open_app
-    with win.screen_borrowed("spotify.exe"):      # music is always in the background (user decision, 20 Nov)
-        open_app("Spotify")
+    try:
+        with win.screen_borrowed("spotify.exe"):  # music is always in the background (user decision, 20 Nov)
+            open_app("Spotify")
+    except win.Busy:
+        pass                                      # not opened now; the player check that follows says so
 
 
 @action("play_music", UNDOABLE, {"query": "song, artist, album or playlist name", "kind": "track/artist/album/playlist/auto",

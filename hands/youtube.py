@@ -109,26 +109,46 @@ def play_video(query: str, which: str = "1", background: str = "yes") -> Result:
     vid, title = found
     from hands import web
     url = WATCH.format(vid)
+    # "Playing" only when Windows' media controls show THIS video playing in Chrome (its title, loosely: YouTube
+    # may add or cut words); a paused page or another tab's sound only counts as "opened" (Codex checkpoint C2).
+    playing = lambda: any(_same_title(t, title) for t in _chrome_playing()) if win.IS_WINDOWS else False
     if not str(background).lower().startswith("y"):
         web.open_in_browser(url)
-        end = time.monotonic() + SHOW_WAIT                 # done only when the front window shows THAT video
+        end, front = time.monotonic() + SHOW_WAIT, 0     # first: the front window shows THAT video
         while win.IS_WINDOWS:
             front = win.foreground()
             if any(shows_video(a, vid) for a in web.chrome_addresses(only=front)):
-                return Result(True, f"Playing {title}.", {"video": vid, "window": front})
-            if time.monotonic() >= end:
                 break
+            if time.monotonic() >= end:
+                return Result(False, f"I opened {title}, but Chrome doesn't show it in front.", {"video": vid})
             time.sleep(0.3)
-        return Result(False, f"I opened {title}, but Chrome doesn't show it in front.", {"video": vid})
-    before = _chrome_playing() if win.IS_WINDOWS else set()       # something else already playing doesn't count
-    started = lambda: bool(_chrome_playing() - before)
-    with win.screen_borrowed("chrome.exe") as borrowed:
-        web.open_in_browser(url, new_window=True)
-        # Minimised before it starts, Chrome may never start it, so the window stays up until it plays (max 8 s).
-        end = time.monotonic() + PLAY_WAIT
-        while win.IS_WINDOWS and not started() and time.monotonic() < end:
-            time.sleep(0.3)
-    data = {"video": vid, "window": borrowed.new[0] if borrowed.new else 0}
-    if win.IS_WINDOWS and started():
+        data = {"video": vid, "window": front, "playing": _wait(playing, PLAY_WAIT)}
+        return Result(True, f"Playing {title}." if data["playing"] else
+                      f"I opened {title}, but I couldn't confirm it's playing.", data)
+    try:
+        with win.screen_borrowed("chrome.exe") as borrowed:
+            web.open_in_browser(url, new_window=True)
+            # Minimised before it starts, Chrome may never start it: the window stays up until it plays (max 8 s).
+            started = _wait(playing, PLAY_WAIT)
+    except win.Busy as e:
+        return Result(False, str(e))
+    data = {"video": vid, "window": borrowed.new[0] if borrowed.new else 0, "playing": started}
+    if started:
         return Result(True, f"Playing {title} in the background.", data)
     return Result(True, f"I opened {title} in the background, but I couldn't confirm it's playing.", data)
+
+
+def _same_title(shown: str, title: str) -> bool:
+    from rapidfuzz import fuzz
+    return bool(shown) and fuzz.partial_ratio(shown.casefold(), title.casefold()) >= 85
+
+
+def _wait(test, seconds: float) -> bool:
+    end = time.monotonic() + seconds
+    while win.IS_WINDOWS:
+        if test():
+            return True
+        if time.monotonic() >= end:
+            return False
+        time.sleep(0.3)
+    return False

@@ -33,7 +33,8 @@ class Intent:
 def _t(text: str) -> str:
     t = text.lower().strip()
     # Spoken fillers in front ("now can you...", "hey, ...", "okay so ...") don't change the request.
-    t = re.sub(r"^(?:(?:hey|hi|ok|okay|so|um+|uh+|alright|right|now(?! playing))[,!.]?\s+)+", "", t)
+    t = re.sub(r"^(?:(?:hey|hi|ok|okay|so|um+|uh+|u+m+|e+r+m*|h+m+|a+h+|o+h+|well|alright|right|now(?! playing))[,!.]?\s+)+",
+               "", t)
     t = re.sub(r"^(?:can|could|would) you\s+(?:please\s+)?|^please\s+|^(?:i want to|i wanna|let's|lets)\s+", "", t)
     t = re.sub(r"\s*(?:please|pls|plz|for me|thanks|thank you)\s*[.!?]*$", "", t)
     return t.strip(" .!?")

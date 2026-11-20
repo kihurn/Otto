@@ -205,6 +205,9 @@ def test_a_video_in_front_counts_only_when_chrome_shows_that_video(monkeypatch):
     monkeypatch.setenv("OTTO_YOUTUBE_API_KEY", "k")
     monkeypatch.setattr(youtube, "find_video", lambda q, n=1: ("abc", "Lofi girl"))
     monkeypatch.setattr(youtube, "SHOW_WAIT", 0.01)
+    monkeypatch.setattr(youtube, "PLAY_WAIT", 0.01)
+    now_playing = set()
+    monkeypatch.setattr(youtube, "_chrome_playing", lambda: set(now_playing))
     monkeypatch.setattr(youtube.time, "sleep", lambda s: None)
     pc = FakeDesktop(monkeypatch, {1: "chrome.exe"}, front=1)
     monkeypatch.setattr(web, "open_in_browser", lambda url, new_window=False: None)
@@ -212,11 +215,15 @@ def test_a_video_in_front_counts_only_when_chrome_shows_that_video(monkeypatch):
     monkeypatch.setattr(web, "chrome_addresses", lambda only=None: list(shown))
     assert not youtube.play_video("lofi", "2", "no").ok                       # another video: not done
     shown[0] = "youtube.com/watch?v=abc&list=RDabc"
+    result = youtube.play_video("lofi", "2", "no")                             # shown, but nothing plays yet
+    assert result.ok and result.say == "I opened Lofi girl, but I couldn't confirm it's playing."
+    assert result.data["playing"] is False
+    now_playing.add("Lofi girl - YouTube")
     result = youtube.play_video("lofi", "2", "no")
-    assert result.ok and result.say == "Playing Lofi girl." and pc.minimised == []
+    assert result.ok and result.say == "Playing Lofi girl." and result.data["playing"] and pc.minimised == []
 
 
-def test_search_with_play_ends_the_request_with_the_checked_result(monkeypatch):
+def test_search_with_play_plays_and_hands_back(monkeypatch):
     from core import skills, tools
     calls = []
 
@@ -227,7 +234,7 @@ def test_search_with_play_ends_the_request_with_the_checked_result(monkeypatch):
     ctx = tools.ToolContext(dry_run=False, brain=None)
     result = skills.search(ctx, "lofi", "youtube", play="the 2nd")
     assert calls == [("play_video", {"query": "lofi", "which": "2", "background": "no"})]
-    assert result.ok and result.observed["end"] == "done" and ctx.hwnd == 7
+    assert result.ok and "end" not in result.observed and ctx.hwnd == 7      # the model goes on (Codex C2)
 
 
 def test_without_a_key_search_falls_back_to_the_results_page(monkeypatch):

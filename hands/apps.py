@@ -186,7 +186,8 @@ def open_app(app: str) -> Result:
     already = win.find_window(name) if win.IS_WINDOWS else None
     if already:
         win.focus(already["hwnd"])
-        return Result(True, f"{name} is already open, so I brought it to the front.", {"app": name})
+        return _terminal_check(already, Result(True, f"{name} is already open, so I brought it to the front.",
+                                               {"app": name}), opened=False)
     _launch(found)
     if not win.IS_WINDOWS:
         return Result(True, f"Opening {name}.", {"app": name})
@@ -195,11 +196,7 @@ def open_app(app: str) -> Result:
         window = win.find_window(name)
         if window:
             win.focus(window['hwnd'])
-            if window.get("exe", "").lower() in TERMINAL_EXE and not _prompt_ready():
-                # The window shows before the shell is ready (profiles can take seconds; 20 Nov live run).
-                return Result(True, f"Opened {name}, but it's still starting up: its prompt isn't showing yet.",
-                              {"app": name, "starting": True})
-            return Result(True, f"Opened {name}.", {"app": name})
+            return _terminal_check(window, Result(True, f"Opened {name}.", {"app": name}))
     return Result(True, f"I asked Windows to open {name}; it's still loading.", {"app": name})
 
 
@@ -207,17 +204,44 @@ PROMPT = re.compile(r"[>$#]$")      # "PS C:\Users\User>", "C:\>", "user@pc:~$"
 PROMPT_WAIT = 12.0
 
 
-def _prompt_ready() -> bool:
-    """Wait until the terminal's last line is a prompt. True also when Windows can't show its text (no worse than before)."""
+def _terminal_check(window: dict, done: Result, opened: bool = True) -> Result:
+    """A terminal's window shows before its shell is ready (profiles can take seconds; 20 Nov live run): wait for
+    the prompt in THAT window. When its text can't be read, say so rather than calling it ready (Codex C2). One
+    already open gets a single look: it may be running something."""
+    if window.get("exe", "").lower() not in TERMINAL_EXE:
+        return done
+    ready = _prompt_ready(window["hwnd"], PROMPT_WAIT if opened else 0)
+    if ready is False:
+        why = "it's still starting up" if opened else "it may be busy"
+        return Result(True, done.say.rstrip(".") + f", but {why}: its prompt isn't showing yet.",
+                      dict(done.data, starting=True))
+    if ready is None:
+        return Result(True, done.say.rstrip(".") + "; I couldn't check whether its prompt is ready.",
+                      dict(done.data, starting=None))
+    return done
+
+
+def _terminal_text(hwnd: int) -> str | None:
+    """The text of the focused box, only while this terminal is the window in front (the way confirmed on the
+    user's PC, 20 Nov); None when it isn't in front or Windows can't show the text."""
     from pywinauto.uia_defines import IUIA
     from hands import ui_probe
-    end = time.monotonic() + PROMPT_WAIT
+    if win.foreground() != hwnd:
+        return None
+    try:
+        return ui_probe.read_text({"element": IUIA().get_focused_element()}, limit=4000)
+    except Exception:
+        return None
+
+
+def _prompt_ready(hwnd: int, wait: float) -> bool | None:
+    """True once the window's last line is a prompt; False if not within `wait`; None if its text can't be read."""
+    end = time.monotonic() + wait
     while True:
-        try:
-            text = ui_probe.read_text({"element": IUIA().get_focused_element()}, limit=4000)
-        except Exception:
-            text = None
-        if text is None or PROMPT.search(text.rstrip()):
+        text = _terminal_text(hwnd)
+        if text is None:
+            return None
+        if PROMPT.search(text.rstrip()):
             return True
         if time.monotonic() >= end:
             return False

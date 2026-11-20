@@ -1,6 +1,12 @@
 # Changelog
 
 ## 1.2 (in development)
+- Checkpoint C2 part 2: while you keep typing or moving the mouse, Otto doesn't take the screen for background
+  mode (it says so); an already-open Spotify it brought forward gives your window back. A video counts as
+  playing only when Windows shows that video playing; otherwise Otto says it opened it. The video skill no longer
+  ends the request, so "...and then set a timer" still happens. A new terminal's prompt is read from that
+  terminal's own window. Settings saved with a BOM load. "Um, what's the time?" answers instantly; "Thank you"
+  heard unclearly gets "You're welcome"; "No I did not" ends a "did you say...?".
 - Safety (Codex checkpoint C2): once Otto has typed something, Enter, a typed new line or an unnamed button asks
   first in any app except known editors and search/address boxes (Enter in Claude went through unasked). Claude
   and ChatGPT count as chat apps. "I've sent it" needs a send you said yes to. Background mode hides a window only
