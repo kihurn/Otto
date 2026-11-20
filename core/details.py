@@ -437,7 +437,7 @@ _KEYS_ONLY = {
 
 
 # Background mode (step 4c): these words ask Otto not to take over the screen.
-_BACKGROUND = re.compile(r"\s*\b(?:in the background|in background|without (?:opening|showing|bringing up) it|"
+_BACKGROUND = re.compile(r"\s*\b(?:in the background|in background|(?:at|in) the back|without (?:opening|showing|bringing up) it|"
                          r"(?:and |but )?don'?t (?:bring it up|open it up|show it))\b,?", re.I)
 _VIDEO_WORDS = re.compile(r"\b(?:youtube|videos?|vids?|clips?)\b")
 _ON_SCREEN = re.compile(r"(?:this|that|it|these|those|next|previous|last|first|second|third|fourth|fifth|another|"
@@ -453,7 +453,8 @@ def background(text: str) -> tuple[str, bool]:
 def background_video(text: str) -> Intent | None:
     """A video to play in the background, from the sentence without the background words: "play a mrbeast video",
     "put on some lofi on youtube". Videos only go to the background when asked (user decision, 20 Nov)."""
-    t = _t(text)
+    t = re.sub(r"\s+(?:too|as well|also)$", "", _t(text))
+    t = re.sub(r"\band (youtube)$", r"on \1", t)            # Whisper often hears "on youtube" as "and youtube"
     if not t or _JOINED.search(t) or not _VIDEO_WORDS.search(t):
         return None
     m = re.fullmatch(r"(?:play|put on|throw on|watch) (?:me )?(?:a |an |some |the )?(?:youtube )?"

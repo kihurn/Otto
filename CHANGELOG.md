@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- A video that really played (search with play) no longer reports "I didn't manage to play it". "At the back"
+  also means in the background, and "... and youtube" (misheard "on youtube") still plays a background video.
+  Still unclear after "did you say ...?": Otto lets it go instead of asking again.
 - Voice: other sound goes down as soon as you start talking to Otto (Otto takes a quick look at the first
   1.2 s for "Hey Otto", or any sentence while it's waiting for you), not only once it answers. Whisper also
   expects your own words: `otto set whisper.words "Spotify, YouTube, PowerShell, The Weeknd"`.

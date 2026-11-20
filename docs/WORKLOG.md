@@ -13,6 +13,15 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Voice run: background video said "didn't manage" (20 Nov 2026, Claude Code, main)
+- "Can you play some lo-fi music and youtube in the background please?": the video played and was minimised,
+  but the reply was "I didn't manage to play it". Cause: when a tool ends the turn, `_after_call` checked its
+  sentence against the play tools (media/click/keys), and search-with-play isn't one. Now only the model's own
+  `done` sentence is checked; a skill's ending sentence is code-verified.
+- Whisper heard "on youtube" as "and youtube" (`_JOINED` sent it to the agent): rewritten before the check.
+  "at the back (too)" counts as in the background. "Did you say ...?" followed by another unclear answer now
+  drops the question ("Sorry, I didn't catch that.") instead of repeating "Please repeat your answer". 1,028 tests.
+
 ### Voice: wake-word ducking, your own words for Whisper, music answers (20 Nov 2026, Claude Code, main)
 - User asked for ducking when talking to Otto and hotwords. Ducking while Otto works and speaks already existed
   (`duck.hold()` around handle + speak, other apps capped at 20%, Otto's own sound excluded).

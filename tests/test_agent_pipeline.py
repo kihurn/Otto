@@ -669,3 +669,19 @@ def test_the_background_words_are_left_out_for_the_rules():
     assert details.background("play lofi in the background") == ("play lofi", True)
     assert details.background("pause") == ("pause", False)
     assert details.whole_command(details.background("pause in the background")[0]).action == "pause"
+
+
+@pytest.mark.parametrize("said, query", [
+    ("Can you play some lo-fi music and youtube in the background please?", "lo-fi music"),   # "on" heard as "and"
+    ("Can you play a Mr. Beast video at the back too?", "mr. beast"),
+])
+def test_background_videos_as_heard_in_the_voice_run(new, monkeypatch, said, query):
+    no_agent(monkeypatch)
+    new.handle(said)
+    assert new.trace["plan"]["steps"] == [{"do": "play_video", "with": {"query": query}}]
+
+
+def test_still_unclear_after_did_you_say_lets_it_go(new):
+    assert new.handle("the song", heard_conf=-1.18).text == 'Sorry, did you say "the song"?'
+    assert new.handle("Oh, stop at all.", heard_conf=-1.17).text == "Sorry, I didn't catch that."
+    assert new.pending is None

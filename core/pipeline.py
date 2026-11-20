@@ -177,6 +177,9 @@ class Otto:
                             or guards.is_cancel(t) or self._names_an_option(t))
         if (self.pending and heard_conf is not None and not fixed_phrase
                 and heard_conf < float(self.settings.get('whisper', {}).get('misheard_below', -0.9))):
+            if self.pending.kind == "heard":           # "did you say ...?" and still unclear: let it go (20 Nov)
+                self.pending = None
+                return Reply("Sorry, I didn't catch that.")
             return Reply('I did not catch that clearly. Please repeat your answer.')
         if self.pending and time.time() < self.pending.expires:
             r = self._answer_pending(t)

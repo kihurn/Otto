@@ -519,3 +519,21 @@ def test_whole_audio_sentences_take_the_quick_path_and_partial_ones_do_not():
         assert intent and intent.action == action, said
     for said in ("swap my audio output and play lofi", "play lofi through my headphones", "play the next video on youtube"):
         assert details.whole("media", said, None) is None, said
+
+
+def test_a_skill_that_ends_the_turn_keeps_its_checked_sentence(ctx, monkeypatch):
+    # 20 Nov voice run: the video played minimised, but "Playing ... in the background" was replaced by
+    # "I didn't manage to play it" (only the model's own words are checked against the steps).
+    from core import agent, skills, tools
+    monkeypatch.setattr(skills, "_action", lambda c, do, **a: tools.ToolResult(
+        True, "Playing Lofi girl in the background.", {"video": "abc", "window": 3}))
+    ctx.dry_run = False
+    brain = Scripted(call("search", query="lofi music", where="youtube", play="1", background="yes"))
+    r = agent.run("can you play some lofi music on youtube in the background", [], brain, ctx)
+    assert r.status == "done" and r.ok and r.say == "Playing Lofi girl in the background."
+
+
+def test_the_model_saying_playing_without_a_step_is_still_caught(ctx):
+    from core import agent
+    r = agent.run("play some lofi", [], Scripted(call("done", say="Playing lofi now.")), ctx)
+    assert r.say == "I didn't manage to play it."

@@ -267,7 +267,9 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"]) and not unverified_save(calls[:-1])
         say = result.say
-        if result.ok:
+        # Only the model's own words are checked: a skill that ends the turn (search with play, close) says what its
+        # code verified (20 Nov voice run: "Playing ... in the background" became "I didn't manage to play it").
+        if result.ok and call["tool"] == "done":
             problem = (_unbacked_claim(say, calls[:-1], state.get("request", ""))
                        or _save_claim(say, calls[:-1], state.get("request", "")))
             if problem:
