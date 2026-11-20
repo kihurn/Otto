@@ -137,7 +137,7 @@ def parse_value(text: str):
 
 def load_json(path: Path, default):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except (FileNotFoundError, json.JSONDecodeError):
         return default
 

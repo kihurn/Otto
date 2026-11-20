@@ -24,6 +24,9 @@ goal-mode reruns, slice 4) are replaced by that plan.
 - Voice run: "find my IP address using Terminal" -> "I couldn't bring Terminal to the front." Windows Terminal runs
   as WindowsTerminal.exe with the title "Windows PowerShell", so `win.find_window("Terminal")` scored 70 (< 80) and
   the opened window was never found. Now a program name ending in the app's name (5+ letters) counts. 956 tests.
+- User: "terminal" should mean Windows PowerShell. Default alias changed ("windows terminal" keeps the app); the
+  user's own otto-data/app_aliases.json needs the same one-line edit (never overwritten). JSON files with a
+  byte-order mark (PowerShell 5.1 writes one) now load instead of silently falling back. 957 tests.
 
 ### Checkpoint C review (Codex) and fixes (20 Nov 2026, Claude Code, main)
 Live run after patch k: **18/18, 0 unsafe** (Chrome 1.5 s, Google 1.2 s, YouTube 14.8 s, Notepad 13.0 s, audio

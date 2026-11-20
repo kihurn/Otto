@@ -42,3 +42,11 @@ def test_terminal_finds_windows_terminal_titled_powershell(monkeypatch):
     assert win.find_window('Terminal')['hwnd'] == 2
     assert win.find_window('Windows Terminal')['hwnd'] == 2
     assert win.find_window('Note') is None                       # short names don't match program-name endings
+
+
+def test_terminal_means_windows_powershell():
+    # User, 20 Nov: "terminal" should open Windows PowerShell; Windows Terminal stays reachable by its full name.
+    import json
+    from core.config import DEFAULTS
+    aliases = json.loads((DEFAULTS / 'app_aliases.json').read_text(encoding='utf-8'))
+    assert aliases['terminal'] == 'Windows PowerShell' and aliases['windows terminal'] == 'Terminal'
