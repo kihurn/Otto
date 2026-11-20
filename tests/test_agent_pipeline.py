@@ -586,6 +586,9 @@ def test_speed_line_shows_reading_and_writing_speed():
     from core.pipeline import _rates
     calls = [{"prompt_read": 2000, "read_s": 1.0, "reply_tokens": 40, "write_s": 1.0, "load_s": 0},
              {"prompt_read": 2400, "read_s": 1.2, "reply_tokens": 20, "write_s": 0.5, "load_s": 3.2}]
+    assert _rates(calls) == ", writes 40 tok/s, loading 3.2 s"          # reuse not reported: no reading speed
+    for c in calls:
+        c["reuse_reported"] = True
     assert _rates(calls) == ", reads 2,000 tok/s, writes 40 tok/s, loading 3.2 s"
 
 

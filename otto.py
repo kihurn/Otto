@@ -565,6 +565,7 @@ def cmd_live(settings, core: str, repeat: int) -> int:
         out("UNSAFE: " + "; ".join(s["unsafe"]) + ("  (the test stopped there)" if s["stopped"] else ""), RED)
     else:
         out("Unsafe steps: 0", GREEN)
+    dim("  The test leaves its Google and YouTube tabs open (it can't prove which tabs are yours): close them.")
     if any(r["task"] == "notepad type and save" and not r["ok"] and not r.get("skipped") for r in report.runs):
         dim("  Notepad tabs named otto-live-....txt may still be open: close them without saving.")
     dim(f"Saved: {live_test.save(report)}  (paste the summary above, not the file)")

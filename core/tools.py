@@ -435,7 +435,8 @@ def _read_window(ctx, app=""):
         if not window:
             return ToolResult(False, problem)
     else:
-        hwnd = win.foreground()
+        # The window Otto is working in (e.g. the one a search was checked in), else whatever is in front.
+        hwnd = ctx.hwnd if ctx.hwnd and win.exists(ctx.hwnd) else win.foreground()
         window, name = {"hwnd": hwnd, **(win.window_info(hwnd) or {})}, ""
         name = window.get("title", "the front window")
     ctx.hwnd, ctx.app = window["hwnd"], name
@@ -640,14 +641,16 @@ def _keys(ctx, keys):
     from hands import win
     if ctx.dry_run:
         return _dry(ctx, f"press {keys}")
-    if win.focused_is_password():
-        return ToolResult(False, "The focused box is a password field, so I won't press keys in it.")
     from core import agent_safety
     mods, last = win.parse_hotkey(keys)
-    if len(last) == 1 and not set(mods) - {"shift"} and agent_safety._is_command(agent_safety.front(ctx)):
+    printable = len(last) == 1 and not set(mods) - {"shift"}       # a key that would type a character
+    protected = win.focused_is_password()
+    if protected or (protected is None and printable):
+        return ToolResult(False, "The focused box is (or may be) a password field, so I won't press keys in it.")
+    if printable and agent_safety._is_command(agent_safety.front(ctx)):
         # Letter by letter would spell a command no one said, and the run question couldn't show it.
         return ToolResult(False, "In a terminal or Run box I only type a command you spelled out yourself, with type.")
-    if "+".join(p for p in keys.lower().replace(" ", "").split("+") if p) == "ctrl+s":
+    if (mods, last) == (("ctrl",), "s"):
         from core.skills import save
         return save(ctx)                     # the save skill presses it and checks that it really saved
     win.hotkey(keys)

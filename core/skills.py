@@ -19,6 +19,7 @@ from core.tools import ToolResult, _action, _dry, tool
 WEB_SEARCH = {"google": "https://www.google.com/search?q={q}",
               "youtube": "https://www.youtube.com/results?search_query={q}"}
 SEARCH_FIELD = {"google": "q", "youtube": "search_query"}     # where each site keeps the searched words
+RESULTS_PATH = {"google": "/search", "youtube": "/results"}   # its results page (not settings with the same field)
 SEARCH_WAIT = 6.0
 
 
@@ -36,7 +37,7 @@ def search(ctx, query, where="google"):
         if not opened.ok:
             return opened
         ctx.app = "Google Chrome"
-        shown_in = _shown(url, query, SEARCH_FIELD[where])
+        shown_in = _shown(url, query, SEARCH_FIELD[where], RESULTS_PATH[where])
         if shown_in:
             ctx.hwnd = shown_in                     # the next read, look or scroll goes to this window
             return ToolResult(True, f'{where.title()} is showing results for "{query}".', {"searched": where})
@@ -45,22 +46,23 @@ def search(ctx, query, where="google"):
     return _action(ctx, "search_in_app", app=where, query=query)
 
 
-def _shown(url: str, query: str, field: str) -> int | None:
+def _shown(url: str, query: str, field: str, path: str) -> int | None:
     """The Chrome window IN FRONT shows that site's results for these words, in the site's own search field (sites
     add their own extras to the address). Returns that window, or None. Not any Chrome window, and not the words
     anywhere in the address (Codex review 19 Nov: an old background search could pass)."""
     from hands import win
     from hands.web import chrome_addresses
     host = urllib.parse.urlparse(url).hostname.removeprefix("www.")
-    words = re.findall(r"\w+", query.casefold())
+    wanted = " ".join(query.casefold().split())
     end = time.monotonic() + SEARCH_WAIT
     while True:
         hwnd = win.foreground()
         for shown in chrome_addresses(only=hwnd):
             parts = urllib.parse.urlparse(shown if "://" in shown else "https://" + shown)
             asked = urllib.parse.parse_qs(parts.query).get(field, [""])[0]
-            # Whole words: "lofilofilofi" (typed three times, 12 Nov) is not a search for "lofi".
-            if (parts.hostname or "").removeprefix("www.") == host and re.findall(r"\w+", asked.casefold()) == words:
+            # The whole query, exactly: "lofilofilofi" (12 Nov) is not "lofi", and "c" is not "c++" (Codex 20 Nov).
+            if ((parts.hostname or "").removeprefix("www.") == host and parts.path.rstrip("/") == path
+                    and " ".join(asked.casefold().split()) == wanted):
                 return hwnd
         if time.monotonic() >= end:
             return None
@@ -81,8 +83,9 @@ def save(ctx):
     from hands import win
     if ctx.dry_run:
         return _dry(ctx, "press ctrl+s and check it saved")
-    window = agent_safety.front(ctx).get("hwnd")
-    before = _save_state(ctx)
+    first = agent_safety.front(ctx)
+    window = first.get("hwnd")
+    before = _save_state(ctx, first)
     win.hotkey("ctrl+s")
     end = time.monotonic() + SAVE_WAIT
     while True:
@@ -95,7 +98,7 @@ def save(ctx):
             # Another window came to the front: what it shows says nothing about this document (Codex review).
             return ToolResult(True, "I pressed Save, but another window came up, so I couldn't confirm it saved.",
                               {"saved": False})
-        after = _save_state(ctx)
+        after = _save_state(ctx, now)
         if after["unsaved"] is False and (before["unsaved"] or after["tab"]):
             return ToolResult(True, "Saved (the window no longer shows unsaved changes).", {"saved": True})
         if time.monotonic() >= end:
@@ -106,10 +109,11 @@ def save(ctx):
     return ToolResult(True, "I pressed Save, but couldn't confirm it saved.", {"saved": False})
 
 
-def _save_state(ctx) -> dict:
-    """{"unsaved": True/False/None (unknown), "tab": a tab told us}: from the title mark or the tab's own name."""
+def _save_state(ctx, w: dict | None = None) -> dict:
+    """{"unsaved": True/False/None (unknown), "tab": a tab told us}: from the title mark or the tab's own name,
+    read from window `w` (the same lookup the caller checked; Codex re-review 20 Nov)."""
     from core import agent_safety
-    w = agent_safety.front(ctx)
+    w = w or agent_safety.front(ctx)
     title = w.get("title", "")
     for name in _tab_names(w.get("hwnd")):
         found = TAB_STATE.match(name)

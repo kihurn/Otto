@@ -277,10 +277,6 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         state["waiting"] = call
         state["waiting_front"] = agent_safety.snapshot(state["ctx"])
         return AgentResult("confirm", result.asks, calls, False, [], state)
-    if _one_step_done(state, call, result):
-        # The tool checked its own result and it is the whole request: its sentence is the reply, with no second
-        # model call just to say so (19 Nov: "increase the volume to 80" took two Gemma calls).
-        return AgentResult("done", str(result.observed.get("done") or result.say), calls, True)
     state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
     if _failures(calls) >= 2:
         return _stop(state, f"That didn't work twice, so I stopped. {result.say}")
@@ -350,71 +346,6 @@ def _wrong_app(state: dict, name: str, args: dict) -> str:
     return ""
 
 
-# Tools whose own checked result can finish a one-action request.
-ONE_STEP = {"media", "audio_output", "timer", "note", "save"}
-
-
-def _one_step_done(state: dict, call: dict, result: tools.ToolResult) -> bool:
-    """End without a second model call only when this one checked call is the whole request: Otto's own sentence
-    rules (core/details.py) must read the request as exactly this action with these details. Joining words are
-    not enough (Codex review 19 Nov: "play lofi through my headphones" would have ended after switching the output,
-    "save a copy as essay-final.txt" after saving over the current file)."""
-    if not (result.ok and not result.information and call["tool"] in ONE_STEP and len(state["calls"]) == 1):
-        return False
-    if call["tool"] == "save":
-        return result.observed.get("saved") is True and bool(SAVE_ONLY.fullmatch(_plain(state.get("request", ""))))
-    from core import details
-    # Both: no second part joined on ("mute it, then ...": the rules still read "mute"), and the rules agree.
-    return not details._JOINED.search(_plain(state.get("request", ""))) and _rules_read_the_same(
-        call, state.get("request", ""))
-
-
-SAVE_ONLY = re.compile(r"save(?: it| this| the (?:file|document)| my (?:work|file|document))?(?: now)?")
-
-
-def _plain(request: str) -> str:
-    from core import details
-    return details._t(request)
-
-
-# What a rule's action is called in the tool menu: (tool, do), and which detail must match.
-RULE_TO_CALL = {"play_music": ("media", "play", "query"), "pause": ("media", "pause", None),
-                "play": ("media", "resume", None), "next": ("media", "next", None),
-                "previous": ("media", "previous", None), "mute": ("media", "mute|unmute", None),
-                "set_volume": ("media", "volume_set", "level"), "volume_up": ("media", "volume_up", None),
-                "volume_down": ("media", "volume_down", None), "liked": ("media", "liked", None),
-                "set_audio_output": ("audio_output", "set", "device"), "swap_audio_output": ("audio_output", "swap", None),
-                "undo_audio_output": ("audio_output", "undo", None), "set_timer": ("timer", "set", "seconds"),
-                "set_alarm": ("timer", "alarm", "at"), "new_note": ("note", "", "text"), "add_to_note": ("note", "", "text")}
-RULE_AREA = {"media": "media", "audio_output": "media", "timer": "timer", "note": "notes"}
-
-
-def _rules_read_the_same(call: dict, request: str) -> bool:
-    from core import details
-    try:
-        intent = details.by_rules(RULE_AREA[call["tool"]], request, None)
-    except Exception:
-        return False
-    want = RULE_TO_CALL.get(intent.action) if intent else None
-    if not want or want[0] != call["tool"]:
-        return False
-    args = {k: str(v).strip().casefold() for k, v in (call.get("args") or {}).items()}
-    tool, do, detail = want
-    if do and args.get("do", "") not in do.split("|"):
-        return False
-    if detail is None:
-        return True
-    rule_value, call_value = str(intent.params.get(detail, "")).strip().casefold(), args.get(
-        {"seconds": "seconds", "level": "level"}.get(detail, detail), "")
-    if detail in ("seconds", "level"):
-        try:
-            return float(rule_value) == float(call_value)
-        except ValueError:
-            return False
-    # The same words, give or take Windows' longer device names ("airpods" in "Headphones (AirPods)").
-    return bool(rule_value) and (rule_value == call_value or (detail == "device" and rule_value in call_value))
-
-
 def _save_claim(say: str, calls: list[dict], request: str) -> str:
     """Qwen's own "Saved." is not proof (11 Nov: it clicked some control and said "Saved the file."). When the
     request asked to save, the claim stands only if the save skill confirmed it; otherwise its own words are used."""
@@ -437,9 +368,13 @@ EDITS = {"type", "keys", "click", "drag"}
 
 
 def unverified_save(calls: list[dict]) -> bool:
-    """The last save was pressed but not confirmed: the job isn't known to be done."""
-    saves = [c for c in calls if "saved" in c]
-    return bool(saves) and saves[-1]["saved"] is not True
+    """The last save was pressed but not confirmed, or the document was edited after it: the job isn't known to be
+    done, whatever the model says (Codex re-review 20 Nov: "Done." after an edit still counted)."""
+    saves = [i for i, c in enumerate(calls) if "saved" in c]
+    if not saves:
+        return False
+    return calls[saves[-1]]["saved"] is not True or any(
+        c.get("ok") and c["tool"] in EDITS for c in calls[saves[-1] + 1:])
 
 
 def left_over(calls: list[dict]) -> str:

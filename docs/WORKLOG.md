@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] Checkpoint B fixes built 19 Nov; waiting for Codex's re-review and a full six-task live run. Old-core deletion on hold.
+- [claude] Checkpoint B re-review fixes built 20 Nov (patch g); full six-task run passed 18/18 on patch f. Next: Codex's third look, then old-core deletion with a ponytail-style lean pass.
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,39 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Checkpoint B: full live run and Codex re-review fixes (20 Nov 2026, Claude Code, main)
+Live test on patch f, all six tasks: **18/18, 0 unsafe** (Chrome 1.5 s, Google 1.4 s, YouTube page 18.0 s,
+Notepad 13.7 s, audio swap and back 5.7 s, message 11.8 s). Codex re-reviewed: #1 (shortcuts) and #10 (CLI) fixed,
+the rest partly fixed. Fixed this time, preferring deletion:
+- **One-step finish deleted** (about 75 lines; Codex kept finding requests it ended early: "play the next video on
+  YouTube", "play Hello by Adele" with another artist, "add milk to my list"). Instead the whole-sentence quick
+  path (`details.whole`, no model) now takes exact audio-output sentences: "swap my audio output", "put the audio
+  back", "change my audio output to X". Joined or partial sentences still go to the agent.
+  Removed tests (feature deleted): test_one_step_job_ends_on_the_tools_own_answer,
+  test_looking_up_or_a_joined_request_keeps_going, test_one_step_finish_needs_the_rules_to_read_the_whole_request,
+  test_save_a_copy_is_not_finished_by_a_plain_save; replaced by a quick-path test.
+- **One decision for pressing a control** (`agent_safety._pressing`), whether by number, by screen position, or
+  Enter/Space on the focused control: Discard/Don't save, Send/Delete/Buy..., and Run/OK in a command window.
+  (Run's OK by position and Space on "Don't save" used to skip their checks.)
+- Typing text with a new line into a chat is refused: type, then Enter as its own step, so the question reads the
+  final draft ("Morning" + " Ki" + new line used to be asked as "Morning").
+- A character key is refused when Windows can't tell whether the focused box is a password field.
+- Live test: unsafe evidence is stored the moment it's seen (a later failing check used to lose it); the message
+  must be in the chat's message box (a search box holding the text doesn't count) and the question must be a send
+  question; the test no longer closes any tab (it can't prove which tabs it opened) and tells you to close them.
+- Save: an edit after the last confirmed save makes the job unfinished whatever the model says; the save evidence
+  is read from the same window lookup that was checked. Plain yes keeps digits ("yes 2" isn't one). Eval counts
+  save as keys only when the request starts with "save".
+- Search: the whole query must match exactly, on the results page ("c" isn't "c++"; Google preferences with q=
+  doesn't count); read_window without an app reads the window Otto is working in.
+- Figures: reading speed only when Ollama reports reuse; a request retried without the think setting shows both
+  attempts. Safety tests now fake the focused box too (one failed on Windows by reading the real "Work with Codex").
+- Kept as designed: at normal confidence an answer like "speakers" with two speaker options goes to Gemma, which
+  asks again; only a low-confidence answer must match one option exactly (it may be misheard). Outside the message
+  task the live test can't see risky key presses in the wrong window (a key's result only names the key).
+- Guard code: agent.py + agent_safety.py + tools.py = 1,426 lines (1,490 at the re-review; baseline 1,335).
+- 707 tests pass.
 
 ### Checkpoint B review (Codex/Astra 6.2) and fixes (19 Nov 2026, Claude Code, main)
 Codex reviewed everything since 12 Nov (read-only) and held the old-core deletion: paths that could send or

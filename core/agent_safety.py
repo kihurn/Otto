@@ -150,6 +150,10 @@ def blocked(name: str, args: dict, ctx) -> str | None:
     if ctx.confirmed or not sending(name, args):
         return None
     w = front(ctx)
+    if name == "type" and _is_message(w):
+        # Typing and sending in one go: the question would read the box before the new text was added (Codex
+        # re-review 20 Nov: "Morning" + " Ki" + new line). Type first, then Enter, so the question reads the result.
+        return "Not sent. Type the text without a new line, then press enter as its own step."
     if _is_command(w) or not _is_message(w) or _read_since_moved(ctx):
         return None
     return ("Not sent. First use read_window (or look) to check that the right chat is open and what the message "
@@ -284,67 +288,61 @@ def check(name: str, args: dict, ctx) -> str | None:
         return None
     if name == "keys":
         keys, final = _keys(args.get("keys", "")), _final(args.get("keys", ""))
-        sends = final == "enter"
         w = front(ctx)
-        if sends and _is_command(w):
+        if final in ("enter", "space") and w["focused"]:
+            # Enter or Space on a focused button presses it: the very same decision as clicking it.
+            question = _pressing(w["focused"], w["focused"], ctx, w)
+            if question:
+                return question
+        if final == "enter" and _is_command(w):
             command = _last_typed(ctx)
             return f'run "{command}" in {_app_name(w)}' if command else f"press {keys} to run the command in {_app_name(w)}"
-        if sends and _is_message(w):
+        if final == "enter" and _is_message(w):
             return _send_question(ctx, w, _last_typed(ctx))
         if final in {"delete", "backspace"} and _selected_all(ctx):
             return f"delete everything selected in {_app_name(w)}"
         if (keys in DELETE_KEYS or final == "delete") and (w["exe"].lower() == "explorer.exe" or _is_message(w)
-                                    or re.search(r"\b(mail|inbox)\b", w["title"], re.I)):
+                                                          or re.search(r"\b(mail|inbox)\b", w["title"], re.I)):
             return f"delete the selected item in {_app_name(w)}"
-        if sends or final == "space":
-            # Enter or Space on a focused button presses it: same rule as clicking it.
-            from hands.apps import RISKY_WORDS
-            if w["focused"] and RISKY_WORDS.search(w["focused"]):
-                return f'press "{w["focused"]}"'
         return None
     if name == "type":
         text = str(args.get("text", ""))
-        if "\n" in text.rstrip(" ") or "\r" in text:
-            w = front(ctx)
-            if _is_message(w):
-                return _send_question(ctx, w, text.strip())
-            if _is_command(w):
-                return f'run "{text.strip()}" in {_app_name(w)}'
-        return None
-    if name == "click" and args.get("control") is None:
-        # A position from a screenshot: ask Windows what is really there.
-        from core.tools import to_screen
-        from hands.apps import RISKY_WORDS
-        if not ctx.look:
-            return None                       # the tool itself refuses positions without a look
-        label = name_at(*to_screen(ctx, args.get("x", 0), args.get("y", 0)))
-        if label is None:
-            return "click there (I couldn't check what is under that spot)"
-        if DISCARD.search(label):
-            return f'press "{label}" (unsaved changes would be lost)'
-        if label and RISKY_WORDS.search(label):
-            w = front(ctx)
-            if re.search(r"\bsend\b", label, re.I) and _is_message(w):
-                return _send_question(ctx, w, _last_typed(ctx))
-            return f'press "{label}"'
-        if not label and RISKY_WORDS.search(ctx.why or ""):
-            return f"click there ({ctx.why.strip()})"
+        if ("\n" in text.rstrip(" ") or "\r" in text) and _is_command(front(ctx)):
+            return f'run "{text.strip()}" in {_app_name(front(ctx))}'
         return None
     if name == "click":
-        from hands.apps import RISKY_WORDS
-        target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None)
-        label = " ".join(str((target or {}).get(k) or "") for k in ("name", "automation_id")).strip()
-        if label and DISCARD.search(label):
-            return f'press "{(target or {}).get("name") or label}" (unsaved changes would be lost)'
-        if label and RISKY_WORDS.search(label):
-            w = front(ctx)
-            if re.search(r"\bsend\b", label, re.I) and _is_message(w):
-                return _send_question(ctx, w, _last_typed(ctx))      # what is sent and where, not just "Send"
-            return f'press "{(target or {}).get("name") or label}"'
-        if label and RUN_BUTTONS.match((target or {}).get("name", "").strip()):
-            w = front(ctx)
-            if _is_command(w):
-                command = _last_typed(ctx)
-                return f'run "{command}"' if command else f'press "{target["name"]}" to run the command'
+        if args.get("control") is None:
+            # A position from a screenshot: ask Windows what is really there.
+            from core.tools import to_screen
+            if not ctx.look:
+                return None                   # the tool itself refuses positions without a look
+            label = name_at(*to_screen(ctx, args.get("x", 0), args.get("y", 0)))
+            if label is None:
+                return "click there (I couldn't check what is under that spot)"
+            from hands.apps import RISKY_WORDS
+            if not label and RISKY_WORDS.search(ctx.why or ""):
+                return f"click there ({ctx.why.strip()})"
+            return _pressing(label, label, ctx)
+        target = next((c for c in ctx.controls if c.get("id") == args.get("control")), None) or {}
+        label = " ".join(str(target.get(k) or "") for k in ("name", "automation_id")).strip()
+        return _pressing(label, target.get("name") or label, ctx)
+    return None
+
+
+def _pressing(label: str, shown: str, ctx, w: dict | None = None) -> str | None:
+    """Pressing a control, however it is pressed (by number, by screen position, or Enter/Space on it while it has
+    the focus): one decision for all three (Codex re-review 20 Nov: they used to differ)."""
+    from hands.apps import RISKY_WORDS
+    if not label:
         return None
+    if DISCARD.search(label):
+        return f'press "{shown}" (unsaved changes would be lost)'
+    w = w or front(ctx)
+    if RISKY_WORDS.search(label):
+        if re.search(r"\bsend\b", label, re.I) and _is_message(w):
+            return _send_question(ctx, w, _last_typed(ctx))          # what is sent and where, not just "Send"
+        return f'press "{shown}"'
+    if RUN_BUTTONS.match(shown.strip()) and _is_command(w):
+        command = _last_typed(ctx)
+        return f'run "{command}"' if command else f'press "{shown}" to run the command'
     return None

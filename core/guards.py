@@ -67,7 +67,8 @@ def _simple(text: str) -> str:
 def exact_yes(text: str) -> bool:
     """Only a plain yes ("yes", "yeah", "go ahead", ...), nothing added. Approving a send, a run or a delete
     needs this (Codex review 19 Nov: "okay stop", "ok cancel" and "okay save that" all read as yes)."""
-    return _simple(text) in YES
+    # Own normalising that keeps digits: "yes 2" is not a plain yes (Codex re-review 20 Nov).
+    return " ".join(re.sub(r"[^a-z0-9' ]", " ", (text or "").lower()).split()) in YES
 
 
 def reply_kind(text: str) -> str | None:

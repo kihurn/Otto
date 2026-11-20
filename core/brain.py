@@ -177,7 +177,9 @@ class Brain:
         except BrainError as error:
             if "think" not in body or "think" not in error.message.lower():
                 raise
+            self.usage.append({"model": model, "seconds": round(time.perf_counter() - t0, 2), "failed": "think"})
             body.pop("think")                    # a model that has no thinking setting: ask again without it
+            t0 = time.perf_counter()
             out = self._post("/api/chat", body, timeout)
         message = out.get("message") or {}
         self.usage.append({

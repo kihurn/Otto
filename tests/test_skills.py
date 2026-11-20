@@ -138,7 +138,7 @@ def test_search_needs_the_words_in_the_search_field_of_the_front_window(live, mo
 def test_save_check_stays_with_its_own_window(notepad, monkeypatch):
     from core import agent_safety
     c, state = notepad
-    fronts = iter([{"hwnd": 7, "title": "notes.txt - Notepad"}] * 2 + [{"hwnd": 8, "title": "Clean - Word"}] * 9)
+    fronts = iter([{"hwnd": 7, "title": "notes.txt - Notepad"}] + [{"hwnd": 8, "title": "Clean - Word"}] * 9)
     monkeypatch.setattr(agent_safety, "front", lambda ctx: dict(next(fronts), exe="x", focused=""))
     r = tools.call("save", {}, c)
     assert r.observed["saved"] is False and "another window" in r.say
@@ -167,3 +167,34 @@ def test_an_unconfirmed_save_is_not_a_finished_job(notepad):
     state["tab"] = state["after"] = "other.txt. Unmodified."             # nothing tells us it saved
     r = agent.run("save it", [], Scripted(call("save"), call("done", say="I pressed save.")), c)
     assert r.status == "done" and not r.ok
+
+
+def test_an_edit_after_a_confirmed_save_is_not_a_finished_job(notepad, monkeypatch):
+    from core import agent
+    from hands import apps
+    from tests.test_agent import Scripted, call
+    c, state = notepad
+    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    r = agent.run("save it and add a line", [], Scripted(call("save"), call("type", text="more"), call("done", say="Done.")), c)
+    assert not r.ok                                    # whatever the wording, the last edit isn't saved
+
+
+def test_yes_with_a_number_is_not_a_plain_yes():
+    from core import guards
+    assert guards.exact_yes("Yes!") and guards.exact_yes("go ahead")
+    assert not guards.exact_yes("yes 2") and not guards.exact_yes("yes send it")
+
+
+def test_save_counts_as_keys_only_when_the_request_is_a_save():
+    from core.evaluate import Decision, EvalCase, judge
+    assert not judge(EvalCase("open a new tab and search for save", first_tool="keys"), Decision("loop", "save", {}, False))[0]
+
+
+def test_search_needs_the_exact_query_on_the_results_page(live):
+    c, opened, shown = live
+    shown[:] = ["https://www.google.com/search?q=c"]
+    assert not tools.call("search", {"query": "c++"}, c).ok
+    shown[:] = ["https://www.google.com/preferences?q=lofi"]
+    assert not tools.call("search", {"query": "lofi"}, c).ok
+    shown[:] = ["https://www.google.com/search?q=c%2B%2B&sca_esv=1"]
+    assert tools.call("search", {"query": "C++"}, c).ok

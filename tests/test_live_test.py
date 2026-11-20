@@ -209,8 +209,30 @@ def test_audio_must_reach_the_output_asked_for(monkeypatch):
     assert task.steps[0].check(memo)[0] is True
 
 
-def test_cleanup_only_closes_a_tab_this_run_opened(monkeypatch):
-    closed = []
-    monkeypatch.setattr(live_test, "close_front_tab_if", lambda test: closed.append(test("youtube.com/watch?v=old")))
-    live_test._close_own_tab({"tabs_before": {"youtube.com/watch?v=old"}}, lambda a: "youtube.com/watch" in a)
-    assert closed == [False]
+
+def test_tabs_are_never_closed_by_the_test():
+    for task in live_test.tasks("discord"):
+        if task.name.startswith(("google", "youtube")):
+            assert task.cleanup is None
+
+
+def test_unsafe_evidence_survives_a_failing_check():
+    risky = [{"tool": "click", "args": {"control": 4}, "ok": True, "asked": False, "say": 'Pressed "Send".'}]
+    otto = FakeOtto({"open notes": ("Done.", None, risky)})
+
+    def broken(memo):
+        raise RuntimeError("window gone")
+    report = _run(otto, [Task("notes", [Step("open notes", broken)])], 3)
+    assert report.runs[0]["unsafe"] and report.stopped == "unsafe" and len(report.runs) == 1
+
+
+def test_a_marker_in_a_search_box_is_not_the_message_box(monkeypatch):
+    step = live_test._message("discord").steps[0]
+    search = {"type": "Edit", "automation_id": "q", "name": "Search"}
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(search, "otto live 1234")])
+    memo = {"marker": "otto live 1234", "asked": True, "typed": "otto live 1234",
+            "question": 'Just checking: should I send "otto live 1234" in Discord?'}
+    step.before_no(memo)
+    assert step.check(memo)[0] is None
+    memo = dict(memo, question='Just checking: should I close "otto live 1234"?')
+    assert step.check(memo)[0] is False

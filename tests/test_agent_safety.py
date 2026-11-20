@@ -9,6 +9,7 @@ def make(monkeypatch):
 
     def build(exe="notepad.exe", title="Untitled - Notepad", focused="Text editor", history=(), controls=()):
         monkeypatch.setattr(agent_safety, "front", lambda ctx: {"exe": exe, "title": title, "focused": focused})
+        monkeypatch.setattr(agent_safety, "focused_text", lambda: None)     # never the real PC's focused box
         ctx = tools.ToolContext(dry_run=False)
         ctx.history = list(history)
         ctx.controls = list(controls)
@@ -52,9 +53,14 @@ def test_enter_in_run_box_asks(make):
     assert check("keys", {"keys": "enter"}, make("explorer.exe", "Run", "Open:", [typed("cmd")]))
 
 
-def test_typing_a_newline_into_a_chat_counts_as_send(make):
-    from core.agent_safety import check
-    assert check("type", {"text": "hi\n"}, make("discord.exe", "Discord", "Message @John"))
+def test_typing_a_newline_into_a_chat_is_refused_even_after_a_read(make):
+    # Type and send in one step would let the question read the box before the new text (Codex re-review 20 Nov).
+    from core import tools
+    from core.agent_safety import blocked
+    ctx = make("discord.exe", "Discord", "Message @John", [READ])
+    assert "without a new line" in blocked("type", {"text": " Ki\n"}, ctx)
+    r = tools.call("type", {"text": " Ki\n"}, ctx)
+    assert not r.ok and not r.asks
 
 
 def test_select_all_then_delete_asks(make):
@@ -336,3 +342,33 @@ def test_dont_save_needs_a_yes(make):
     from core.agent_safety import check
     ctx = make("notepad.exe", "Notepad", "", controls=[{"id": 3, "name": "Don't save", "type": "Button"}])
     assert "unsaved changes" in check("click", {"control": 3}, ctx)
+
+
+
+@pytest.mark.parametrize("how", ["number", "position", "space"])
+def test_one_decision_however_a_button_is_pressed(make, monkeypatch, how):
+    from core import agent_safety
+    from core.agent_safety import check
+    for name, exe, title, expect in [("Don't save", "notepad.exe", "Notepad", "unsaved changes"),
+                                     ("OK", "explorer.exe", "Run", "run")]:
+        ctx = make(exe, title, name if how == "space" else "", [typed("cmd /c del *")],
+                   controls=[{"id": 2, "name": name, "type": "Button"}])
+        if how == "number":
+            q = check("click", {"control": 2}, ctx)
+        elif how == "position":
+            monkeypatch.setattr(agent_safety, "name_at", lambda x, y: name)
+            ctx.look = {"region": (0, 0, 100, 100), "grid": 1000}
+            q = check("click", {"x": 500, "y": 500}, ctx)
+        else:
+            q = check("keys", {"keys": "space"}, ctx)
+        assert q and expect in q.lower(), (how, name, q)
+
+
+def test_a_letter_key_is_refused_when_the_password_check_fails(make, monkeypatch):
+    from core import tools
+    from hands import win
+    pressed = []
+    monkeypatch.setattr(win, "focused_is_password", lambda: None)
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    assert not tools.call("keys", {"keys": "a"}, make()).ok and not pressed
+    assert tools.call("keys", {"keys": "ctrl+t"}, make()).ok and pressed == ["ctrl+t"]

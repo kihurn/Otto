@@ -49,7 +49,7 @@ LOOP_ACTIONS = {"app_goal", "visual_task"}
 SAME_AS = {"search": {"google", "open"}, "save": {"keys"}}
 # ...but only where the sentence is about that: save counts as keys only for a save request (Codex review 19 Nov:
 # "open a new tab" expects keys too, and save must not pass for it).
-SAME_AS_ONLY_IF = {"save": r"\bsave\b", "search": r"\b(?:search|google|look up|find)\b"}
+SAME_AS_ONLY_IF = {"save": r"^\s*(?:please\s+)?save\b", "search": r"\b(?:search|google|look up|find)\b"}
 
 
 @dataclass

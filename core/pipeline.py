@@ -76,7 +76,11 @@ class Pending:
 def _rates(calls: list[dict]) -> str:
     """Ollama's reading and writing speed over this turn's calls, e.g. ", reads 1,800 tok/s, writes 38 tok/s".
     Slow reading points at the prompt (no reuse), slow writing at the card (model partly off the GPU)."""
-    read = sum(c.get("prompt_read") or 0 for c in calls)
+    calls = [c for c in calls if not c.get("failed")]
+    # Reading speed only when Ollama said how much it reused: otherwise the count includes reused tokens and the
+    # speed would look far higher than it is (Codex re-review 20 Nov).
+    known = calls and all(c.get("reuse_reported") for c in calls)
+    read = sum(c.get("prompt_read") or 0 for c in calls) if known else 0
     read_s = sum(c.get("read_s") or 0 for c in calls)
     wrote = sum(c.get("reply_tokens") or 0 for c in calls)
     write_s = sum(c.get("write_s") or 0 for c in calls)

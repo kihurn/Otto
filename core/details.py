@@ -505,6 +505,11 @@ def whole(area: str, text: str, apps) -> Intent | None:
         if re.search(r"\b(?:youtube|netflix|twitch|chrome|browser|videos?|movie|film|episode)\b", t):
             return None                     # not Spotify: the agent works out where to play it
         intent = whole_command(text)
+        # Audio outputs, whole sentence only ("swap my audio output", "put the audio back", "change my audio output
+        # to airpods"): no model needed (replaces the agent's one-step finish, Codex re-review 20 Nov).
+        audio = _media(text)
+        if not intent and audio and audio.action in ("swap_audio_output", "undo_audio_output", "set_audio_output"):
+            intent = audio
         m = re.fullmatch(r"(?:play|put on) (?P<q>.+?)(?: by (?P<a>.+?))?(?P<s> on spotify)?", t)
         if not intent and m and (m["a"] or m["s"] or re.search(r"[\"“]", text)):
             intent = music_intent(text)

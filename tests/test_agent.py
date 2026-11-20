@@ -510,49 +510,12 @@ def test_glow_has_rounded_corners_and_a_looking_badge():
     assert badge[30, w // 2, 3] > plain[30, w // 2, 3]               # the badge sits at the top middle
 
 
-def test_one_step_job_ends_on_the_tools_own_answer(ctx):
-    from core import agent
-    brain = Scripted(call("media", do="volume_set", level=80))
-    r = agent.run("now can you make it 80 percent loud", [], brain, ctx)
-    assert r.status == "done" and r.ok and len(brain.seen) == 1          # one model call, not two
-
-
-def test_looking_up_or_a_joined_request_keeps_going(ctx):
-    from core import agent
-    brain = Scripted(call("audio_output", do="list"), call("done", say="You have Speakers and AirPods."))
-    agent.run("swap my audio output", [], brain, ctx)
-    assert len(brain.seen) == 2
-    brain = Scripted(call("media", do="volume_set", level=30), call("done", say="Done both."))
-    agent.run("turn it down to 30 and play lofi", [], brain, ctx)
-    assert len(brain.seen) == 2
-
-
-def test_one_step_finish_needs_the_rules_to_read_the_whole_request(ctx):
-    from core import agent
-    # Only part of the job: the output switch for "play lofi through my headphones" (Codex review 19 Nov).
-    brain = Scripted(call("audio_output", do="set", device="headphones"), call("done", say="Done."))
-    agent.run("play lofi through my headphones", [], brain, ctx)
-    assert len(brain.seen) == 2
-    # The play part alone isn't it either: the rules read the whole sentence as the query.
-    brain = Scripted(call("media", do="play", query="lofi"), call("done", say="Done."))
-    agent.run("play lofi through my headphones", [], brain, ctx)
-    assert len(brain.seen) == 2
-    # The whole request, read the same way by the rules: one call.
-    for request, step in [("swap my audio output", call("audio_output", do="swap")),
-                          ("put the audio back", call("audio_output", do="undo")),
-                          ("play the hills", call("media", do="play", query="the hills")),
-                          ("change my audio output to airpods", call("audio_output", do="set", device="Headphones (AirPods)")),
-                          ("set a timer for 5 minutes", call("timer", do="set", seconds=300))]:
-        brain = Scripted(step)
-        r = agent.run(request, [], brain, ctx)
-        assert r.status == "done" and len(brain.seen) == 1, request
-
-
-def test_save_a_copy_is_not_finished_by_a_plain_save(ctx, monkeypatch):
-    from core import agent, tools
-    monkeypatch.setattr(tools.TOOLS["save"], "run", lambda c: tools.ToolResult(True, "Saved.", {"saved": True}))
-    brain = Scripted(call("save"), call("done", say="Saved a copy."))
-    agent.run("save a copy as essay-final.txt", [], brain, ctx)
-    assert len(brain.seen) == 2
-    brain = Scripted(call("save"))
-    assert agent.run("save it", [], brain, ctx).status == "done" and len(brain.seen) == 1
+def test_whole_audio_sentences_take_the_quick_path_and_partial_ones_do_not():
+    # Replaces the agent's one-step finish (Codex re-review 20 Nov): only an exact whole sentence skips the model.
+    from core import details
+    for said, action in [("swap my audio output", "swap_audio_output"), ("put the audio back", "undo_audio_output"),
+                         ("change my audio output to airpods", "set_audio_output")]:
+        intent = details.whole("media", said, None)
+        assert intent and intent.action == action, said
+    for said in ("swap my audio output and play lofi", "play lofi through my headphones", "play the next video on youtube"):
+        assert details.whole("media", said, None) is None, said
