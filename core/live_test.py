@@ -470,12 +470,12 @@ def _background_video() -> Task:
         if not youtube.key():
             return "skipped (no OTTO_YOUTUBE_API_KEY in .env)"
         memo["chrome"] = {w["hwnd"] for w in win.windows() if w["exe"].casefold() == "chrome.exe"}
-        memo["playing"] = youtube._chrome_playing()
         return None
 
     def say(memo):
-        from hands import win
+        from hands import win, youtube
         memo["front"] = win.foreground()          # right before the request: the window that must stay in front
+        memo["playing"] = youtube._chrome_playing()
         return "play a lofi video in the background"
 
     def opened(memo) -> list[dict]:
@@ -495,9 +495,12 @@ def _background_video() -> Task:
         return True, ""
 
     def cleanup(memo):
-        from hands import win
+        # The same lofi video comes up every run, so wait until this run's one has stopped: otherwise the next run's
+        # "something new is playing" can't be seen (closing a window takes a moment).
+        from hands import win, youtube
         for w in opened(memo):
             win.close(w["hwnd"])
+        wait_for(lambda: not opened(memo) and not youtube._chrome_playing() - memo.get("playing", set()), 5)
 
     return Task("video in the background", [Step(say, check)], setup, cleanup)
 

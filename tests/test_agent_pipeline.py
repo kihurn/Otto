@@ -640,12 +640,28 @@ def test_a_background_video_needs_no_model_and_no_screen(new, monkeypatch, said,
 
 
 @pytest.mark.parametrize("said", ["play lofi in the background", "open youtube in the background",
-                                  "put on a youtube video in the background", "play a mrbeast video",
-                                  "play a mrbeast video in the background and open notepad"])
+                                  "put on a youtube video in the background",
+                                  "play a mrbeast video in the background and open notepad",
+                                  # on the screen, not a search (Opus review, 20 Nov)
+                                  "play this video in the background", "play the second video in the background",
+                                  "play the next video in the background", "play that clip in the background",
+                                  "open my clips folder in the background", "start a video call in the background"])
 def test_other_sentences_are_not_background_videos(said):
     from core import details
     bare, background = details.background(said)
-    assert details.background_video(bare) is None or not background
+    assert background and details.background_video(bare) is None
+
+
+@pytest.mark.parametrize("said, rule", [
+    ("google how to run a script in the background", {"action": "web_search",
+                                                      "params": {"query": "how to run a script in the background"}}),
+])
+def test_background_words_stay_for_everything_but_media(new, monkeypatch, said, rule):
+    no_agent(monkeypatch)
+    new.router.predict = lambda t: {"area": "web", "prob": 0.99, "ms": 1, "top": [("web", 0.99)]}
+    new.router.zone = lambda p: "high"
+    new.handle(said)
+    assert {k: new.trace["intent"][k] for k in rule} == rule
 
 
 def test_the_background_words_are_left_out_for_the_rules():

@@ -29,6 +29,10 @@ goal-mode reruns, slice 4) are replaced by that plan.
   window plays and Otto's window stays in front; closes only that window). 995 tests.
 - Not checked here (Linux): autoplay in Chrome, minimise and focus restore, the real API call. Agent-loop
   requests "in the background" (plan item 3) are not built yet.
+- Own review before handing over: the background words are stripped only for the media rules (Google and files
+  keep the whole sentence); "play this / the second / the next video in the background" and "open my clips
+  folder" are not YouTube searches (go to the agent); the live task snapshots what's playing right before the
+  request and its cleanup waits until the closed video has stopped (same lofi video each run). 1,004 tests.
 
 ### Live run after patch l, terminal start-up and brackets (20 Nov 2026, Claude Code, main)
 - Live test 18/18 three times over (one earlier run had a slow YouTube page); Chrome 1.2-2.1 s, Google 1.2-1.4 s,

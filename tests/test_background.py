@@ -162,3 +162,27 @@ def test_live_task_passes_only_when_it_plays_hidden_and_you_keep_the_front(monke
     monkeypatch.setattr(win, "close", closed.append)
     task.cleanup(memo)
     assert closed == [3]                                   # never your own Chrome window (2)
+
+
+def test_live_task_repeats_wait_for_the_last_video_to_stop(monkeypatch):
+    # The same lofi video comes up each run: run 2 must not start while run 1's video still plays (Opus review).
+    from core import live_test
+    task = live_test._background_video()
+    monkeypatch.setenv("OTTO_YOUTUBE_API_KEY", "k")
+    pc = FakeDesktop(monkeypatch, {1: "windowsterminal.exe"}, front=1)
+    monkeypatch.setattr(win, "windows", lambda: [{"hwnd": h, "exe": e, "title": "Lofi - YouTube"}
+                                                 for h, e in pc.windows.items()])
+    playing = {"Lofi"}
+    monkeypatch.setattr(youtube, "_chrome_playing", lambda: set(playing))
+    memo = {"playing": set()}
+    task.setup(memo)
+    pc.opens(3, "chrome.exe", front=False)
+
+    def close(hwnd):                     # closing takes a moment: the window and its sound go on the next look
+        pc.windows.pop(hwnd)
+        playing.clear()
+    waited = []
+    monkeypatch.setattr(win, "close", lambda h: None)
+    monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: waited.append(test()) or close(3) or test())
+    task.cleanup(memo)
+    assert waited == [False] and not playing and 3 not in pc.windows

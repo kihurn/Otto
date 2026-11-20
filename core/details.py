@@ -440,6 +440,8 @@ _KEYS_ONLY = {
 _BACKGROUND = re.compile(r"\s*\b(?:in the background|in background|without (?:opening|showing|bringing up) it|"
                          r"(?:and |but )?don'?t (?:bring it up|open it up|show it))\b,?", re.I)
 _VIDEO_WORDS = re.compile(r"\b(?:youtube|videos?|vids?|clips?)\b")
+_ON_SCREEN = re.compile(r"(?:this|that|it|these|those|next|previous|last|first|second|third|fourth|fifth|another|"
+                        r"other|same|my|something|anything|\d+(?:st|nd|rd|th)?)\b")
 
 
 def background(text: str) -> tuple[str, bool]:
@@ -454,11 +456,12 @@ def background_video(text: str) -> Intent | None:
     t = _t(text)
     if not t or _JOINED.search(t) or not _VIDEO_WORDS.search(t):
         return None
-    m = re.fullmatch(r"(?:play|put on|throw on|start|open|watch) (?:me )?(?:a |an |some |the )?(?:youtube )?"
+    m = re.fullmatch(r"(?:play|put on|throw on|watch) (?:me )?(?:a |an |some |the )?(?:youtube )?"
                      r"(?:videos? (?:of|about|on) )?(?P<q>.+?)(?: youtube)?(?: videos?| vids?| clips?)?"
                      r"(?: (?:on|from) youtube)?", t)
     q = m["q"].strip() if m else ""
-    if not q or _VIDEO_WORDS.fullmatch(q) or q in ("something", "anything", "a video", "something good"):
+    # "this / the second / the next video" points at something on the screen: that's the agent's job, not a search.
+    if not q or _VIDEO_WORDS.fullmatch(q) or _ON_SCREEN.match(q):
         return None
     return Intent("media", "play_video", {"query": q}, full_match=True)
 

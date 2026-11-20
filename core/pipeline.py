@@ -499,20 +499,21 @@ class Otto:
         if quick:
             self.trace["answer_by"] = "local"
             return self._finish(Reply(quick), "question", True)
-        # Background words ("in the background") are left out for the rules; the agent still sees them.
+        # Background words ("in the background") are left out only for the media rules; Google, files and the agent
+        # get the whole sentence ("google how to run a script in the background").
         bare, background = details.background(t)
         if background:
             self.trace["background"] = True
         intent = details.background_video(bare) if background else None   # a YouTube video, no screen needed
-        intent = intent or details.whole_command(bare)    # door 1: unmistakable commands ("pause", "volume 30")
+        intent = intent or details.whole_command(t)       # door 1: unmistakable commands ("pause", "volume 30")
         if intent is None:
             # door 2: Laya is sure of the area AND that area's rule covers the whole sentence
-            p = self.router.predict(bare)
+            p = self.router.predict(t)
             zone = self.router.zone(p["prob"])
             self.trace.update(area=p["area"], prob=round(p["prob"], 3), zone=zone, laya_ms=round(p["ms"]),
                               top=[(a, round(x, 2)) for a, x in p["top"]])
             if zone == "high":
-                intent = details.whole(p["area"], bare, self.apps)
+                intent = details.whole(p["area"], bare if p["area"] == "media" else t, self.apps)
         if intent is not None:
             self.trace["rule"] = "whole_sentence"
             return self._do_area(t, intent.area, intent=intent, via="fast")

@@ -247,7 +247,8 @@ class screen_borrowed:
     """Background mode (step 4c): `with screen_borrowed("chrome.exe") as b:` opens something without keeping the
     screen. Waits for a pause in typing; afterwards only windows of `exe` that appeared inside the block are
     minimised (b.new), and the user's window comes back only if one of those is in front (if the user has moved
-    on, they are left alone). Runs even when the block fails or is cancelled."""
+    on, they are left alone). The new windows are minimised even when the block fails or is cancelled (Windows then
+    usually brings your window back by itself; a cancel can stop Otto putting it back)."""
 
     def __init__(self, exe: str):
         self.exe, self.b = exe.casefold(), _Borrowed()
