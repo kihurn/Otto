@@ -41,6 +41,7 @@ ACTIONS = {
     "media": {
         "play_music": "play a specific song, artist, album or playlist",
         "play_liked": "play my music / my liked songs",
+        "play_video": "play a YouTube video in the background",
         "now_playing": "what song is playing",
         "play": "play / resume",
         "pause": "pause / stop",

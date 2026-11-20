@@ -246,6 +246,9 @@ def cmd_check(settings) -> None:
     files.configure(settings)
     es = files.es_path()
     line(bool(es) or None, "Everything (file search)", es or "es.exe not found (README step 3)")
+    from hands import youtube
+    line(True if youtube.key() else None, "YouTube (background videos)",
+         "key found" if youtube.key() else "OTTO_YOUTUBE_API_KEY not in .env")
     from connectors import spotify
     if not spotify.configured():
         line(None, "Spotify", "OTTO_SPOTIFY_CLIENT_ID not in .env")

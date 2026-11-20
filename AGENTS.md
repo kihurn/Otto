@@ -60,7 +60,7 @@ understanding, writing, planning or looking at. Otto asks when unsure and learns
 | Project folder | `C:\Users\User\OneDrive\Documents\Otto` (a git repo, synced by OneDrive) |
 | Python | **3.12** in `C:\Users\User\.otto\venv` (outside OneDrive). Python 3.14 is also installed but Kokoro doesn't support it |
 | Launch | `otto` (on PATH via `otto.cmd`) → `otto.py`. See `otto help` |
-| Keys | `.env` in the project folder or `C:\Users\User\.otto\.env`: `OTTO_C0RE_KEY`, `OLLAMA_API_KEY`, `OTTO_SPOTIFY_CLIENT_ID` |
+| Keys | `.env` in the project folder or `C:\Users\User\.otto\.env`: `OTTO_C0RE_KEY`, `OLLAMA_API_KEY`, `OTTO_SPOTIFY_CLIENT_ID`, `OTTO_YOUTUBE_API_KEY` (YouTube Data API, background videos) |
 | LLM gateway | **C0RE** (user's Rust gateway in front of Ollama) at `http://127.0.0.1:7080`, Ollama API (`/api/chat`, `/api/tags`), header `Authorization: Bearer c0re_...`. Context capped at **8192 tokens**. Errors: `{"error":{"code","message"}}`, codes `engine_offline`, `rate_limited` (Retry-After), `invalid_key`, `key_disabled`, `model_not_allowed`. Plain Ollama errors (`{"error":"..."}`) also pass through, e.g. HTTP 402 for cloud quota |
 | Models | `gemma4:31b-cloud` (Ollama cloud, free plan, reads images); `qwen3-vl:8b-instruct` (local, fast, reads images, usual default); `qwen3-vl:4b-instruct` (local backup). DeepSeek/GLM/Kimi cloud models are **not** on the free plan (402) |
 | Spotify | Premium. Developer app with redirect `http://127.0.0.1:8765/callback` (must be 127.0.0.1, not localhost). PKCE, no client secret. Token in `C:\Users\User\.otto\spotify_token.json` |
@@ -94,7 +94,7 @@ core/sensitive.py    refuses password/card/ID fields in code
 hands/indicator.py   glow around the window Otto is operating + a gliding Otto pointer (drawing only)
 senses/ears.py       mic + Whisper; wake / always / push-to-talk;  senses/keys.py  hotkeys (pynput)
 senses/mouth.py      Kokoro, sentence by sentence, mutes ears while speaking;  senses/eyes.py  screenshots, clipboard
-connectors/spotify.py  Spotify Web API (PKCE)
+connectors/spotify.py  Spotify Web API (PKCE);  hands/youtube.py  YouTube Data API search + videos in the background
 defaults/            seeds for otto-data: settings, examples (297), test set (100), sites, app aliases, brief.md
 tools/               label_tests, score, try_laya (run via `otto label|score|teach`)
 tests/               pytest suite, runs on any OS with fakes (see section 6)
@@ -133,7 +133,8 @@ python -m pytest -q tests
 
 **One core.** On 20 Nov 2026 the old core was deleted (goal mode, saved methods, the Qwen interpreter and
 supervisor, the compiler for multi-step sentences, computer use / visual tasks, Spotify recovery, `otto train`).
-A request now goes: guards and waiting questions -> the quick path (Laya + whole-sentence rules, no model) ->
+"In the background" (step 4c, 20 Nov): a video plays in its own minimised Chrome window and music's Spotify
+window is hidden, with your window put back (`win.screen_borrowed`). A request now goes: guards and waiting questions -> the quick path (Laya + whole-sentence rules, no model) ->
 otherwise the agent loop with the tool menu and skills. Live test: 18/18, 0 unsafe (20 Nov). The paragraphs
 below describe earlier states and are kept as history.
 

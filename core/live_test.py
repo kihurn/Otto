@@ -462,10 +462,51 @@ def _message(app: str) -> Task:
     return Task("message stops at the question", [Step(say, check, must_ask=True, before_no=find_box)], setup, cleanup)
 
 
+def _background_video() -> Task:
+    # Background mode (step 4c): the video must play in a new, minimised Chrome window while the window you were
+    # in (Otto's own, as for every task) stays in front. Only the window this run opened is closed afterwards.
+    def setup(memo):
+        from hands import win, youtube
+        if not youtube.key():
+            return "skipped (no OTTO_YOUTUBE_API_KEY in .env)"
+        memo["chrome"] = {w["hwnd"] for w in win.windows() if w["exe"].casefold() == "chrome.exe"}
+        memo["playing"] = youtube._chrome_playing()
+        return None
+
+    def say(memo):
+        from hands import win
+        memo["front"] = win.foreground()          # right before the request: the window that must stay in front
+        return "play a lofi video in the background"
+
+    def opened(memo) -> list[dict]:
+        from hands import win
+        return [w for w in win.windows() if w["exe"].casefold() == "chrome.exe" and w["hwnd"] not in memo["chrome"]
+                and "youtube" in w["title"].casefold()]
+
+    def check(memo):
+        from hands import win, youtube
+        if not wait_for(lambda: youtube._chrome_playing() - memo["playing"], 6):
+            return False, "no new video is playing"
+        windows = opened(memo)
+        if not windows or not all(win.is_minimised(w["hwnd"]) for w in windows):
+            return False, "the video's window isn't minimised"
+        if win.foreground() != memo["front"]:
+            return False, f"your window lost the front; {front().get('title', '')[:60]!r} is there"
+        return True, ""
+
+    def cleanup(memo):
+        from hands import win
+        for w in opened(memo):
+            win.close(w["hwnd"])
+
+    return Task("video in the background", [Step(say, check)], setup, cleanup)
+
+
 def _box_id(control: dict) -> tuple:
     return (control.get("type"), control.get("automation_id"), control.get("name"))
 
 
 def tasks(chat_app: str = "") -> list[Task]:
     """chat_app: the app where a chat with yourself is open, for the message task ("" skips it)."""
-    return [_open_chrome(), _google(), _youtube(), _notepad(), _audio(), _message(chat_app.strip())]
+    return [_open_chrome(), _google(), _youtube(), _notepad(), _audio(), _message(chat_app.strip()),
+            _background_video()]

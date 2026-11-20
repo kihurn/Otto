@@ -622,3 +622,34 @@ def test_options_are_listed_without_brackets(new):
     assert new.handle("check my ip in a terminal").text == \
         "Which terminal should I use? You can say PowerShell, Git Bash or Try another way."
     new.pending = None
+
+
+# ---- background mode (step 4c, 20 Nov) -------------------------------------------------------------
+
+@pytest.mark.parametrize("said, query", [
+    ("can you play a mrbeast video in the background", "mrbeast"),
+    ("Play some lofi music on YouTube in the background, please.", "lofi music"),
+    ("play a video of cats without opening it", "cats"),
+    ("play mrbeast videos and don't bring it up", "mrbeast"),
+])
+def test_a_background_video_needs_no_model_and_no_screen(new, monkeypatch, said, query):
+    no_agent(monkeypatch)
+    new.handle(said)
+    assert new.trace["background"] and new.trace["rule"] == "whole_sentence"
+    assert new.trace["plan"]["steps"] == [{"do": "play_video", "with": {"query": query}}]
+
+
+@pytest.mark.parametrize("said", ["play lofi in the background", "open youtube in the background",
+                                  "put on a youtube video in the background", "play a mrbeast video",
+                                  "play a mrbeast video in the background and open notepad"])
+def test_other_sentences_are_not_background_videos(said):
+    from core import details
+    bare, background = details.background(said)
+    assert details.background_video(bare) is None or not background
+
+
+def test_the_background_words_are_left_out_for_the_rules():
+    from core import details
+    assert details.background("play lofi in the background") == ("play lofi", True)
+    assert details.background("pause") == ("pause", False)
+    assert details.whole_command(details.background("pause in the background")[0]).action == "pause"

@@ -111,4 +111,4 @@ def action(name: str, risk: int, params: dict[str, str], describe: Callable[...,
 
 def load_all() -> None:
     """Import every hands module so their actions register themselves."""
-    from hands import app_control, apps, audio_devices, files, media, notes, timers, web  # noqa: F401
+    from hands import app_control, apps, audio_devices, files, media, notes, timers, web, youtube  # noqa: F401

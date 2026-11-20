@@ -199,3 +199,79 @@ def exists(hwnd: int) -> bool:
         return bool(win32gui.IsWindow(hwnd)) and bool(win32gui.IsWindowVisible(hwnd))
     except Exception:
         return False
+
+
+def is_minimised(hwnd: int) -> bool:
+    import win32gui
+    return bool(win32gui.IsIconic(hwnd))
+
+
+def idle_seconds() -> float | None:
+    """Seconds since the last key press or mouse move anywhere (Windows' GetLastInputInfo); None if unknown."""
+    if not IS_WINDOWS:
+        return None
+
+    class LastInput(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+    info = LastInput(ctypes.sizeof(LastInput), 0)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+        return None
+    return ((ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000
+
+
+PAUSE = 1.0           # seconds without typing before Otto borrows the screen
+PAUSE_WAIT = 5.0      # ...but never waits longer than this (the user's own Enter to Otto also counts as typing)
+NEW_WINDOW_WAIT = 4.0
+
+
+def wait_for_pause() -> None:
+    end = time.monotonic() + PAUSE_WAIT
+    while time.monotonic() < end:
+        idle = idle_seconds()
+        if idle is None or idle >= PAUSE:
+            return
+        time.sleep(0.2)
+
+
+class _Borrowed:
+    def __init__(self):
+        self.new: list[int] = []       # the windows Otto opened (and minimised)
+
+
+def _new_windows(exe: str, before: set[int]) -> list[int]:
+    return [w["hwnd"] for w in windows() if w["hwnd"] not in before and w["exe"].casefold() == exe]
+
+
+class screen_borrowed:
+    """Background mode (step 4c): `with screen_borrowed("chrome.exe") as b:` opens something without keeping the
+    screen. Waits for a pause in typing; afterwards only windows of `exe` that appeared inside the block are
+    minimised (b.new), and the user's window comes back only if one of those is in front (if the user has moved
+    on, they are left alone). Runs even when the block fails or is cancelled."""
+
+    def __init__(self, exe: str):
+        self.exe, self.b = exe.casefold(), _Borrowed()
+
+    def __enter__(self) -> _Borrowed:
+        if IS_WINDOWS:
+            wait_for_pause()
+            self.mine, self.before = foreground(), {w["hwnd"] for w in windows()}
+        return self.b
+
+    def __exit__(self, kind, error, trace) -> None:
+        if not IS_WINDOWS:
+            return
+        end = time.monotonic() + (0 if kind else NEW_WINDOW_WAIT)
+        while True:
+            self.b.new = _new_windows(self.exe, self.before)
+            if self.b.new or time.monotonic() >= end:
+                break
+            time.sleep(0.2)
+        front = foreground()
+        for hwnd in self.b.new:
+            minimise(hwnd)
+        if front in self.b.new and self.mine and exists(self.mine):
+            try:
+                focus(self.mine)
+            except BaseException:          # a cancel while putting the window back is fine: nothing else to do
+                pass

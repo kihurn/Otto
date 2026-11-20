@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Background mode: "play a mrbeast video in the background" finds the video with the YouTube Data API (key
+  `OTTO_YOUTUBE_API_KEY` in .env) and plays it in its own Chrome window, minimised once it plays, with your
+  window put back; no model needed. Music never takes the screen: a Spotify window Otto opens is minimised.
+  Otto waits for a short pause in your typing first. New live-test task "video in the background".
 - A newly opened PowerShell or Command Prompt is only reported open once its prompt shows (waits up to 12 s
   while profiles load). Choices Otto offers are said plainly, without brackets. "Terminal" now finds Windows
   Terminal's window (its title says "Windows PowerShell"). "Terminal" now means Windows PowerShell (say "Windows

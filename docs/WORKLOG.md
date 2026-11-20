@@ -13,6 +13,23 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Step 4c: background mode, videos and music (20 Nov 2026, Claude Code, main)
+- Decisions (user): music always in the background; videos only when asked; YouTube Data API key in .env.
+- `details.background()` strips "in the background / without opening it / don't bring it up"; the rules see the
+  rest, the agent the whole sentence. `details.background_video()` -> `play_video` (door 0, before Laya: Laya was
+  27% on a terminal request in the last voice run). `hands/youtube.py`: search with the key in the
+  `X-Goog-Api-Key` header (never in an address or log), errors as one sentence (quota, refused key), title
+  unescaped. Opened with `chrome --new-window`, minimised only once Windows' media controls show something new
+  playing in Chrome (max 8 s; Chrome may not start a video in a window that was never shown).
+- `win.screen_borrowed(exe)`: waits for 1 s without typing (max 5 s; GetLastInputInfo also counts the mouse and
+  your Enter to Otto), minimises only windows of that program that appeared inside, and puts your window back
+  only if Otto's window is the one in front; also on failure or cancel. Used by `play_video` and
+  `media._launch_spotify` (Spotify only hidden when Otto opened it).
+- Live test: task 7 "video in the background" (skipped without the key; passes if a new minimised YouTube
+  window plays and Otto's window stays in front; closes only that window). 995 tests.
+- Not checked here (Linux): autoplay in Chrome, minimise and focus restore, the real API call. Agent-loop
+  requests "in the background" (plan item 3) are not built yet.
+
 ### Live run after patch l, terminal start-up and brackets (20 Nov 2026, Claude Code, main)
 - Live test 18/18 three times over (one earlier run had a slow YouTube page); Chrome 1.2-2.1 s, Google 1.2-1.4 s,
   YouTube 8-10 s, Notepad 5-6 s, audio 2.4 s, message 4.6-4.8 s. 0 unsafe.

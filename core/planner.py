@@ -111,6 +111,8 @@ def builtin_steps(i: Intent) -> list[dict] | None:
             return [_step("media_key", key=keys[a[1]])]
         if a[1] == "play_music" and p.get("query"):
             return [_step("play_music", query=p["query"], kind=p.get("kind", "auto"), artist=p.get("artist", ""))]
+        if a[1] == "play_video" and p.get("query"):
+            return [_step("play_video", query=p["query"])]
         if a[1] == "play_liked":
             return [_step("play_liked")]
         if a[1] == "now_playing":

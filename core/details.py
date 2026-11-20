@@ -436,6 +436,33 @@ _KEYS_ONLY = {
 }
 
 
+# Background mode (step 4c): these words ask Otto not to take over the screen.
+_BACKGROUND = re.compile(r"\s*\b(?:in the background|in background|without (?:opening|showing|bringing up) it|"
+                         r"(?:and |but )?don'?t (?:bring it up|open it up|show it))\b,?", re.I)
+_VIDEO_WORDS = re.compile(r"\b(?:youtube|videos?|vids?|clips?)\b")
+
+
+def background(text: str) -> tuple[str, bool]:
+    """("play lofi in the background") -> ("play lofi", True): the sentence without the words, and whether they were there."""
+    bare = " ".join(_BACKGROUND.sub(" ", text).split())
+    return bare, bare != " ".join(text.split())
+
+
+def background_video(text: str) -> Intent | None:
+    """A video to play in the background, from the sentence without the background words: "play a mrbeast video",
+    "put on some lofi on youtube". Videos only go to the background when asked (user decision, 20 Nov)."""
+    t = _t(text)
+    if not t or _JOINED.search(t) or not _VIDEO_WORDS.search(t):
+        return None
+    m = re.fullmatch(r"(?:play|put on|throw on|start|open|watch) (?:me )?(?:a |an |some |the )?(?:youtube )?"
+                     r"(?:videos? (?:of|about|on) )?(?P<q>.+?)(?: youtube)?(?: videos?| vids?| clips?)?"
+                     r"(?: (?:on|from) youtube)?", t)
+    q = m["q"].strip() if m else ""
+    if not q or _VIDEO_WORDS.fullmatch(q) or q in ("something", "anything", "a video", "something good"):
+        return None
+    return Intent("media", "play_video", {"query": q}, full_match=True)
+
+
 def whole_command(text: str) -> Intent | None:
     """Unmistakable commands that need no Laya: media keys, volume, what's playing, a timer with a length."""
     t = _t(text)

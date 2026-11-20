@@ -27,10 +27,10 @@ def chrome_path() -> str | None:
     return shutil.which("chrome")
 
 
-def open_in_browser(url: str) -> None:
+def open_in_browser(url: str, new_window: bool = False) -> None:
     chrome = chrome_path()
     if chrome:
-        subprocess.Popen([chrome, url])
+        subprocess.Popen([chrome, "--new-window", url] if new_window else [chrome, url])
     else:
         webbrowser.open(url)
 

@@ -126,7 +126,7 @@ the Gemma loop + skills = Tier 3. What's missing is **Tier 2**:
 - Not copied from that design: cloud models doing the heavy work (Otto stays local), two separate apps
   (the companion overlay stays Phase 2).
 
-### Step 4c. Background mode (planned 20 Nov 2026; decisions A-C open)
+### Step 4c. Background mode (built 20 Nov 2026: videos and music; awaiting the Windows check)
 The user works in one window (e.g. a long PowerShell command) and asks Otto for something else; Otto must not take
 over the screen. Windows has one mouse and keyboard focus, so: need the screen as rarely as possible, give it back.
 1. "in the background", "without opening it", "don't bring it up", "quietly" set background mode for that request.
@@ -142,6 +142,10 @@ over the screen. Windows has one mouse and keyboard focus, so: need the screen a
 Decisions (user, 20 Nov): (A) music always in the background; videos only when the user says "in the
 background" (they mostly watch YouTube). (B) the YouTube Data API with a key from the user's Google Cloud
 project, in .env (other Google APIs later). (C) after deleting the old core.
+Built (20 Nov): items 1, 2, 4 and 6 for videos ("play a mrbeast video in the background": YouTube Data API ->
+own Chrome window, minimised once it plays, your window back) and music (Spotify opened for music is minimised).
+Not yet: item 3 for other requests through the agent loop ("open notepad in the background" still comes to the
+front); next, once the video and music parts are confirmed on Windows.
 
 ### Step 5. Teaching mode (step-by-step with your approval), on top of the skills
 Otto shows each step, you approve or correct; approved runs become saved examples (`core/examples.py` already
