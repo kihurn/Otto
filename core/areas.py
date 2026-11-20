@@ -56,6 +56,7 @@ ACTIONS = {
         "get_audio_output": "read the default audio output",
         "set_audio_output": "switch the default media output",
         "undo_audio_output": "restore the previous media output",
+        "swap_audio_output": "switch to the other media output",
         "mute": "mute or unmute",
     },
     "web": {

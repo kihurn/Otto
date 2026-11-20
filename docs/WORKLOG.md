@@ -45,6 +45,10 @@ the rest partly fixed. Fixed this time, preferring deletion:
   task the live test can't see risky key presses in the wrong window (a key's result only names the key).
 - Guard code: agent.py + agent_safety.py + tools.py = 1,426 lines (1,490 at the re-review; baseline 1,335).
 - 707 tests pass.
+- **Live run on patch g (20 Nov): 15/18, 0 unsafe** (Chrome 1.5 s, Google 1.2 s, YouTube 15.5 s, Notepad 12.7 s,
+  message 9.9 s). Audio 0/3: the quick path's planner had no step for swap_audio_output ("A plan must contain
+  between 1 and 8 steps"). Fixed in patch h (planner + areas), with an end-to-end test that runs each quick-path
+  audio sentence through the real planner and pipeline. The unit test had only checked the rules, not the plan.
 
 ### Checkpoint B review (Codex/Astra 6.2) and fixes (19 Nov 2026, Claude Code, main)
 Codex reviewed everything since 12 Nov (read-only) and held the old-core deletion: paths that could send or

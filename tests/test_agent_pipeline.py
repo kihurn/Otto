@@ -607,3 +607,18 @@ def test_an_option_must_match_exactly_one_choice(new):
                           agent={"options": ["USB speakers", "Monitor speakers", "Headphones (AirPods)"]})
     assert not new._names_an_option("speakers") and new._names_an_option("monitor speakers")
     assert new._names_an_option("airpods")
+
+
+def test_every_quick_path_audio_sentence_has_a_plan(new, monkeypatch):
+    # 20 Nov live test: "swap my audio output" took the quick path and had no plan step ("A plan must contain
+    # between 1 and 8 steps"). Each sentence must reach a real step, end to end, without the agent.
+    from core import details, planner
+    no_agent(monkeypatch)
+    for said, action in [("swap my audio output", "swap_audio_output"), ("put the audio back", "undo_audio_output"),
+                         ("change my audio output to airpods", "set_audio_output")]:
+        intent = details.whole("media", said, None)
+        steps = planner.builtin_steps(intent)
+        assert steps and steps[0]["do"] == action, said
+        monkeypatch.setattr(new.router, "predict", lambda t: {"area": "media", "prob": 0.99, "ms": 1, "top": [("media", 0.99)]})
+        reply = new.handle(said).text
+        assert "plan must contain" not in reply and "didn't run" not in reply, (said, reply)
