@@ -126,6 +126,23 @@ the Gemma loop + skills = Tier 3. What's missing is **Tier 2**:
 - Not copied from that design: cloud models doing the heavy work (Otto stays local), two separate apps
   (the companion overlay stays Phase 2).
 
+### Step 4c. Background mode (planned 20 Nov 2026; decisions A-C open)
+The user works in one window (e.g. a long PowerShell command) and asks Otto for something else; Otto must not take
+over the screen. Windows has one mouse and keyboard focus, so: need the screen as rarely as possible, give it back.
+1. "in the background", "without opening it", "don't bring it up", "quietly" set background mode for that request.
+2. Routes without the screen: Spotify through its online connection (already); YouTube: find the video's address
+   without showing the page (decision B), open it in a separate Chrome window minimised at once.
+3. A step that needs the screen: remember the user's window, do the visible step, minimise the app (background
+   mode) and put the user's window back.
+4. Not while the user types: if keys were pressed in the last ~2 s, wait for a pause before a focus-taking step;
+   if typing continues, say "I need the screen for a moment" and wait.
+5. Safety unchanged: sends, deletes and runs still ask; screenshot clicks only in the window looked at.
+6. Live-test task: "play a lofi video in the background" passes only if a video page opens AND the stand-in work
+   window (Notepad) is still in front with its text unchanged.
+Decisions: (A) background only when asked (suggested) or media always in the background; (B) YouTube lookup by
+reading a minimised Chrome window (no new parts; test first, suggested), yt-dlp (new install, no key) or the
+YouTube API (key in .env); (C) before or after deleting the old core.
+
 ### Step 5. Teaching mode (step-by-step with your approval), on top of the skills
 Otto shows each step, you approve or correct; approved runs become saved examples (`core/examples.py` already
 stores "save that" runs). Fine-tuning only if this still isn't enough, and only on approved runs.
