@@ -224,7 +224,9 @@ def test_open_programs_by_any_path_shape_asks():
 def test_type_never_replaces_existing_text(monkeypatch):
     from core import tools
     from hands import apps, ui_probe, win
-    box = {"id": 1, "name": "Text editor", "type": "Document", "rect": (0, 0, 9, 9), "element": None}
+    from types import SimpleNamespace
+    box = {"id": 1, "name": "Text editor", "type": "Document", "rect": (0, 0, 9, 9),
+           "element": SimpleNamespace(SetFocus=lambda: None)}
     replaced, typed_keys = [], []
     monkeypatch.setattr(ui_probe, "read_text", lambda c: "line 1\nline 2")
     monkeypatch.setattr(ui_probe, "set_value", lambda c, t: replaced.append(t) or True)
@@ -284,7 +286,35 @@ def test_a_command_otto_wrote_is_shown_and_never_run_without_a_yes(make, monkeyp
     ctx.request = "check my ip address"
     assert tools.call("type", {"text": "ipconfig /all"}, ctx).ok and typed_keys == ["ipconfig /all"]
     r = tools.call("keys", {"keys": "enter"}, ctx)
-    assert r.asks == 'run "ipconfig /all" in Windows PowerShell' and not pressed
+    assert r.asks == 'run "ipconfig /all" in Windows PowerShell' and pressed == ["esc"]   # line cleared, not run
+    # The yes: the line is cleared and the approved command typed again right before Enter.
+    ctx.confirmed, ctx.approved = True, r.asks
+    r = tools.call("keys", {"keys": "enter"}, ctx)
+    assert r.ok and pressed == ["esc", "esc", "enter"] and typed_keys == ["ipconfig /all", "ipconfig /all"]
+
+
+def test_enter_in_a_terminal_needs_a_command_otto_just_typed(make, monkeypatch):
+    from core import tools
+    from hands import apps, win
+    pressed = []
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    ctx = make("powershell.exe", "Windows PowerShell", "")
+    r = tools.call("keys", {"keys": "enter"}, ctx)                     # nothing typed: whatever is on the line
+    assert not r.ok and not r.asks and "only run a command I just typed" in r.say and not pressed
+    r = tools.call("type", {"text": "dir\n"}, ctx)                     # type and run in one go
+    assert not r.ok and "without a new line" in r.say
+
+
+def test_the_run_box_is_cleared_with_select_all_not_escape(make, monkeypatch):
+    from core import tools
+    from hands import apps, win
+    pressed = []
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    assert tools.call("type", {"text": "notepad"}, make("explorer.exe", "Run", "Open:")).ok and pressed == ["ctrl+a"]
 
 
 def test_close_that_leaves_the_app_open_ends_the_turn(make, monkeypatch):
@@ -391,3 +421,28 @@ def test_a_screenshot_click_never_lands_in_another_window(make, monkeypatch):
     ctx.look = {"region": (0, 0, 1000, 1000), "grid": 1000, "hwnd": 5}
     monkeypatch.setattr(win, "window_at", lambda x, y: 5)                  # the looked-at window is on top
     assert tools.call("click", {"x": 400, "y": 300}, ctx).ok and clicked == [(400, 300)]
+
+
+
+def test_typing_stops_if_the_read_window_is_not_in_front_or_the_box_cannot_take_focus(make, monkeypatch):
+    from core import tools
+    from hands import apps, ui_probe, win
+    typed_keys = []
+    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "focused_is_password", lambda: False)
+    monkeypatch.setattr(ui_probe, "read_text", lambda c: "")
+    monkeypatch.setattr(ui_probe, "set_value", lambda c, t: False)
+    chat_box = {"id": 1, "name": "Message @John", "type": "Edit", "rect": (0, 0, 9, 9),
+                "element": __import__("types").SimpleNamespace(SetFocus=lambda: None)}
+    ctx = make("notepad.exe", "notes - Notepad", "Text editor", controls=[chat_box])
+    ctx.hwnd = 7                                                       # Discord was read...
+    monkeypatch.setattr(win, "foreground", lambda: 8)                  # ...but Notepad is in front now
+    r = tools.call("type", {"text": "hello", "control": 1}, ctx)
+    assert not r.ok and "isn't the one I read" in r.say and not typed_keys
+    def refuse():
+        raise RuntimeError("no focus")
+    chat_box["element"] = __import__("types").SimpleNamespace(SetFocus=refuse)
+    monkeypatch.setattr(win, "foreground", lambda: 7)
+    ctx.controls = [chat_box]                                          # (a failed type clears the old list)
+    r = tools.call("type", {"text": "hello", "control": 1}, ctx)
+    assert not r.ok and "couldn't put the cursor" in r.say and not typed_keys

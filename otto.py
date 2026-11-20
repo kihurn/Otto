@@ -33,9 +33,9 @@ from core import config
 
 BOLD, DIM, GREEN, YELLOW, RED, CYAN, RESET = ("\033[1m", "\033[2m", "\033[92m", "\033[93m", "\033[91m",
                                               "\033[96m", "\033[0m")
-JOBS = ("extract", "decide", "screen", "answer", "chat")
-JOB_HELP = {"extract": "pulling out details, rewriting follow-ups", "decide": "guessing when Laya isn't sure, planning, splitting",
-            "screen": "looking at your screen", "answer": "answering questions, writing", "chat": "small talk"}
+JOBS = ("decide", "screen", "answer")
+JOB_HELP = {"decide": "the agent: understanding requests, choosing each step, answering and chatting",
+            "screen": "looking at a screenshot", "answer": "writing text Otto was asked to write (notes)"}
 _print_lock = threading.Lock()
 
 
@@ -579,6 +579,9 @@ def main() -> int:
     ap.add_argument("--voice", action="store_true", help=argparse.SUPPRESS)   # old style: otto --voice
     # Only one core since 20 Nov 2026; --core new is still accepted so old commands keep working.
     ap.add_argument('--core', choices=['new'], default='new', help=argparse.SUPPRESS)
+    # `otto train --offline ...` was removed with the old core; accept the old flags so it can say so.
+    for flag in ('--offline', '--tasks', '--seed', '--baseline'):
+        ap.add_argument(flag, nargs='?', const=True, help=argparse.SUPPRESS)
     ap.add_argument('--live', action='store_true', help='otto eval: do safe tasks for real and check the result')
     ap.add_argument('--repeat', type=int, default=3, help='otto eval --live: runs per task')
     a = ap.parse_args()

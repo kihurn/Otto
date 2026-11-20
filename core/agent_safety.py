@@ -95,7 +95,8 @@ def snapshot(ctx) -> dict:
     """Where a risky step would land, taken when Otto asks for your yes, including the text in the focused box
     (the draft the question read out), when Windows lets us read it."""
     shot = front(ctx)
-    shot["draft"] = None if ctx.dry_run else _draft()
+    # A terminal's text keeps changing with output; its command is checked by retyping it instead (tools._keys).
+    shot["draft"] = None if ctx.dry_run or _is_command(shot) else _draft()
     return shot
 
 
@@ -149,11 +150,15 @@ def blocked(name: str, args: dict, ctx) -> str | None:
     if ctx.confirmed or not sending(name, args):
         return None
     w = front(ctx)
-    if name == "type" and _is_message(w):
+    if name == "type" and (_is_message(w) or _is_command(w)):
         # Typing and sending in one go: the question would read the box before the new text was added (Codex
         # re-review 20 Nov: "Morning" + " Ki" + new line). Type first, then Enter, so the question reads the result.
-        return "Not sent. Type the text without a new line, then press enter as its own step."
-    if _is_command(w) or not _is_message(w) or _read_since_moved(ctx):
+        return "Not done. Type the text without a new line, then press enter as its own step."
+    if _is_command(w):
+        # Enter in a terminal runs exactly the command Otto just typed, nothing else (Codex checkpoint C, 20 Nov).
+        return None if command_just_typed(ctx) else (
+            "Not run. I only run a command I just typed: type the whole command, then press enter.")
+    if not _is_message(w) or _read_since_moved(ctx):
         return None
     return ("Not sent. First use read_window (or look) to check that the right chat is open and what the message "
             "box holds, then press enter again without clicking anything in between.")
@@ -239,6 +244,15 @@ def _final(value: str) -> str:
     return _keys(value).rsplit("+", 1)[-1]
 
 
+def command_just_typed(ctx) -> str:
+    """The command Otto typed as its last step that changed anything (reads in between are fine), or ""."""
+    for h in reversed(ctx.history):
+        if h.get("tool") in ("read_window", "look", "point"):
+            continue
+        return str(h["args"].get("text", "")) if h.get("tool") == "type" and h.get("ok") else ""
+    return ""
+
+
 def _last_typed(ctx) -> str:
     for h in reversed(ctx.history):
         if h.get("tool") == "type" and h.get("ok"):
@@ -294,8 +308,7 @@ def check(name: str, args: dict, ctx) -> str | None:
             if question:
                 return question
         if final == "enter" and _is_command(w):
-            command = _last_typed(ctx)
-            return f'run "{command}" in {_app_name(w)}' if command else f"press {keys} to run the command in {_app_name(w)}"
+            return f'run "{command_just_typed(ctx)}" in {_app_name(w)}'
         if final == "enter" and _is_message(w):
             return _send_question(ctx, w, _last_typed(ctx))
         if final in {"delete", "backspace"} and _selected_all(ctx):
@@ -326,6 +339,23 @@ def check(name: str, args: dict, ctx) -> str | None:
         label = " ".join(str(target.get(k) or "") for k in ("name", "automation_id")).strip()
         return _pressing(label, target.get("name") or label, ctx)
     return None
+
+
+def point_question(x: int, y: int, ctx) -> str | None:
+    """What the mouse would really press at this screen point (Windows says what is there), as a question or None."""
+    label = name_at(x, y)
+    if label is None:
+        return "click there (I couldn't check what is under that spot)"
+    return _pressing(label, label, ctx)
+
+
+def question_now(name: str, args: dict, ctx) -> str | None:
+    """The question this call would need right now, even if a yes was already given (to compare with it)."""
+    saved, ctx.confirmed = ctx.confirmed, False
+    try:
+        return check(name, args, ctx)
+    finally:
+        ctx.confirmed = saved
 
 
 def _pressing(label: str, shown: str, ctx, w: dict | None = None) -> str | None:

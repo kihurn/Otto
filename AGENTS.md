@@ -78,16 +78,15 @@ core/tools.py        the agent's tool menu (~20); core/skills.py  search, save (
 core/agent_safety.py what needs your yes (send, run, delete, discard), password fields, the draft check
 core/live_test.py    `otto eval --live`: safe tasks done for real, scored by what the PC shows
 core/router.py       Laya: area prediction, zones, relearn + test + keep-if-better (otto-data/laya/)
-core/details.py      rules: sentence -> Intent(area, action, params); music_intent(); brain fallback
-core/planner.py      Intent -> steps: recipe -> built-in -> brain plan from named actions
+core/details.py      rules: sentence -> Intent(area, action, params); music_intent()
+core/planner.py      Intent -> Otto's built-in steps (none: the request goes to the agent)
 core/safety.py       risk levels, confirmation, running plans, audit log
 core/brain.py        C0RE client, per-job fallback chains, JSON checking, cool-downs, the Otto brief
-core/answers.py      time/date/maths locally; web search (Ollama API) + brain
+core/answers.py      time/date/maths locally; web search (Ollama API) for the agent's look_up
 core/guards.py       gibberish, wake phrase, yes/no, cancel, save/forget phrases
 core/areas.py        Laya's 11 areas and the actions inside each
 core/config.py       folders, .env loading, settings merge/migration, set_setting()
 core/learning.py     examples.csv and test_set.csv
-core/recipes.py      saved step lists keyed area.action.target
 hands/registry.py    @action decorator: the only things that can touch the PC
 hands/*.py           apps, media (Spotify + Windows media sessions + volume), web, files, notes, timers, win helpers
 hands/ui_probe.py    reads any window's buttons/boxes/tabs from Windows (no screenshot);  hands/app_control.py  type_in_app, click by name, toggle, set_field

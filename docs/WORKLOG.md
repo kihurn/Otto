@@ -4,7 +4,7 @@ Shared by every agent (Claude Code, Codex) and the user. Newest first inside eac
 
 ## In progress
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
-- [claude] Old core deleted 20 Nov (patch k). Next: the user's live run + short voice run, Codex checkpoint C, then background mode (step 4c).
+- [claude] Checkpoint C fixes built 20 Nov (patch l). Next: the user's live + voice run, Codex's look at patch l, then background mode (step 4c).
 
 ## Next up
 The order is in `docs/PLAN_NEXT.md` (updated after Fable checkpoint A, 12 Nov): live test, skills, voice pass,
@@ -12,6 +12,39 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Checkpoint C review (Codex) and fixes (20 Nov 2026, Claude Code, main)
+Live run after patch k: **18/18, 0 unsafe** (Chrome 1.5 s, Google 1.2 s, YouTube 14.8 s, Notepad 13.0 s, audio
+2.4 s, message 10.3 s). Codex (read-only) held checkpoint C; every finding checked against the code and confirmed.
+Safety (1-6):
+- Saved recipes and model-written plans are gone: the quick path runs only Otto's built-in steps; anything else
+  goes to the agent and its destination-aware checks (recipes ran Enter through the older word-only gate).
+  core/recipes.py, planner.brain_plan, registry.brain_menu and defaults/recipes.json deleted; the user's own
+  otto-data/recipes.json is left untouched and simply no longer read. This also ends finding 7 (an obsolete
+  recipe blocking a working command).
+- Terminal: before typing, the line is cleared (Esc; select-all in the Run box); Enter in a terminal is only
+  possible right after Otto typed the command in this request (else refused); on yes the line is cleared and
+  the approved command typed again just before Enter, so what runs is what was approved. A typed new line in a
+  terminal is refused like in chats. A terminal's text isn't used as the draft (it changes with output).
+- Typing: refused when the window in front isn't the one read (a retained chat box could be typed into while a
+  document was in front), and when the box can't take the cursor (no more typing "at the cursor" instead).
+- Mouse clicks: after bringing the looked-at window forward, the decision is made again on what is really under
+  the point; with a yes it must match the approved question (`ctx.approved`), else nothing is clicked; a numbered
+  control falling back to a mouse click must land in the window read, and what's under the pointer is judged too.
+- A yes is used exactly once: `tools.call` clears it however the call ends.
+- Live test: unsafe evidence from Otto's steps is stored before the chat window is inspected; clean-up deletes
+  only this run's own text, and only if that box has the focus right before.
+Other (8-11):
+- `read_clipboard` tool (information only) replaces the rarely used `drag` (menu stays at 20).
+- Save: the tab evidence must be this document's own tab (exact name); a request to save ("save it", "type hi and
+  save it") needs a confirmed save whatever the model says ("Done." no longer passes).
+- Live test uses the search skill's exact check for Google (banana bread pudding isn't banana bread); a YouTube
+  video page must be new to the run.
+- Model jobs are now decide, screen, answer (chat and extract had no callers); `routing.play_game_apps` removed
+  from defaults; README's "save that" text describes examples, not recipes; `otto train --offline ...` prints that
+  it was removed. Dead code removed: details.by_brain, answers.answer.
+- Not changed: the other agent's Windows suite result (950 passed) predates this patch.
+- 949 tests pass here (14 new; 3 removed: two brain-plan contract tests and the recipe-fill test, code deleted).
 
 ### Step 4: the old core deleted (20 Nov 2026, Claude Code, main)
 After two 18/18 live runs (patches f and j) the user said go. Done in leaves-first order, with a new test

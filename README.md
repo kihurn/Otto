@@ -108,8 +108,9 @@ and `plan: builtin / recipe / brain:...`. Hide it with `:details`.
 ## 7. Teaching Otto
 
 - **When it asks** ("Open VALORANT?"), answer yes / yeah / nah / no, or say what you meant. Yes = a teaching example.
-- **"save that"**: if the brain worked out *how* (e.g. searching inside Discord), the steps become a **recipe**
-  and next time Otto does it instantly. Otherwise the request becomes a teaching example.
+- **"save that"**: the request and the steps that worked are kept as an example; next time Gemma/Qwen sees it
+  and does it the same way (the model still decides each step, and every step still goes through the safety
+  checks). Plain commands become a teaching example for Laya.
 - **"forget that"** undoes the last thing it learned (asks first).
 - To improve Laya: `otto candidate` trains a separate copy and tests it on your test set, at the confidence bar it
   would really use. Only if it's at least as accurate, and right at least 95% of the time when it acts alone, can you

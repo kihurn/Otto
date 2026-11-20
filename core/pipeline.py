@@ -19,7 +19,7 @@ import json
 def plan_scope(steps):
     return hashlib.sha256(json.dumps(steps, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
-from core import answers, details, guards, learning, log, planner, recipes, safety
+from core import answers, details, guards, learning, log, planner, safety
 from core.areas import ACTIONS, AREA_PHRASES, AREAS
 from core.brain import Brain, NoBrainAvailable
 from core.details import Intent
@@ -320,7 +320,7 @@ class Otto:
                 self.pending = None
                 intent = Intent("files", "find", {"query": named.group("n").strip(" .\"'"), "first": False})
                 self.trace["understood_as"] = f"find a file called {intent.params['query']}"
-                return self._run(planner.make_plan(intent, t, self.brain), intent, t)
+                return self._run(planner.make_plan(intent), intent, t)
             m = re.search(r"\b(\d+|first|second|third|fourth|fifth|last)\b", t.lower())
             if m and len(t.split()) <= 4:
                 words = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "last": len(p.files)}
@@ -341,10 +341,9 @@ class Otto:
     # ------------------------------------------------------------------------------------------
     def _do_area(self, t: str, area: str, intent: Intent | None = None, via: str = "laya") -> Reply:
         self.trace["via"] = via
-        intent = intent or details.by_rules(area, t, self.apps) or details.by_brain(area, t, self.brain)
+        intent = intent or details.by_rules(area, t, self.apps)
         if not intent:
-            self._set_pending("rephrase", text=t)
-            return Reply("I'm not sure exactly what to do there. Could you say it another way?")
+            return self._agent(t)
         self.trace["intent"] = {"area": intent.area, "action": intent.action, "params": intent.params,
                                 "by": intent.source}
         if intent.compose:
@@ -354,7 +353,9 @@ class Otto:
                 self.trace["composed_by"] = r.model
             except NoBrainAvailable:
                 return Reply("I can't reach a brain to write that right now.")
-        plan = planner.make_plan(intent, t, self.brain)
+        plan = planner.make_plan(intent)
+        if not plan.steps and not plan.error:
+            return self._agent(t)              # no built-in steps: the agent works it out, with its safety checks
         self.trace["plan"] = {"source": plan.source, "steps": plan.steps}
         if plan.error:
             return self._finish(Reply(plan.error), area, False)
@@ -369,8 +370,6 @@ class Otto:
         self.active_task.deadline_at = min(self.turn_deadline or time.monotonic() + 45,
                                           time.monotonic() + max(0, 45 - self.active_task.active_seconds))
         try:
-            if intent is None and plan.source.startswith('brain') and not confirmed:
-                raise safety.NeedsConfirm(safety.describe(plan.steps))
             res = safety.run_plan(plan.steps, confirmed=confirmed, dry_run=self.dry_run, why=t,
                                   task=self.active_task, progress=self.progress)
         except safety.NeedsConfirm as e:
@@ -389,8 +388,6 @@ class Otto:
             if res.ok or (self.dry_run and res.data.get('outcome_status') == 'simulated'):
                 self.volume_context.bind('simulation' if self.dry_run else media.endpoint_id())
         self.rephrase_of = None
-        if plan.source == 'recipe' and not self.dry_run and res.data.get('outcome_status') in {'verified', 'failed'}:
-            recipes.record(plan.key, res.ok)
 
         meant = res.data.get('did_you_mean')
         if meant and not res.ok:
@@ -418,8 +415,6 @@ class Otto:
         used = [step.get('with', {}).get('app') for step in plan.steps if step.get('with', {}).get('app')]
         if used and not self.dry_run:
             self.last_app = (res.data.get('app') or used[-1], time.time())
-        if res.ok and plan.source.startswith("brain"):
-            text += " If that worked, say \"save that\" and I'll do it the same way next time."
         self.last = {"text": t, "intent": intent, "plan": plan, "ok": res.ok, 'task_id': res.data.get('task_id')}
         return self._finish(Reply(text), intent.area if intent else "", res.ok)
 
@@ -461,10 +456,6 @@ class Otto:
                 self.trace["memory"] = "save_unsupported"
                 return Reply("I can't save that kind of task yet; I can only save single requests for now.")
             self._learn(last["text"], i.area, i.action, "saved")
-            plan = last.get("plan")
-            if plan and plan.source.startswith("brain") and plan.key:
-                recipes.save(plan.key, plan.steps, plan.params, plan.source, last["text"])
-                return Reply("Saved. Next time I'll do it the same way, without needing to think.")
             return Reply("Got it, I'll remember that's what you meant.")
         # forget
         self._set_pending("confirm_forget")
@@ -476,10 +467,8 @@ class Otto:
         if last.get("agent") is not None:
             from core import examples
             examples.forget(last.get("text", ""))
-        plan = last.get("plan")
-        removed = bool(plan and plan.key and recipes.forget(plan.key))
         self.last = None
-        return Reply("Forgotten." + (" I removed that saved method too." if removed else ""))
+        return Reply("Forgotten.")
 
     # ------------------------------------------------------------------------------------------
     # The new core (setting core.agent): a whole-sentence fast path, otherwise the agent loop

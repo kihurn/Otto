@@ -1,6 +1,6 @@
 import pytest
 
-from core import planner, recipes
+from core import planner
 from core.details import Intent
 from hands.registry import InvalidPlan, load_all
 from core.tasks import Task, TaskStatus
@@ -25,12 +25,6 @@ def test_raw_numeric_rejected(value):
     assert planner.make_plan(Intent('timer', 'set_timer', {'seconds': value}), '', None).error
 
 
-def test_literal_content_and_recipe_boundary():
-    load_all()
-    planner.validate_steps([{'do': 'new_note', 'with': {'text': '{title}'}}])
-    assert recipes.fill([{'with': {'text': '{text}'}}], {'text': '{title}'})[0]['with']['text'] == '{title}'
-    with pytest.raises(InvalidPlan):
-        recipes.fill([{'with': {'text': '{query}'}}], {})
 
 
 def test_terminal_task_cannot_restart():

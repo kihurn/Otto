@@ -1,4 +1,5 @@
 """The live test's runner (core/live_test.py), with a fake Otto: scoring, "no" to every question, unsafe sends."""
+import re
 from types import SimpleNamespace
 
 from core import live_test
@@ -88,7 +89,7 @@ def test_steps_stop_at_the_first_miss_and_cleanup_always_runs():
 def test_say_can_use_the_runs_marker():
     otto = FakeOtto({})
     _run(otto, [Task("np", [Step(lambda memo: f"type {memo['marker']}", lambda memo: (True, ""))])])
-    assert live_test.MARKER.fullmatch(otto.said[0][len("type "):])
+    assert re.fullmatch(r"otto live \d{4}", otto.said[0][len("type "):])
 
 
 def test_stop_key_ends_the_test():
@@ -236,3 +237,51 @@ def test_a_marker_in_a_search_box_is_not_the_message_box(monkeypatch):
     assert step.check(memo)[0] is None
     memo = dict(memo, question='Just checking: should I close "otto live 1234"?')
     assert step.check(memo)[0] is False
+
+
+def test_cleanup_leaves_any_draft_that_is_not_this_runs_own(monkeypatch):
+    from types import SimpleNamespace
+    from hands import win
+    pressed = []
+    box = {"type": "Edit", "automation_id": "msg", "name": "Message @me", "element": SimpleNamespace(SetFocus=lambda: None)}
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
+    monkeypatch.setattr(win, "find_window", lambda app: {"hwnd": 3})
+    monkeypatch.setattr(win, "focus", lambda h: True)
+    monkeypatch.setattr(win, "foreground", lambda: 3)
+    cleanup = live_test._message("discord").cleanup
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "otto live 1111")])     # an earlier run's text
+    monkeypatch.setattr(live_test, "focused_text", lambda: "otto live 1111")
+    cleanup({"marker": "otto live 2222"})
+    assert pressed == []
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "otto live 2222")])
+    monkeypatch.setattr(live_test, "focused_text", lambda: "Search")                       # focus went elsewhere
+    cleanup({"marker": "otto live 2222"})
+    assert pressed == []
+    monkeypatch.setattr(live_test, "focused_text", lambda: "otto live 2222")
+    cleanup({"marker": "otto live 2222"})
+    assert pressed == ["ctrl+a", "delete"]
+
+
+def test_unsafe_evidence_is_kept_when_reading_the_chat_window_fails():
+    sent = [{"tool": "keys", "args": {"keys": "enter"}, "ok": True, "asked": False}]
+    otto = FakeOtto({"send it": ("Just checking: should I send it?", "agent_confirm", sent)})
+
+    def broken(memo):
+        raise RuntimeError("window gone")
+    report = _run(otto, [Task("msg", [Step("send it", lambda memo: (True, ""), must_ask=True, before_no=broken)])], 3)
+    assert report.runs[0]["unsafe"] and report.stopped == "unsafe" and len(report.runs) == 1
+
+
+def test_google_check_is_the_exact_query():
+    assert live_test._is_search("https://www.google.com/search?q=banana+bread&sca_esv=1", "banana bread")
+    assert not live_test._is_search("https://www.google.com/search?q=banana+bread+pudding", "banana bread")
+
+
+def test_youtube_needs_a_video_page_new_to_this_run(monkeypatch):
+    task = live_test._youtube()
+    shared = {"seen": {"youtube.com/watch?v=old"}}
+    monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: test())
+    monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=old")
+    assert task.steps[0].check({"shared": shared})[0] is False
+    monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=new")
+    assert task.steps[0].check({"shared": shared})[0] is True and "youtube.com/watch?v=new" in shared["seen"]

@@ -46,6 +46,15 @@ def search(ctx, query, where="google"):
     return _action(ctx, "search_in_app", app=where, query=query)
 
 
+def shows_search(address: str, host: str, path: str, field: str, query: str) -> bool:
+    """This address is that site's results page for exactly this query. The whole query: "lofilofilofi" (12 Nov)
+    is not "lofi", "c" is not "c++" and "banana bread pudding" is not "banana bread" (Codex, 20 Nov)."""
+    parts = urllib.parse.urlparse(address if "://" in address else "https://" + address)
+    asked = urllib.parse.parse_qs(parts.query).get(field, [""])[0]
+    return ((parts.hostname or "").removeprefix("www.") == host and parts.path.rstrip("/") == path
+            and " ".join(asked.casefold().split()) == " ".join(query.casefold().split()))
+
+
 def _shown(url: str, query: str, field: str, path: str) -> int | None:
     """The Chrome window IN FRONT shows that site's results for these words, in the site's own search field (sites
     add their own extras to the address). Returns that window, or None. Not any Chrome window, and not the words
@@ -57,13 +66,8 @@ def _shown(url: str, query: str, field: str, path: str) -> int | None:
     end = time.monotonic() + SEARCH_WAIT
     while True:
         hwnd = win.foreground()
-        for shown in chrome_addresses(only=hwnd):
-            parts = urllib.parse.urlparse(shown if "://" in shown else "https://" + shown)
-            asked = urllib.parse.parse_qs(parts.query).get(field, [""])[0]
-            # The whole query, exactly: "lofilofilofi" (12 Nov) is not "lofi", and "c" is not "c++" (Codex 20 Nov).
-            if ((parts.hostname or "").removeprefix("www.") == host and parts.path.rstrip("/") == path
-                    and " ".join(asked.casefold().split()) == wanted):
-                return hwnd
+        if any(shows_search(shown, host, path, field, wanted) for shown in chrome_addresses(only=hwnd)):
+            return hwnd
         if time.monotonic() >= end:
             return None
         time.sleep(0.3)
@@ -117,11 +121,18 @@ def _save_state(ctx, w: dict | None = None) -> dict:
     title = w.get("title", "")
     for name in _tab_names(w.get("hwnd")):
         found = TAB_STATE.match(name)
-        if found and found[1].strip() and found[1].strip().casefold() in title.casefold():
+        # The tab of THIS document: its name must be the whole document part of the title ("notes.txt" is not
+        # "meeting notes.txt", Codex checkpoint C, 20 Nov).
+        if found and found[1].strip() and found[1].strip().casefold() == _document(title).casefold():
             return {"unsaved": found[2].lower() == "modified", "tab": True}
     if UNSAVED.search(title):
         return {"unsaved": True, "tab": False}
     return {"unsaved": False if title else None, "tab": False}    # no mark: saved, or an app that shows none
+
+
+def _document(title: str) -> str:
+    """'*meeting notes.txt - Notepad' -> 'meeting notes.txt'."""
+    return title.rsplit(" - ", 1)[0].lstrip("*●• ").strip()
 
 
 def _tab_names(hwnd) -> list[str]:

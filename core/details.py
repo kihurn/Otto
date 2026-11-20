@@ -522,34 +522,3 @@ def whole(area: str, text: str, apps) -> Intent | None:
 # Brain fallback
 # ---------------------------------------------------------------------------------------------
 
-PARAMS = {
-    "apps": "app (the app's name), query (for search_in_app), button (for click_button)",
-    "media": "level (0-100, for set_volume), query + kind (track/artist/album/playlist) + artist (for play_music)",
-    "web": "site (for open_site), query (for web_search)",
-    "files": "query (words in the file name)",
-    "notes": "text (exactly what to write), title (optional)",
-    "timer": "seconds (for set_timer), at (HH:MM 24-hour, for set_alarm), label (what it's for)",
-}
-
-
-def by_brain(area: str, text: str, brain) -> Intent | None:
-    acts = ACTIONS.get(area)
-    if not acts:
-        return None
-    menu = "\n".join(f"- {k}: {v}" for k, v in acts.items())
-    prompt = (f"A user said to their desktop assistant: \"{text}\"\n"
-              f"It is about: {area}.\nPick ONE action:\n{menu}\n"
-              f"Possible parameters: {PARAMS[area]}.\n"
-              "Reply with only JSON: {\"action\": \"...\", \"params\": {...}}. "
-              "Use the user's own words for names and search terms. If it can't be done, use \"action\": \"none\".")
-    try:
-        r = brain.ask("extract", prompt, want_json=True, required=("action",))
-    except Exception:
-        return None
-    action = str(r.data.get("action", "")).strip()
-    if action not in acts:
-        return None
-    params = r.data.get("params") or {}
-    if not isinstance(params, dict):
-        params = {}
-    return Intent(area, action, params, source=f"brain:{r.model}")

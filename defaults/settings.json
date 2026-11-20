@@ -2,10 +2,6 @@
   "_version": 2,
   "c0re_url": "http://127.0.0.1:7080",
   "brains": {
-    "extract": [
-      "qwen3-vl:8b-instruct",
-      "qwen3-vl:4b-instruct"
-    ],
     "decide": [
       "qwen3-vl:8b-instruct",
       "qwen3-vl:4b-instruct"
@@ -15,10 +11,6 @@
       "qwen3-vl:4b-instruct"
     ],
     "answer": [
-      "qwen3-vl:8b-instruct",
-      "qwen3-vl:4b-instruct"
-    ],
-    "chat": [
       "qwen3-vl:8b-instruct",
       "qwen3-vl:4b-instruct"
     ]
@@ -76,9 +68,6 @@
   "search": {"searxng_url": null},
   "app_control": {"indicator": true},
   "audio_duck": {"enabled": true, "cap_percent": 20, "idle_timeout_s": 30},
-  "routing": {
-    "play_game_apps": ["VALORANT", "League of Legends"]
-  },
   "browser": "chrome",
   "everything_es_path": null,
   "show_details": true

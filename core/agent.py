@@ -28,7 +28,7 @@ REHEARSAL = ("This is a rehearsal (dry run): nothing is really done, and read_wi
              "There are no control numbers or screen positions in a rehearsal: type without a control number and "
              "use keys (for example enter) where the real task would. Never repeat a step or invent options.")
 NAVIGATION = {"tab", "shift+tab", "up", "down", "left", "right", "pageup", "pagedown", "home", "end"}
-ACTING = {"click", "type", "keys", "open", "search", "save", "media", "close", "drag", "scroll", "note", "timer",
+ACTING = {"click", "type", "keys", "open", "search", "save", "media", "close", "scroll", "note", "timer",
           "audio_output"}
 
 RULES = """You are operating the user's Windows PC for them, one tool call at a time.
@@ -171,8 +171,10 @@ def _resume(state: dict, brain, answer: str | None, yes: bool | None) -> AgentRe
             # Same window, different text: ask again with what is really there now.
             question = agent_safety.check(call["tool"], call["args"], state["ctx"]) or "do it with the changed text"
             state["waiting"], state["waiting_front"] = call, agent_safety.snapshot(state["ctx"])
+            state["waiting_question"] = question
             return AgentResult("confirm", question, state["calls"], False, [], state)
         state["ctx"].confirmed = True
+        state["ctx"].approved = state.pop("waiting_question", "")
         state["ctx"].why = call.get("why", "")
         result = tools.call(call["tool"], call["args"], state["ctx"])
         after = _after_call(state, call, result)
@@ -273,7 +275,7 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         state["options"] = result.observed.get("options", [])      # the pipeline tells answers from new requests
         return AgentResult("ask", result.say, calls, False, state["options"], state)
     if result.asks:
-        state["waiting"] = call
+        state["waiting"], state["waiting_question"] = call, result.asks
         state["waiting_front"] = agent_safety.snapshot(state["ctx"])
         return AgentResult("confirm", result.asks, calls, False, [], state)
     state["messages"].append({"role": "user", "content": "Result: " + result.for_model()})
@@ -345,10 +347,21 @@ def _wrong_app(state: dict, name: str, args: dict) -> str:
     return ""
 
 
+# The request itself asks to save ("save it", "type hi and save it"), not "where did I save the file?".
+SAVE_REQUEST = re.compile(r"(?:^|\band\s+|\bthen\s+|,\s*)save\b(?!\s+as\s+a\b)")
+
+
+def _plain(request: str) -> str:
+    from core import details
+    return details._t(request)
+
+
 def _save_claim(say: str, calls: list[dict], request: str) -> str:
-    """Qwen's own "Saved." is not proof (11 Nov: it clicked some control and said "Saved the file."). When the
-    request asked to save, the claim stands only if the save skill confirmed it; otherwise its own words are used."""
-    if not re.search(r"\bsaved\b", say, re.I) or not re.search(r"\bsave\b", request, re.I):
+    """Qwen's own "Saved." (or "Done.") is not proof (11 Nov: it clicked some control and said "Saved the file.").
+    When the request asked to save, the job stands only if the save skill confirmed it, whatever the model says
+    (Codex checkpoint C, 20 Nov: "save it" + "Done." counted as done)."""
+    asked = SAVE_REQUEST.search(_plain(request)) is not None
+    if not asked and not (re.search(r"\bsaved\b", say, re.I) and re.search(r"\bsave\b", request, re.I)):
         return ""
     saves = [i for i, c in enumerate(calls) if "saved" in c]
     if not saves:
@@ -363,7 +376,7 @@ def _save_claim(say: str, calls: list[dict], request: str) -> str:
 
 
 # Steps that can change a document after it was saved.
-EDITS = {"type", "keys", "click", "drag"}
+EDITS = {"type", "keys", "click"}
 
 
 def unverified_save(calls: list[dict]) -> bool:

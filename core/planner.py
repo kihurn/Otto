@@ -9,9 +9,8 @@ from dataclasses import dataclass, field
 from copy import deepcopy
 import re
 
-from core import recipes
 from core.details import Intent
-from hands.registry import ACTIONS, InvalidPlan, brain_menu, validate_args
+from hands.registry import ACTIONS, InvalidPlan, validate_args
 
 
 def validate_steps(steps, *, for_brain: bool = False) -> list[dict]:
@@ -151,45 +150,14 @@ def builtin_steps(i: Intent) -> list[dict] | None:
     return None
 
 
-def recipe_key(i: Intent) -> str:
-    return recipes.key_for(i.area, i.action, i.params.get("app", ""))
-
-
-def brain_plan(text: str, i: Intent | None, brain) -> Plan:
-    goal = f"The user said: \"{text}\"."
-    if i:
-        goal += f" Understood as: {i.area} / {i.action} with {i.params}."
-    prompt = (f"{goal}\nPlan it as a short list of steps using ONLY these building blocks:\n{brain_menu()}\n"
-              "Rules: at most 8 steps; open or switch to the app before using hotkey or type_text; add a "
-              "wait of 1-2 seconds after opening an app; prefer app links (like spotify:search:...) or "
-              "keyboard shortcuts over clicking.\n"
-              "Reply with only JSON: {\"steps\": [{\"do\": \"name\", \"with\": {...}}], \"say\": \"one short sentence for the user\"}. "
-              "If it can't be done with these blocks, reply {\"steps\": [], \"say\": \"why not\"}.")
+def make_plan(i: Intent, text: str = "", brain=None) -> Plan:
+    """Otto's own built-in steps for a request the rules understood, or an empty plan (the caller hands the request
+    to the agent). Saved recipes and model-written plans are gone (Codex checkpoint C, 20 Nov 2026): they ran key
+    presses through the older gate, which doesn't look at the window in front."""
     try:
-        r = brain.ask("decide", prompt, want_json=True, required=("steps",))
-    except Exception as e:
-        return Plan([], "none", error=f"I couldn't reach a brain to work that out ({e}).")
-    try:
-        if set(r.data) - {"version", "steps", "say"} or (
-                "version" in r.data and (type(r.data["version"]) is not int or r.data["version"] != 1)):
-            raise InvalidPlan("Unsupported plan format.")
-        steps = validate_steps(r.data.get("steps"), for_brain=True)
-    except InvalidPlan as e:
-        return Plan([], "none", error=f"I didn't run that plan: {e}")
-    return Plan(steps, f"brain:{r.model}", key=recipe_key(i) if i else "", params=i.params if i else {})
-
-
-def make_plan(i: Intent, text: str, brain) -> Plan:
-    key = recipe_key(i)
-    saved = recipes.get(key)
-    try:
-        if saved:
-            return Plan(validate_steps(recipes.fill(saved["steps"], i.params)), "recipe", key, i.params)
         steps = builtin_steps(i)
         if steps:
-            steps = validate_steps(steps)
+            return Plan(validate_steps(steps), "builtin", "", i.params)
     except (InvalidPlan, TypeError, ValueError, AttributeError) as e:
         return Plan([], 'none', error=f"I didn't run that plan: {e}")
-    if steps:
-        return Plan(steps, "builtin", key, i.params)
-    return brain_plan(text, i, brain)
+    return Plan([], "none")

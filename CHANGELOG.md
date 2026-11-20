@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Safety fixes from the checkpoint C review: saved recipes and model-written plans removed (everything that isn't a
+  built-in step goes through the agent's checks); a terminal command runs exactly as approved (the line is cleared
+  and the command retyped right before Enter); typing and mouse clicks only land in the window Otto checked; a yes
+  is used once. New `read_clipboard` tool; "save it" needs a confirmed save.
 - One core: the old core is deleted (goal mode, saved methods, the Qwen interpreter and supervisor, the
   multi-step compiler, "use Qwen to..." screen control, Spotify recovery, `otto train`). About 2,000 lines less
   (-16%). Plain commands still take the instant quick path; everything else goes to the agent with its skills.

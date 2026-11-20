@@ -65,25 +65,8 @@ def test_validated_plan_is_a_snapshot():
     assert validated[0]["with"]["app"] == "Spotify"
 
 
-@pytest.mark.parametrize("payload", [
-    {"steps": [step(app="Spotify")] * 9},
-    {"steps": [step(app="Spotify", unknown="drop me")]},
-    {"steps": [step("close_app", app="Discord")]},
-    {"steps": [step(app="Spotify")], "version": True},
-    {"steps": [step(app="Spotify")], "approved": True},
-    {"steps": "open spotify"},
-])
-def test_model_plan_rejected_without_truncating_or_filtering(payload):
-    brain = SimpleNamespace(ask=lambda *a, **k: SimpleNamespace(data=payload, model="fake"))
-    plan = planner.brain_plan("open Spotify", None, brain)
-    assert plan.error and plan.steps == []
 
 
-def test_model_plan_accepts_versioned_steps():
-    payload = {"version": 1, "steps": [{"id": "launch", **step(app="Spotify")}]}
-    brain = SimpleNamespace(ask=lambda *a, **k: SimpleNamespace(data=payload, model="fake"))
-    plan = planner.brain_plan("open Spotify", None, brain)
-    assert not plan.error and plan.steps == payload["steps"]
 
 
 def test_builtin_only_actions_allowed_for_legacy_plans():

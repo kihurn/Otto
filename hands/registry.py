@@ -109,16 +109,6 @@ def action(name: str, risk: int, params: dict[str, str], describe: Callable[...,
     return wrap
 
 
-def brain_menu() -> str:
-    """The list of building blocks the brain may plan with."""
-    lines = []
-    for a in ACTIONS.values():
-        if a.for_brain:
-            ps = ", ".join(f"{k}: {v}" for k, v in a.params.items()) or "no parameters"
-            lines.append(f"- {a.name}({ps})" + (f"  # {a.note}" if a.note else ""))
-    return "\n".join(lines)
-
-
 def load_all() -> None:
     """Import every hands module so their actions register themselves."""
     from hands import app_control, apps, audio_devices, files, media, notes, timers, web  # noqa: F401
