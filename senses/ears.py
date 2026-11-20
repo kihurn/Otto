@@ -21,6 +21,7 @@ import numpy as np
 RATE = 16000
 BLOCK_S = 0.03
 PRE_ROLL_S = 0.4
+EARLY_S = 1.2           # seconds of speech before the quick wake-word look
 MAX_UTTER_S = 20
 MIN_UTTER_S = 0.35
 
@@ -48,6 +49,10 @@ def list_mics() -> list[tuple[int, str, str, bool]]:
     return out
 
 
+def hotwords(whisper: dict) -> str | None:
+    return ", ".join(x for x in (whisper.get("hotwords"), whisper.get("words")) if x) or None
+
+
 class Ears:
     def __init__(self, settings: dict, say=print):
         from senses.cuda_libs import add_nvidia_dll_dirs
@@ -56,7 +61,10 @@ class Ears:
 
         w = settings.get("whisper", {})
         self.settings = settings
-        self.hotwords = w.get("hotwords") or None
+        # Words Whisper should expect: the wake phrase plus your own (apps, artists...), e.g.
+        #   otto set whisper.words "Spotify, YouTube, PowerShell, The Weeknd"
+        self.hotwords = hotwords(w)
+        self.on_early = None     # called once with the first ~1.2 s of a sentence (wake-word ducking, otto.py)
         self.end_silence = float(w.get("end_silence_s", 0.8))
         device, precision = w.get("device", "cuda"), w.get("precision", "int8_float16")
         t0 = time.perf_counter()
@@ -168,7 +176,7 @@ class Ears:
             return self._listen_push()
         pre: deque = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         speech: list[np.ndarray] = []
-        quiet = 0.0
+        quiet, early_done = 0.0, False
         while True:
             block = self._next()
             if block is None:
@@ -177,13 +185,19 @@ class Ears:
             if not speech:
                 if level >= self.threshold:
                     speech = list(pre) + [block]
-                    quiet = 0.0
+                    quiet, early_done = 0.0, False
                 else:
                     pre.append(block)
                 continue
             speech.append(block)
             quiet = quiet + BLOCK_S if level < self.threshold else 0.0
             length = len(speech) * BLOCK_S
+            if self.on_early and length >= EARLY_S and not early_done:
+                early_done = True             # a quick look at the start: "Hey Otto..." turns other sound down now
+                try:
+                    self.on_early(self._transcribe(np.concatenate(speech))[0])
+                except Exception:
+                    pass
             if quiet < self.end_silence and length < MAX_UTTER_S:
                 continue
             audio = np.concatenate(speech)

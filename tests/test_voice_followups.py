@@ -66,3 +66,36 @@ def test_a_quiet_oh_gets_no_question(otto):
     # 20 Nov voice run: "Oh" (heard at -1.12) got "Sorry, did you say "Oh"?". A filler gets no reply at all.
     assert otto.handle("Oh", heard_conf=-1.12).text == ""
     assert otto.pending is None or otto.pending.kind != "heard"
+
+
+def test_a_yes_with_a_request_is_a_request(otto, monkeypatch):
+    # 20 Nov voice run: "Yeah, can you play that?" got "There is no current question to answer."
+    from core.pipeline import Reply
+    otto.pending = None
+    asked = []
+    monkeypatch.setattr(type(otto), "_agent", lambda self, t: asked.append(t) or Reply("ok"))
+    assert otto.handle("Yeah, can you play that?").text == "ok" and asked
+    assert otto.handle("yeah").text.startswith("There is no current question")
+
+
+def test_whisper_gets_your_own_words_too():
+    pytest.importorskip("numpy")
+    from senses import ears
+    assert ears.hotwords({"hotwords": "Hey Otto, Otto", "words": "Spotify, The Weeknd"}) == \
+        "Hey Otto, Otto, Spotify, The Weeknd"
+    assert ears.hotwords({}) is None
+
+
+def test_the_start_of_a_sentence_is_looked_at_once(monkeypatch):
+    np = pytest.importorskip("numpy")
+    from senses import ears
+    e = ears.Ears.__new__(ears.Ears)
+    e.mode, e.threshold, e.end_silence = "wake", 0.01, 0.1
+    loud, quiet = np.full(480, 0.1, dtype=np.float32), np.zeros(480, dtype=np.float32)
+    feed = iter([loud] * int(2.0 / ears.BLOCK_S) + [quiet] * 10)
+    e._next = lambda timeout=None: next(feed)
+    heard = []
+    e.on_early = heard.append
+    e._transcribe = lambda audio: ("Hey Otto, play" if len(audio) < 480 * 60 else "Hey Otto, play the weeknd", -0.2)
+    assert e.listen()[0] == "Hey Otto, play the weeknd"
+    assert heard == ["Hey Otto, play"]

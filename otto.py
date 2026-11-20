@@ -401,7 +401,15 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
         out("Type to Otto. :help for commands and ideas.", GREEN)
 
     try:
-        awake_until = 0.0
+        awake = {"until": 0.0}     # Otto listens without "Hey Otto" until then (after a reply)
+        if ears:
+            def early(start: str) -> None:
+                # The first ~1.2 s of a sentence: if it's for Otto ("Hey Otto...", a follow-up, an answer), other
+                # sound goes down now, not only once Otto replies (user, 20 Nov).
+                if (ears.mode != "wake" or time.time() < awake["until"] or otto.pending
+                        or wake_rest(start, settings["listen"].get("wake_words", [])) is not None):
+                    duck.acquire("talk", 25)
+            ears.on_early = early
         while True:
             conf = None
             try:
@@ -411,7 +419,8 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
                     force.clear()
                     lk = settings["listen"]
                     rest = wake_rest(text, lk.get("wake_words", []))
-                    if ears.mode == "wake" and not forced and rest is None and time.time() > awake_until and not otto.pending:
+                    if ears.mode == "wake" and not forced and rest is None and time.time() > awake["until"] and not otto.pending:
+                        duck.release("talk")
                         if settings.get("show_details"):
                             dim(f"  (not for me: {text[:60]})")
                         continue
@@ -419,9 +428,10 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
                         text = rest
                     if not text:
                         duck.release('push')
+                        duck.release('talk')
                         beep()
                         speak_text("Yeah?")
-                        awake_until = time.time() + float(lk.get("follow_up_s", 8))
+                        awake["until"] = time.time() + float(lk.get("follow_up_s", 8))
                         continue
                     if ears.mode == "wake":
                         beep()
@@ -473,6 +483,7 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
 
             with duck.hold():
                 duck.release('push')
+                duck.release('talk')
                 try:
                     reply = otto.handle(text, heard_conf=conf)
                 except KeyboardInterrupt:
@@ -486,7 +497,7 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
                 if reply.details and settings.get("show_details", True):
                     dim(f"      {reply.details}")
                 speak_text(reply.speak if reply.speak is not None else reply.text)
-                awake_until = time.time() + float(settings["listen"].get("follow_up_s", 8))
+                awake["until"] = time.time() + float(settings["listen"].get("follow_up_s", 8))
     finally:
         duck.close()
         if ears:

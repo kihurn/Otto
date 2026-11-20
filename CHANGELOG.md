@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Voice: other sound goes down as soon as you start talking to Otto (Otto takes a quick look at the first
+  1.2 s for "Hey Otto", or any sentence while it's waiting for you), not only once it answers. Whisper also
+  expects your own words: `otto set whisper.words "Spotify, YouTube, PowerShell, The Weeknd"`.
+  "Yeah, can you play that?" is a request, not a stray yes. Music named as a short answer is played, not searched.
 - Spoken fillers on their own ("oh", "ah", "huh", "mm") get no reply, instead of "Sorry, did you say...?".
 - Playing a YouTube video ("search for lofi and play the second video") no longer clicks on a screenshot: the
   search skill's new `play` option finds that result with the YouTube Data API (no Mixes or live streams), opens

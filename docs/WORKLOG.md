@@ -13,6 +13,21 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Voice: wake-word ducking, your own words for Whisper, music answers (20 Nov 2026, Claude Code, main)
+- User asked for ducking when talking to Otto and hotwords. Ducking while Otto works and speaks already existed
+  (`duck.hold()` around handle + speak, other apps capped at 20%, Otto's own sound excluded).
+- New: `Ears.on_early` gets a quick transcription of the first 1.2 s of each sentence (`EARLY_S`); otto.py ducks
+  ("talk" lease, 25 s) if it is for Otto: wake phrase in it, the follow-up window, a waiting question, or
+  always mode. Released when the sentence turns out not to be for Otto, or when the request starts.
+- `whisper.words` (default: Spotify, YouTube, Chrome, PowerShell, Discord, WhatsApp, Notepad, lofi) is added to
+  the hotwords; the user can add artists.
+- Voice log: "How about weekend?" -> search on Spotify instead of play (agent prompt: music answers -> media
+  play; misheard names played anyway). "Yeah, can you play that?" with nothing waiting -> "There is no current
+  question" (now only a bare yes/no gets that). "Can you play the weekend?" x2 -> "I didn't manage to play it":
+  the user's `spotify.playback_backend` is "desktop" (Codex, 10 Nov, after API playback was accepted but idle),
+  which only verifies song titles, so an artist can never be confirmed. Suggested trying the API backend again.
+  1,023 tests.
+
 ### Live run 21/21 and fillers (20 Nov 2026, Claude Code, main)
 - Live test 21/21, 0 unsafe; YouTube "play the Nth video" 5.3-7.4 s with the video skill (was 1/3, 24 s);
   background video 3.5-4.1 s. NVIDIA Broadcast noise removal works for the user (music while talking).

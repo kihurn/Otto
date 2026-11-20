@@ -187,7 +187,8 @@ class Otto:
         if self.pending and self.pending.task:
             self.pending.task.cancel.set()
         self.pending = None
-        if guards.reply_kind(t) in {'yes', 'no'}:
+        # Only a bare yes/no with nothing waiting gets this; "Yeah, can you play that?" is a request (20 Nov voice).
+        if guards.exact_yes(t) or guards._simple(t) in guards.NO:
             return Reply('There is no current question to answer. Please tell me what to do.')
 
         # A full corrected command stands alone; don't ask the model to invent its target.

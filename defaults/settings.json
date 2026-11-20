@@ -51,6 +51,7 @@
     "device": "cuda",
     "precision": "int8_float16",
     "hotwords": "Hey Otto, Otto",
+    "words": "Spotify, YouTube, Chrome, PowerShell, Discord, WhatsApp, Notepad, lofi",
     "end_silence_s": 0.8,
     "misheard_below": -0.9,
     "mic_device": null
