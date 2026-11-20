@@ -183,7 +183,6 @@ def _resume(state: dict, brain, answer: str | None, yes: bool | None) -> AgentRe
         state["ctx"].controls, state["ctx"].look = [], {}
         agent_safety.back_to_user_window(state["ctx"])
         state["messages"].append({"role": "user", "content": f"The user answered: {answer}"})
-        state["ctx"].request += f" {answer}"       # the user's own words too (a command they were asked for)
     return _loop(state, brain)
 
 

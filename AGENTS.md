@@ -29,7 +29,10 @@ understanding, writing, planning or looking at. Otto asks when unsure and learns
 
 **Core rules (don't break these):**
 1. **Decide fast, act with code.** The brain never runs anything. It can only pick from the named actions
-   in `hands/registry.py`, with the parameters each allows. Never let a model produce shell commands.
+   in `hands/registry.py`, with the parameters each allows. Shell commands: in the old core never from a model;
+   in the agent core (user decision 20 Nov 2026) Qwen/Gemma may type a command it worked out into a terminal,
+   but it is never run without the user's yes to the exact command shown ("run "ipconfig" in PowerShell?"),
+   and never typed key by key.
 2. **Rules before brain.** Parameters come from rules in `core/details.py` first; the brain is the fallback.
 3. **Small option lists.** Laya never gets more than ~20 options per question (it degrades badly above that).
 4. **Safety gate.** Every action goes through `core/safety.py`. Risk levels: read / undoable / ask first.

@@ -271,17 +271,20 @@ def test_typing_refused_when_the_password_check_fails(make, monkeypatch):
     assert not r.ok and "couldn't check" in r.say and not typed_keys
 
 
-def test_terminal_only_gets_the_users_own_command(make, monkeypatch):
+def test_a_command_otto_wrote_is_shown_and_never_run_without_a_yes(make, monkeypatch):
+    # User decision 20 Nov: Otto may work out the command ("check my IP" -> ipconfig), but Enter always asks
+    # with the exact command.
     from core import tools
     from hands import apps, win
-    typed_keys = []
+    typed_keys, pressed = [], []
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
     ctx = make("powershell.exe", "Windows PowerShell", "")
-    ctx.request = "open powershell and run ipconfig /all"
-    r = tools.call("type", {"text": "Remove-Item -Recurse C:\\temp"}, ctx)
-    assert not r.ok and "spelled out yourself" in r.say and not typed_keys
+    ctx.request = "check my ip address"
     assert tools.call("type", {"text": "ipconfig /all"}, ctx).ok and typed_keys == ["ipconfig /all"]
+    r = tools.call("keys", {"keys": "enter"}, ctx)
+    assert r.asks == 'run "ipconfig /all" in Windows PowerShell' and not pressed
 
 
 def test_close_that_leaves_the_app_open_ends_the_turn(make, monkeypatch):
@@ -323,7 +326,7 @@ def test_a_changed_draft_is_asked_about_again(monkeypatch):
     assert pressed == ["enter"] and r3.status == "done"
 
 
-def test_terminal_rule_needs_whole_words_and_no_letter_by_letter(make, monkeypatch):
+def test_terminal_commands_are_never_typed_key_by_key(make, monkeypatch):
     from core import tools
     from hands import apps, win
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
@@ -331,10 +334,8 @@ def test_terminal_rule_needs_whole_words_and_no_letter_by_letter(make, monkeypat
     pressed = []
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
     ctx = make("powershell.exe", "Windows PowerShell", "")
-    ctx.request = "delete my temp files"
-    assert not tools.call("type", {"text": "del"}, ctx).ok                 # "del" is not the user's word
     r = tools.call("keys", {"keys": "d"}, ctx)
-    assert not r.ok and "spelled out yourself" in r.say and not pressed
+    assert not r.ok and "not key by key" in r.say and not pressed
     assert tools.call("keys", {"keys": "ctrl+c"}, ctx).ok                   # a real shortcut is still fine
 
 

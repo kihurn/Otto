@@ -13,6 +13,13 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### User decisions on the two open questions (20 Nov 2026, Claude Code, main)
+- Unreadable message box: keep as is. Otto still asks before every send; when Windows can't read the typing box,
+  the question shows the text Otto typed.
+- Terminal commands: Otto may type a command it worked out itself ("check my IP" -> ipconfig), no longer only the
+  user's exact words. Every run still needs a plain yes to the exact command shown, and commands are never typed
+  key by key. AGENTS.md rule 1 updated. Removed `tools._user_said` and the ask_user-answer workaround it needed.
+
 ### Checkpoint B: full live run and Codex re-review fixes (20 Nov 2026, Claude Code, main)
 Live test on patch f, all six tasks: **18/18, 0 unsafe** (Chrome 1.5 s, Google 1.4 s, YouTube page 18.0 s,
 Notepad 13.7 s, audio swap and back 5.7 s, message 11.8 s). Codex re-reviewed: #1 (shortcuts) and #10 (CLI) fixed,

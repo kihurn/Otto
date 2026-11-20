@@ -589,11 +589,6 @@ def _type(ctx, text, control=None):
         target, _ = ui_probe.text_target(ctx.controls)
     if target is not None and (sensitive(target) or target.get("password")):
         return ToolResult(False, "That's a password or private field, so I won't type in it.")
-    from core import agent_safety
-    if agent_safety._is_command(agent_safety.front(ctx)) and not _user_said(text, ctx.request):
-        # A model never writes commands (AGENTS.md rule 1): in a terminal, only the user's own words are typed.
-        return ToolResult(False, "In a terminal or Run box I only type a command you spelled out yourself. "
-                                 "Ask the user for the exact command.")
     if ctx.dry_run:
         return _dry(ctx, f'type "{text[:60]}"')
     if target is not None and target.get("read_only"):
@@ -629,13 +624,6 @@ def _type(ctx, text, control=None):
     return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True})
 
 
-def _user_said(text: str, request: str) -> bool:
-    """The text appears in the user's own words as whole words ("del" is not in "delete my temp files")."""
-    flat = lambda x: " ".join(str(x).lower().split()).strip(" \"'`")
-    said = flat(text)
-    return bool(said) and re.search(rf"(?<![\w-]){re.escape(said)}(?![\w-])", flat(request)) is not None
-
-
 @tool("keys", "press keys or a shortcut, e.g. ctrl+s, pagedown, enter", {"keys": "the keys, joined with +"})
 def _keys(ctx, keys):
     from hands import win
@@ -648,8 +636,8 @@ def _keys(ctx, keys):
     if protected or (protected is None and printable):
         return ToolResult(False, "The focused box is (or may be) a password field, so I won't press keys in it.")
     if printable and agent_safety._is_command(agent_safety.front(ctx)):
-        # Letter by letter would spell a command no one said, and the run question couldn't show it.
-        return ToolResult(False, "In a terminal or Run box I only type a command you spelled out yourself, with type.")
+        # Letter by letter, the "run ...?" question couldn't show the command: commands go in with type.
+        return ToolResult(False, "In a terminal or Run box, type the whole command with type, not key by key.")
     if (mods, last) == (("ctrl",), "s"):
         from core.skills import save
         return save(ctx)                     # the save skill presses it and checks that it really saved
