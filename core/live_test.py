@@ -329,8 +329,13 @@ def _youtube() -> Task:
         if ok:
             memo["shared"].setdefault("seen", set()).add(front_address())
         return ok, "" if ok else f"no new video page; the address bar shows {front_address()[:80]!r}"
-    return Task("youtube video page opens", [Step("open youtube, search for lofi and play the second video", check)],
-                setup)
+    def say(memo):
+        # A different result each attempt: the same search gives the same second video every time, and a page already
+        # seen doesn't count (20 Nov, after the video skill).
+        shared = memo["shared"]
+        shared["attempt"] = shared.get("attempt", 0) + 1
+        return f"open youtube, search for lofi and play the {('second', 'third', 'fourth', 'fifth')[(shared['attempt'] - 1) % 4]} video"
+    return Task("youtube video page opens", [Step(say, check)], setup)
 
 
 def _notepad() -> Task:

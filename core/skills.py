@@ -24,10 +24,18 @@ SEARCH_WAIT = 6.0
 
 
 @tool("search", "search Google, YouTube or Spotify where the user can see the results (for search, google, find "
-      "a video/song). Opens the results page directly, nothing is typed",
-      {"query": "what to search for", "where": "optional: google (default), youtube, spotify, or another app"})
-def search(ctx, query, where="google"):
+      "a video/song). Opens the results page directly, nothing is typed. To PLAY a YouTube video, give play: it "
+      "finds the video and plays it, checked, and finishes the request",
+      {"query": "what to search for", "where": "optional: google (default), youtube, spotify, or another app",
+       "play": "optional, YouTube only: play this result, 1 = first, 2 = second...",
+       "background": "optional, with play: yes only if the user said in the background"})
+def search(ctx, query, where="google", play="", background="no"):
     where = (where or "google").lower().strip().removesuffix(".com")
+    play = re.sub(r"\D", "", str(play or ""))
+    if play and where == "youtube":
+        played = _play(ctx, query, play, str(background or "no").lower().startswith("y"))
+        if played:
+            return played
     if ctx.dry_run:
         return _dry(ctx, f'search {where} for "{query}"')
     ctx.controls, ctx.look, ctx.hwnd = [], {}, None  # a new page: earlier reads and windows are stale
@@ -44,6 +52,21 @@ def search(ctx, query, where="google"):
         return ToolResult(False, f"I opened the {where.title()} search, but Chrome's address bar doesn't show it.")
     # Apps with their own search (Spotify, Steam, Settings...): the existing action checks what it can.
     return _action(ctx, "search_in_app", app=where, query=query)
+
+
+def _play(ctx, query: str, which: str, background: bool) -> ToolResult | None:
+    """A YouTube video found with the API and checked on screen (20 Nov live run: picking "the second video" from a
+    screenshot clicked a Mix, then the sidebar). The checked result ends the request. None: no key, no quota or no
+    connection, so the normal search runs and the video is picked from the page as before."""
+    if ctx.dry_run:
+        return _dry(ctx, f'play result {which} for "{query}" on YouTube' + (" in the background" if background else ""))
+    ctx.controls, ctx.look, ctx.hwnd = [], {}, None
+    res = _action(ctx, "play_video", query=query, which=which, background="yes" if background else "no")
+    if not res.ok and res.observed.get("fallback"):
+        return None
+    if res.ok and not background:
+        ctx.app, ctx.hwnd = "Google Chrome", res.observed.get("window") or None
+    return ToolResult(res.ok, res.say, dict(res.observed, end="done") if res.ok else res.observed)
 
 
 def shows_search(address: str, host: str, path: str, field: str, query: str) -> bool:

@@ -13,6 +13,17 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live run with background mode, and the video skill (20 Nov 2026, Claude Code, main)
+- Live test 19/21, 0 unsafe: background video 3/3 (3.4-4.8 s); "search for lofi and play the second video" 1/3
+  (19.6-31.2 s): one run hit the step limit after clicking an unnamed spot, one clicked a YouTube Mix and then
+  the sidebar and said it was playing. Earlier today the same task was 18/18: screenshot clicking varies.
+- Fix (user approved): the search skill gets `play` (which result) and `background`; `hands/youtube.play_video`
+  takes `which` and `background`, skips live streams (type=video already excludes Mixes and playlists), and in
+  front is done only when the front Chrome window shows watch?v=<that id>. A played video ends the turn with
+  the checked sentence (no model claim). No key / quota / connection: `fallback`, so the normal results page
+  opens. Menu stays at 20 tools. The live YouTube task asks for the 2nd, 3rd, 4th result on its attempts (the
+  same search gives the same video). 1,009 tests.
+
 ### Step 4c: background mode, videos and music (20 Nov 2026, Claude Code, main)
 - Decisions (user): music always in the background; videos only when asked; YouTube Data API key in .env.
 - `details.background()` strips "in the background / without opening it / don't bring it up"; the rules see the

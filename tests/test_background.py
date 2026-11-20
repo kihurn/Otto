@@ -115,7 +115,7 @@ def test_otto_waits_for_a_pause_in_typing_but_not_forever(monkeypatch):
 def test_a_video_is_minimised_only_once_it_plays(monkeypatch):
     from hands import web
     monkeypatch.setenv("OTTO_YOUTUBE_API_KEY", "secret-123")
-    monkeypatch.setattr(youtube, "find_video", lambda q: ("abc", "Lofi girl"))
+    monkeypatch.setattr(youtube, "find_video", lambda q, n=1: ("abc", "Lofi girl"))
     pc = FakeDesktop(monkeypatch, {1: "powershell.exe"}, front=1)
     playing = [set(), set(), {"Lofi girl"}]               # before; still loading; playing
     monkeypatch.setattr(youtube, "_chrome_playing", lambda: playing.pop(0) if len(playing) > 1 else playing[0])
@@ -186,3 +186,58 @@ def test_live_task_repeats_wait_for_the_last_video_to_stop(monkeypatch):
     monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: waited.append(test()) or close(3) or test())
     task.cleanup(memo)
     assert waited == [False] and not playing and 3 not in pc.windows
+
+
+# ---- playing a chosen YouTube result (20 Nov live run: a Mix and the sidebar were clicked) ------------------
+
+def test_live_streams_are_skipped_and_the_nth_result_is_picked(monkeypatch):
+    monkeypatch.setenv("OTTO_YOUTUBE_API_KEY", "k")
+    items = [{"id": {"videoId": "live"}, "snippet": {"title": "24/7 radio", "liveBroadcastContent": "live"}},
+             {"id": {"videoId": "a"}, "snippet": {"title": "A", "liveBroadcastContent": "none"}},
+             {"id": {"videoId": "b"}, "snippet": {"title": "B", "liveBroadcastContent": "none"}}]
+    monkeypatch.setattr(youtube.urllib.request, "urlopen", lambda req, timeout=0: Reply(json.dumps({"items": items}).encode()))
+    assert youtube.find_video("lofi", 2) == ("b", "B") and youtube.find_video("lofi", 3) is None
+
+
+def test_a_video_in_front_counts_only_when_chrome_shows_that_video(monkeypatch):
+    from hands import web
+    monkeypatch.setenv("OTTO_YOUTUBE_API_KEY", "k")
+    monkeypatch.setattr(youtube, "find_video", lambda q, n=1: ("abc", "Lofi girl"))
+    monkeypatch.setattr(youtube, "SHOW_WAIT", 0.01)
+    monkeypatch.setattr(youtube.time, "sleep", lambda s: None)
+    pc = FakeDesktop(monkeypatch, {1: "chrome.exe"}, front=1)
+    monkeypatch.setattr(web, "open_in_browser", lambda url, new_window=False: None)
+    shown = ["https://www.youtube.com/watch?v=xyz"]
+    monkeypatch.setattr(web, "chrome_addresses", lambda only=None: list(shown))
+    assert not youtube.play_video("lofi", "2", "no").ok                       # another video: not done
+    shown[0] = "youtube.com/watch?v=abc&list=RDabc"
+    result = youtube.play_video("lofi", "2", "no")
+    assert result.ok and result.say == "Playing Lofi girl." and pc.minimised == []
+
+
+def test_search_with_play_ends_the_request_with_the_checked_result(monkeypatch):
+    from core import skills, tools
+    calls = []
+
+    def action(ctx, do, **args):
+        calls.append((do, args))
+        return tools.ToolResult(True, "Playing Lofi girl.", {"video": "abc", "window": 7})
+    monkeypatch.setattr(skills, "_action", action)
+    ctx = tools.ToolContext(dry_run=False, brain=None)
+    result = skills.search(ctx, "lofi", "youtube", play="the 2nd")
+    assert calls == [("play_video", {"query": "lofi", "which": "2", "background": "no"})]
+    assert result.ok and result.observed["end"] == "done" and ctx.hwnd == 7
+
+
+def test_without_a_key_search_falls_back_to_the_results_page(monkeypatch):
+    from core import skills, tools
+    calls = []
+
+    def action(ctx, do, **args):
+        calls.append(do)
+        if do == "play_video":
+            return tools.ToolResult(False, "no key", {"fallback": True})
+        return tools.ToolResult(False, "Chrome isn't there")
+    monkeypatch.setattr(skills, "_action", action)
+    result = skills.search(tools.ToolContext(dry_run=False, brain=None), "lofi", "youtube", play="2", background="yes")
+    assert calls == ["play_video", "open_site"] and result.say == "Chrome isn't there"

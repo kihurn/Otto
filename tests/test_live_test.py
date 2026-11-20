@@ -285,3 +285,10 @@ def test_youtube_needs_a_video_page_new_to_this_run(monkeypatch):
     assert task.steps[0].check({"shared": shared})[0] is False
     monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=new")
     assert task.steps[0].check({"shared": shared})[0] is True and "youtube.com/watch?v=new" in shared["seen"]
+
+
+def test_youtube_task_asks_for_a_different_result_each_attempt():
+    task = live_test._youtube()
+    shared = {}
+    said = [task.steps[0].say({"shared": shared}) for _ in range(3)]
+    assert [s.split("play the ")[1] for s in said] == ["second video", "third video", "fourth video"]

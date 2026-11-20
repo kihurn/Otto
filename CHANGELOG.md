@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.2 (in development)
+- Playing a YouTube video ("search for lofi and play the second video") no longer clicks on a screenshot: the
+  search skill's new `play` option finds that result with the YouTube Data API (no Mixes or live streams), opens
+  it, and is done only when Chrome shows that exact video (or plays it minimised with `background`). Without
+  the key or quota it searches and clicks as before.
 - Background mode: "play a mrbeast video in the background" finds the video with the YouTube Data API (key
   `OTTO_YOUTUBE_API_KEY` in .env) and plays it in its own Chrome window, minimised once it plays, with your
   window put back; no model needed. Music never takes the screen: a Spotify window Otto opens is minimised.

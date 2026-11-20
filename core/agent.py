@@ -38,7 +38,9 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
   when read_window shows nothing useful, and click by x,y from that image only then.
 - Open exactly the app the user named, never a similar one (Anaconda Prompt is not PowerShell).
 - To search (Google, YouTube, Spotify) use search; to save use save. Both do the whole job and check it.
-  Then, for "play the second video" and the like: read_window and click it by its number.
+  To play a YouTube video ("play the second lofi video") use search with where youtube and play 2; add
+  background yes only if the user said in the background. A video already on the screen: read_window and
+  click it by its number.
 - Shortcuts (with keys, never typed as text): new tab ctrl+t, close tab ctrl+w, address bar ctrl+l, find ctrl+f,
   back alt+left, reload f5. To open a site, open its name or full address.
 - "This chat", "here", "this window" mean the window in front: read_window it, don't ask which.
