@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.parse
 
+from core.agent_safety import TERMINAL_EXE
 from core.config import ALIASES_FILE, APPS_CACHE, DEFAULTS, load_json, save_json
 from hands import win
 from hands.registry import ASK, READ, UNDOABLE, Result, action
@@ -194,8 +195,33 @@ def open_app(app: str) -> Result:
         window = win.find_window(name)
         if window:
             win.focus(window['hwnd'])
+            if window.get("exe", "").lower() in TERMINAL_EXE and not _prompt_ready():
+                # The window shows before the shell is ready (profiles can take seconds; 20 Nov live run).
+                return Result(True, f"Opened {name}, but it's still starting up: its prompt isn't showing yet.",
+                              {"app": name, "starting": True})
             return Result(True, f"Opened {name}.", {"app": name})
     return Result(True, f"I asked Windows to open {name}; it's still loading.", {"app": name})
+
+
+PROMPT = re.compile(r"[>$#]$")      # "PS C:\Users\User>", "C:\>", "user@pc:~$"
+PROMPT_WAIT = 12.0
+
+
+def _prompt_ready() -> bool:
+    """Wait until the terminal's last line is a prompt. True also when Windows can't show its text (no worse than before)."""
+    from pywinauto.uia_defines import IUIA
+    from hands import ui_probe
+    end = time.monotonic() + PROMPT_WAIT
+    while True:
+        try:
+            text = ui_probe.read_text({"element": IUIA().get_focused_element()}, limit=4000)
+        except Exception:
+            text = None
+        if text is None or PROMPT.search(text.rstrip()):
+            return True
+        if time.monotonic() >= end:
+            return False
+        time.sleep(0.25)
 
 
 @action("switch_to", UNDOABLE, {"app": "app name"}, lambda app: f"switch to {app}", for_brain=True)

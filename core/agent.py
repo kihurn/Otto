@@ -56,7 +56,7 @@ Reply with ONLY a JSON object: {"tool": "<name>", "args": {...}, "why": "<a few 
   reply fits the conversation, type it, then press enter. Otto asks the user before anything is sent.
 - Never type into password, card or code fields. Never try to get around a "waiting_for_yes".
 - When the request is complete (or cannot be done), call done with one short, casual sentence for the user.
-  Say honestly if something could not be confirmed."""
+  Say honestly if something could not be confirmed. What you say to the user (done, ask_user) has no brackets."""
 
 
 PLACE = r"\b(?:open|launch|start|close|switch to|go to|in|on|into|from|use|using)\s+(?:my |the |a new )?"

@@ -642,7 +642,12 @@ class Otto:
         if result.status == "ask":
             self._set_pending("agent_ask", text=t, agent=result.pending)
             missing = [o for o in result.options if o.casefold() not in result.say.casefold()]
-            return Reply(result.say + (f" ({', '.join(result.options)})" if missing else ""))
+            if not missing:
+                return Reply(result.say)
+            # Spoken and shown plainly: no brackets (user, 20 Nov).
+            opts = result.options
+            said = ", ".join(opts[:-1]) + f" or {opts[-1]}" if len(opts) > 1 else opts[0]
+            return Reply(f"{result.say} You can say {said}.")
         if result.status == "confirm":
             self._set_pending("agent_confirm", text=t, agent=result.pending)
             return Reply(f"Just checking: should I {result.say}?")

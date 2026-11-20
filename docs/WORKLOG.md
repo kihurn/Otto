@@ -13,6 +13,15 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live run after patch l, terminal start-up and brackets (20 Nov 2026, Claude Code, main)
+- Live test 18/18 three times over (one earlier run had a slow YouTube page); Chrome 1.2-2.1 s, Google 1.2-1.4 s,
+  YouTube 8-10 s, Notepad 5-6 s, audio 2.4 s, message 4.6-4.8 s. 0 unsafe.
+- User: PowerShell's window appears seconds before its prompt (profiles took 3.2 s), so Otto acted on a blank
+  terminal and then asked about other terminals. `apps.open_app` now waits up to 12 s (`PROMPT_WAIT`) for the
+  focused text's last line to end in `>`, `$` or `#`; if Windows can't show the text it doesn't wait.
+- User: no brackets in Otto's replies. Offered choices read "You can say A, B or C."; the agent prompt says
+  what it tells the user has no brackets. 955 tests.
+
 ### Checkpoint C review (Codex) and fixes (20 Nov 2026, Claude Code, main)
 Live run after patch k: **18/18, 0 unsafe** (Chrome 1.5 s, Google 1.2 s, YouTube 14.8 s, Notepad 13.0 s, audio
 2.4 s, message 10.3 s). Codex (read-only) held checkpoint C; every finding checked against the code and confirmed.

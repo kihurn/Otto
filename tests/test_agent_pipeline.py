@@ -615,3 +615,10 @@ def test_every_quick_path_audio_sentence_has_a_plan(new, monkeypatch):
         monkeypatch.setattr(new.router, "predict", lambda t: {"area": "media", "prob": 0.99, "ms": 1, "top": [("media", 0.99)]})
         reply = new.handle(said).text
         assert "plan must contain" not in reply and "didn't run" not in reply, (said, reply)
+
+
+def test_options_are_listed_without_brackets(new):
+    script(new, call("ask_user", question="Which terminal should I use?", options="PowerShell; Git Bash; Try another way"))
+    assert new.handle("check my ip in a terminal").text == \
+        "Which terminal should I use? You can say PowerShell, Git Bash or Try another way."
+    new.pending = None

@@ -135,3 +135,33 @@ def test_note_text_drops_the_notepad_part(text):
     assert _notes(text).params == {'text': 'hello world'}
 
 
+
+
+# --- 20 Nov: a terminal's window shows before its prompt (PowerShell profiles took 3.2 s) ---------------
+
+@pytest.mark.parametrize('texts, ready', [
+    (['', 'Windows PowerShell\nLoading personal and system profiles took 3211ms.\n',
+      'Loading personal and system profiles took 3211ms.\n(base) PS C:\\Users\\User> \n\n   '], True),
+    (['Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n'] * 3, False),
+    ([None], True),                                   # Windows can't show the text: don't hold things up
+])
+def test_open_terminal_waits_for_its_prompt(monkeypatch, texts, ready):
+    import time
+    from hands import ui_probe
+    from hands.registry import Result
+    seen = iter(texts)
+    defines = N(IUIA=lambda: N(get_focused_element=lambda: None))
+    monkeypatch.setitem(sys.modules, 'pywinauto', N(uia_defines=defines))
+    monkeypatch.setitem(sys.modules, 'pywinauto.uia_defines', defines)
+    monkeypatch.setattr(ui_probe, 'read_text', lambda c, limit=0: next(seen, texts[-1]))
+    monkeypatch.setattr(win, 'IS_WINDOWS', True)
+    monkeypatch.setattr(apps, '_resolve', lambda app: ({'name': 'Windows PowerShell'}, None))
+    monkeypatch.setattr(apps, '_launch', lambda found: None)
+    opened = []
+    monkeypatch.setattr(win, 'find_window', lambda name: opened and {'hwnd': 5, 'exe': 'powershell.exe'})
+    monkeypatch.setattr(win, 'focus', lambda hwnd: True)
+    monkeypatch.setattr(time, 'sleep', lambda s: opened.append(s))
+    monkeypatch.setattr(apps, 'PROMPT_WAIT', 0.05)
+    result = apps.open_app("powershell")
+    assert result.ok and result.say == ('Opened Windows PowerShell.' if ready else
+                                        "Opened Windows PowerShell, but it's still starting up: its prompt isn't showing yet.")
