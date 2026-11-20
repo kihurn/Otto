@@ -32,3 +32,13 @@ def test_open_word_launches_word_instead_of_focusing_antigravity(monkeypatch):
     monkeypatch.setattr(apps, '_launch', launch)
     assert apps.open_app('Microsoft Word').ok
     assert launched == ['Word'] and focused == [2]
+
+
+def test_terminal_finds_windows_terminal_titled_powershell(monkeypatch):
+    # 20 Nov voice run: "find my IP using Terminal" opened it, then couldn't find its window.
+    monkeypatch.setattr(win, 'windows', lambda: [
+        {'hwnd': 1, 'exe': 'Code.exe', 'title': 'otto - Visual Studio Code'},
+        {'hwnd': 2, 'exe': 'WindowsTerminal.exe', 'title': 'Windows PowerShell'}])
+    assert win.find_window('Terminal')['hwnd'] == 2
+    assert win.find_window('Windows Terminal')['hwnd'] == 2
+    assert win.find_window('Note') is None                       # short names don't match program-name endings

@@ -2,7 +2,8 @@
 
 ## 1.2 (in development)
 - A newly opened PowerShell or Command Prompt is only reported open once its prompt shows (waits up to 12 s
-  while profiles load). Choices Otto offers are said plainly, without brackets.
+  while profiles load). Choices Otto offers are said plainly, without brackets. "Terminal" now finds Windows
+  Terminal's window (its title says "Windows PowerShell").
 - Safety fixes from the checkpoint C review: saved recipes and model-written plans removed (everything that isn't a
   built-in step goes through the agent's checks); a terminal command runs exactly as approved (the line is cleared
   and the command retyped right before Enter); typing and mouse clicks only land in the window Otto checked; a yes
