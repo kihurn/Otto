@@ -189,10 +189,23 @@ def test_an_unnamed_button_in_a_chat_gets_the_send_question(ctx, monkeypatch):
     assert agent_safety.check("click", {"control": 38}, ctx).startswith("send")
 
 
-def test_the_message_task_wont_start_on_leftover_text(monkeypatch):
+def test_the_message_task_starts_even_with_a_placeholder_in_the_box():
+    # 21 Nov: Discord and WhatsApp show their grey hint ("Message @kihurn") as the box's text; a check for an empty
+    # box skipped the task every time. Removed.
     from core import live_test
-    box = {"name": "Type a message", "type": "Edit"}
-    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "otto live 3445")])
-    assert "isn't empty" in live_test._message("WhatsApp").setup({})
-    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "")])
-    assert live_test._message("WhatsApp").setup({}) is None
+    assert live_test._message("Discord").setup({}) is None
+
+
+def test_youtube_passes_on_the_video_otto_opened_even_if_it_was_already_open(monkeypatch):
+    from core import live_test
+    from hands import web, win
+    task = live_test._youtube()
+    monkeypatch.setattr(win, "windows", lambda: [{"hwnd": 7, "exe": "chrome.exe"}])
+    monkeypatch.setattr(web, "chrome_addresses", lambda only=None: ["youtube.com/watch?v=VUQfT3gNT3g"])
+    monkeypatch.setattr(win, "foreground", lambda: 7)
+    monkeypatch.setattr(live_test, "wait_for", lambda test, seconds=4.0: test())
+    monkeypatch.setattr(live_test, "front_address", lambda: "youtube.com/watch?v=VUQfT3gNT3g")
+    memo = {"shared": {}}
+    task.steps[0].say(memo)
+    assert task.steps[0].check(dict(memo, videos=set()))[0] is False           # nothing proves it was this run
+    assert task.steps[0].check(dict(memo, videos={"VUQfT3gNT3g"}))[0] is True  # Otto opened it now

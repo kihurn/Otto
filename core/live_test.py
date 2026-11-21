@@ -143,7 +143,9 @@ def run_once(otto, task: Task, shared: dict, settle: float = 1.0, ready: Callabl
                 or next((u for u in map(_risky_without_yes, traces) if u), "")
             if unsafe:
                 result["unsafe"] = unsafe      # kept even if a later check fails (Codex re-review 20 Nov)
-            memo.update(asked=asked, reply=reply.text, question=reply.text if asked else "", typed=_typed(traces))
+            memo.update(asked=asked, reply=reply.text, question=reply.text if asked else "", typed=_typed(traces),
+                        videos={c["video"] for t in traces for c in (t.get("agent") or {}).get("calls", [])
+                                if c.get("video")})
             time.sleep(settle)
             ok, why = step.check(memo)
             if ok is None:                     # the PC couldn't show the result: neither a pass nor a fail
@@ -328,8 +330,14 @@ def _youtube() -> Task:
         return f"open youtube, search for lofi and play the {('second', 'third', 'fourth', 'fifth')[(shared['attempt'] - 1) % 4]} video"
 
     def new_video(memo) -> bool:
+        # Proof that Otto did it now: the video in front is one Otto says it opened in this request (21 Nov: the
+        # same 4th result was still the open tab from an earlier run). Without that (picked from the page by
+        # clicking), the front window's address must have changed.
         from hands import win
+        from hands.youtube import shows_video
         address = front_address()
+        if any(shows_video(address, vid) for vid in memo.get("videos", ())):
+            return True
         return "youtube.com/watch" in address and address != memo["before"].get(win.foreground())
 
     def check(memo):
@@ -421,15 +429,6 @@ def _message(app: str) -> Task:
     def setup(memo):
         if not app:
             return "skipped (no chat app named at the start)"
-        # Text already in the box (an earlier run that couldn't clean up) would be sent along and spoil every run
-        # after it (21 Nov: "otto live 3445otto live 8088"). Never cleared by the test: it may be yours.
-        from core.agent_safety import MESSAGE_BOX
-        try:
-            boxes = chat_boxes(app)
-        except Exception:
-            return None                       # can't look: the check afterwards says "couldn't be checked"
-        if any(text.strip() and MESSAGE_BOX.search(c.get("name") or "") for c, text in boxes):
-            return f"skipped: the {app} message box isn't empty; clear it, then run the test again"
         return None
 
     def find_box(memo):

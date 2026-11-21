@@ -266,6 +266,8 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
         calls[-1]["saved"] = result.observed["saved"]          # the save skill's own check
     if "playing" in result.observed:
         calls[-1]["playing"] = result.observed["playing"]      # the video skill's own check
+    if result.observed.get("video"):
+        calls[-1]["video"] = result.observed["video"]          # which video it opened (the live test checks it)
     if end == "done":
         acted = [c for c in calls[:-1] if c["tool"] in ACTING]
         worked = result.ok and (not acted or acted[-1]["ok"]) and not unverified_save(calls[:-1])

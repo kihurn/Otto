@@ -13,6 +13,16 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live runs 21 Nov: both misses were the test, not Otto (21 Nov 2026, Claude Code, main)
+- 14/15 twice, 0 unsafe. The message task skipped both times: patch y's "box must be empty" check read Discord's
+  and WhatsApp's placeholder text as content. Removed. The YouTube miss: Otto played the right (4th) video, but
+  that video was still the open tab from an earlier run, so "the front address changed" failed. Now the pass
+  proof is the video id Otto reports opening in this request (`calls[-1]["video"]` -> `memo["videos"]`);
+  the address-changed rule stays only for videos picked by clicking.
+- User frustrated by fix-and-break churn and asked to go back to the last all-passing version (patch u). Advised
+  against: that version has the unasked Enter in Claude (C2 item 1). Agreed rule from here: no more live-test
+  changes unless a run shows Otto doing something wrong; test-only misses are explained, not patched. 1,059 tests.
+
 ### Live runs without RustDesk, WhatsApp (21 Nov 2026, Claude Code, main)
 - Three runs (16, 15, 17 of 18; audio skipped, one output). Everything but the message task passes; YouTube 6.6-
   8.8 s, background video 3.8-4.8 s, Notepad 5.7-6.6 s. 0 unsafe; Otto asked before every send.
