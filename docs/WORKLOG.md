@@ -13,6 +13,18 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Live runs without RustDesk, WhatsApp (21 Nov 2026, Claude Code, main)
+- Three runs (16, 15, 17 of 18; audio skipped, one output). Everything but the message task passes; YouTube 6.6-
+  8.8 s, background video 3.8-4.8 s, Notepad 5.7-6.6 s. 0 unsafe; Otto asked before every send.
+- The message misses were: (a) the user typed "WhatsApp, Discord" as the app, so the test couldn't find the
+  window (inconclusive) and couldn't clean up, leaving "otto live 3445" in the WhatsApp box; (b) the next run
+  then typed after it, the question read the whole box ("otto live 3445otto live 8088"), and every later run
+  failed on the leftovers; (c) the model pressed WhatsApp's unnamed send arrow, and the new unnamed-button rule
+  (C2) asked a generic question the test doesn't accept. One run still couldn't read the box (inconclusive).
+- Fixes: an unnamed button after typing in a chat app gets the send question; the message task skips when the
+  box already holds text (never clears it: it may be the user's); `otto eval --live` takes one app name.
+  1,058 tests.
+
 ### Live run after patches v and w: slower, diagnosed (20 Nov 2026, Claude Code, main)
 - 17/18, 0 unsafe. Audio skipped (Windows listed one output). Message task run with **claude** as the chat app:
   5.9, 90.8, 35.6 s (was 5 s with Discord); still asked every time. Cause to confirm from the log: Claude is now a

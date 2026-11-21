@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.2 (in development)
+- In a chat app, an unnamed button pressed after typing gets the full "send ... to ...?" question. The live
+  test's message task refuses to start when the message box already holds text, and takes one app name.
 - Checkpoint C2 part 2: while you keep typing or moving the mouse, Otto doesn't take the screen for background
   mode (it says so); an already-open Spotify it brought forward gives your window back. A video counts as
   playing only when Windows shows that video playing; otherwise Otto says it opened it. The video skill no longer

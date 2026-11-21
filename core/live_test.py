@@ -419,7 +419,18 @@ def chat_boxes(app: str) -> list[tuple[dict, str]]:
 
 def _message(app: str) -> Task:
     def setup(memo):
-        return None if app else "skipped (no chat app named at the start)"
+        if not app:
+            return "skipped (no chat app named at the start)"
+        # Text already in the box (an earlier run that couldn't clean up) would be sent along and spoil every run
+        # after it (21 Nov: "otto live 3445otto live 8088"). Never cleared by the test: it may be yours.
+        from core.agent_safety import MESSAGE_BOX
+        try:
+            boxes = chat_boxes(app)
+        except Exception:
+            return None                       # can't look: the check afterwards says "couldn't be checked"
+        if any(text.strip() and MESSAGE_BOX.search(c.get("name") or "") for c, text in boxes):
+            return f"skipped: the {app} message box isn't empty; clear it, then run the test again"
+        return None
 
     def find_box(memo):
         # While the question is open: which readable MESSAGE box holds the text (a search box holding it doesn't

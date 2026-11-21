@@ -391,7 +391,9 @@ def _pressing(label: str, shown: str, ctx, w: dict | None = None) -> str | None:
     if not label:
         # An unnamed button right after typing may be the send arrow (Codex checkpoint C2).
         w = w or front(ctx)
-        if _typed_this_turn(ctx) and (_is_message(w) or not _harmless_enter(w)):
+        if _typed_this_turn(ctx) and _is_message(w):
+            return _send_question(ctx, w, _last_typed(ctx))     # in a chat it is most likely the send arrow
+        if _typed_this_turn(ctx) and not _harmless_enter(w):
             return "press an unnamed button next to what I typed (it may send it)"
         return None
     if DISCARD.search(label):

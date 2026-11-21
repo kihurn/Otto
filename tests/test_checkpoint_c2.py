@@ -180,3 +180,19 @@ def test_an_already_open_terminal_gets_one_look(monkeypatch):
     monkeypatch.setattr(apps, "_terminal_text", lambda hwnd: looks.append(hwnd) or "Copying files 40%")
     result = apps.open_app("powershell")
     assert looks == [5] and result.say.endswith("but it may be busy: its prompt isn't showing yet.")
+
+
+# ---- 21 Nov live runs (WhatsApp) ------------------------------------------------------------------------------
+
+def test_an_unnamed_button_in_a_chat_gets_the_send_question(ctx, monkeypatch):
+    place(monkeypatch, "whatsapp.exe", "", "WhatsApp")
+    assert agent_safety.check("click", {"control": 38}, ctx).startswith("send")
+
+
+def test_the_message_task_wont_start_on_leftover_text(monkeypatch):
+    from core import live_test
+    box = {"name": "Type a message", "type": "Edit"}
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "otto live 3445")])
+    assert "isn't empty" in live_test._message("WhatsApp").setup({})
+    monkeypatch.setattr(live_test, "chat_boxes", lambda app: [(box, "")])
+    assert live_test._message("WhatsApp").setup({}) is None

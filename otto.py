@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -542,6 +543,9 @@ def cmd_live(settings, core: str, repeat: int) -> int:
     out(f"  To stop: press {key.upper()} (stops the current task and the test).")
     chat = input("Message task: open a chat with YOURSELF first (your own Discord DM, WhatsApp 'Message yourself'),\n"
                  "  then type that app's name here, or just press Enter to skip it: ").strip()
+    if re.search(r"[,;/]|\band\b", chat):
+        chat = re.split(r"[,;/]|\band\b", chat)[0].strip()      # one app per test run (21 Nov: "WhatsApp, Discord")
+        dim(f"  One app at a time: using {chat}.")
     if input("Press Enter to start (or type q to quit): ").strip().lower().startswith("q"):
         return 0
     otto = Otto(settings, dry_run=False, say=dim)
