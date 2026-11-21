@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+- "In the background" works for any request: Otto waits for a pause in your typing, does the job, minimises the
+  one window it opened and puts yours back in front (while it asks you something, the window stays up). New
+  live-test task "notepad in the background".
 - In a chat app, an unnamed button pressed after typing gets the full "send ... to ...?" question. The live
   test's message task refuses to start when the message box already holds text, and takes one app name.
 - Checkpoint C2 part 2: while you keep typing or moving the mouse, Otto doesn't take the screen for background

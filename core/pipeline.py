@@ -612,6 +612,14 @@ class Otto:
         from core import agent, tools
         self._agent_deadline()
         self._hide_indicator()
+        # "In the background" (step 4c): note your window now, before the agent brings anything forward.
+        give_back = None
+        if details.background(t)[1] and not self.dry_run:
+            from hands import win
+            if not win.wait_for_pause():
+                return Reply("You're busy with the keyboard or mouse, so I didn't take the screen; ask me again "
+                             "when you pause.")
+            give_back = {"mine": win.foreground(), "before": [w["hwnd"] for w in win.windows()]}
         ctx = tools.ToolContext(dry_run=self.dry_run, brain=self.brain)
         self.active_task = agent.Stopper("dry" if self.dry_run else "live")   # what Otto's cancel key stops
         try:
@@ -619,17 +627,29 @@ class Otto:
                                stop=self.active_task)
         finally:
             self.active_task = None
-        return self._agent_reply(t, result)
+        return self._background_done(self._agent_reply(t, result), result, give_back)
 
     def _agent_resume(self, p: Pending, answer: str | None = None, yes: bool | None = None) -> Reply:
         from core import agent
         self._agent_deadline()
         self.active_task = p.agent.get("stop")
+        give_back = p.agent.get("give_back")
         try:
             result = agent.resume(p.agent, self.brain, answer=answer, yes=yes)
         finally:
             self.active_task = None
-        return self._agent_reply(p.text, result)
+        return self._background_done(self._agent_reply(p.text, result), result, give_back)
+
+    def _background_done(self, reply: Reply, result, give_back: dict | None) -> Reply:
+        """A background request gives the screen back when it is over (done, stopped, a no). While Otto waits for
+        your answer, the window stays up so you can see what you're answering."""
+        if give_back:
+            if result.status in ("ask", "confirm") and self.pending and self.pending.agent is not None:
+                self.pending.agent["give_back"] = give_back
+            else:
+                from hands import win
+                win.give_back(give_back["mine"], set(give_back["before"]))
+        return reply
 
     def _hide_indicator(self) -> None:
         if self.dry_run:

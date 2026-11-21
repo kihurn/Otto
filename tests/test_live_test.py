@@ -100,7 +100,7 @@ def test_stop_key_ends_the_test():
 
 def test_the_task_list_is_safe_by_design():
     tasks = live_test.tasks("")
-    assert len(tasks) == 7
+    assert len(tasks) == 8
     message = [t for t in tasks if t.name.startswith("message")][0]
     assert all(s.must_ask for s in message.steps)
     assert message.setup({"shared": {}}).startswith("skipped")     # no chat named: skipped, nothing typed

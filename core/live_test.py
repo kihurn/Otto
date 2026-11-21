@@ -521,6 +521,27 @@ def _background_video() -> Task:
     return Task("video in the background", [Step(say, check)], setup, cleanup)
 
 
+def _background_note() -> Task:
+    # Background for any request (step 4c): the job is done AND the window you were in (Otto's own, as for every
+    # task) is back in front afterwards.
+    base = _notepad()
+
+    def say(memo):
+        from hands import win
+        memo["front"] = win.foreground()
+        return f"type {memo['marker']} in notepad and save it in the background"
+
+    def check(memo):
+        ok, why = base.steps[0].check(memo)
+        if not ok:
+            return ok, why
+        from hands import win
+        back = wait_for(lambda: win.foreground() == memo["front"], 3)
+        return back, "" if back else f"your window didn't come back; {front().get('title', '')[:60]!r} is in front"
+
+    return Task("notepad in the background", [Step(say, check)], base.setup, base.cleanup)
+
+
 def _box_id(control: dict) -> tuple:
     return (control.get("type"), control.get("automation_id"), control.get("name"))
 
@@ -528,4 +549,4 @@ def _box_id(control: dict) -> tuple:
 def tasks(chat_app: str = "") -> list[Task]:
     """chat_app: the app where a chat with yourself is open, for the message task ("" skips it)."""
     return [_open_chrome(), _google(), _youtube(), _notepad(), _audio(), _message(chat_app.strip()),
-            _background_video()]
+            _background_video(), _background_note()]

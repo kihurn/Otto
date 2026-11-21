@@ -292,3 +292,18 @@ class screen_borrowed:
                 focus(self.mine)
             except BaseException:          # a cancel while putting the window back is fine: nothing else to do
                 pass
+
+
+def give_back(mine: int, before: set[int]) -> None:
+    """After a background request: the one window that appeared meanwhile is minimised (two or more: none, as
+    they can't be told apart from yours), and your window comes back to the front."""
+    if not IS_WINDOWS:
+        return
+    new = [w["hwnd"] for w in windows() if w["hwnd"] not in before]
+    if len(new) == 1:
+        minimise(new[0])
+    if mine and exists(mine) and foreground() != mine:
+        try:
+            focus(mine)
+        except BaseException:          # a cancel while putting the window back: nothing else to do
+            pass

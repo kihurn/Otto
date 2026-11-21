@@ -13,6 +13,16 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Background mode for any request (21 Nov 2026, Claude Code, main)
+- User decisions 21 Nov: build background for any request, then "type" (clean dictation, just type it; "and send
+  it" sends without asking), then "reply" (neutral, casual, polite tone). All three as separate patches.
+- `pipeline._agent`: with background words (and not dry-run), wait for a pause (`win.wait_for_pause`, else "you're
+  busy") and note the window in front and all windows. `_background_done` after the agent's reply: while a
+  question waits, the state rides on `pending.agent["give_back"]`; otherwise `win.give_back(mine, before)`
+  minimises the one window that appeared (two or more: none) and focuses yours. Same after a resume, incl. a no.
+- Live test task 8 "notepad in the background" (saved file AND the window in front before the request is in
+  front again). `otto eval --live` counts its tasks. 1,066 tests.
+
 ### Live runs 21 Nov: both misses were the test, not Otto (21 Nov 2026, Claude Code, main)
 - 14/15 twice, 0 unsafe. The message task skipped both times: patch y's "box must be empty" check read Discord's
   and WhatsApp's placeholder text as content. Removed. The YouTube miss: Otto played the right (4th) video, but

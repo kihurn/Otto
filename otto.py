@@ -535,8 +535,9 @@ def cmd_live(settings, core: str, repeat: int) -> int:
     from core import live_test
     from core.pipeline import Otto
     key = settings["listen"]["push_to_talk_key"]
-    out(f"{BOLD}Live test of the {core} core{RESET}: 6 tasks, {repeat} times each, on your real screen "
-        f"(about {2 * repeat * 6 // 3} minutes).")
+    count = len(live_test.tasks(""))
+    out(f"{BOLD}Live test of the {core} core{RESET}: {count} tasks, {repeat} times each, on your real screen "
+        f"(about {2 * repeat * count // 3} minutes).")
     out("  Otto will open Chrome, YouTube (sound on), Notepad, swap your audio output and back,")
     out("  and type a test message in a chat with yourself. Every 'Just checking' question is answered NO,")
     out("  so nothing is sent. Don't touch the mouse or keyboard while it runs.")

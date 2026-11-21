@@ -144,8 +144,9 @@ background" (they mostly watch YouTube). (B) the YouTube Data API with a key fro
 project, in .env (other Google APIs later). (C) after deleting the old core.
 Built (20 Nov): items 1, 2, 4 and 6 for videos ("play a mrbeast video in the background": YouTube Data API ->
 own Chrome window, minimised once it plays, your window back) and music (Spotify opened for music is minimised).
-Not yet: item 3 for other requests through the agent loop ("open notepad in the background" still comes to the
-front); next, once the video and music parts are confirmed on Windows.
+Item 3 built 21 Nov for requests through the agent loop: the window in front is noted first, and when the
+request is over (done, stopped, a no) the one new window is minimised and yours comes back; not while a
+question waits.
 
 ### Step 5. Teaching mode (step-by-step with your approval), on top of the skills
 Otto shows each step, you approve or correct; approved runs become saved examples (`core/examples.py` already
