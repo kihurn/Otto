@@ -17,6 +17,8 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ### Summary coverage and send evidence (22 Nov 2026, Codex)
 
+- Follow-up for the Hayley trace: named WhatsApp drafts verify desktop window, recipient, focus and draft contents. A correction can inspect the same box. Automated checks use fake windows; real WhatsApp draft entry still needs a self-chat check.
+
 - Common summary requests use a source reader. It reports clipped or missing material and refuses an unidentified PDF. Text PDFs opened from a local file use page-by-page extraction. Chrome article text and chat message lists depend on the Windows accessibility data the app exposes.
 - Agent chat sends use the checked draft operation after approval. A successful Enter alone cannot earn “sent,” and send attempts are excluded from saved examples. The Send-button unit test uses a fake window and draft.
 

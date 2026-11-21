@@ -75,6 +75,8 @@ def find_window(app_name: str) -> dict | None:
     name = ' '.join(app_name.casefold().split())
     if not name:
         return None
+    if name in {"whatsapp", "whatsapp.exe", "whatsapp.root.exe"}:
+        return next((w for w in windows() if w["exe"].casefold() in {"whatsapp.exe", "whatsapp.root.exe"}), None)
     # Office's process name differs from its spoken name. A workspace or document title
     # mentioning Word is not proof of app ownership, even with a high fuzzy score.
     if name in {'word', 'microsoft word', 'winword'}:

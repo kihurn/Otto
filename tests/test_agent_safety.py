@@ -234,10 +234,12 @@ def test_type_never_replaces_existing_text(monkeypatch):
     monkeypatch.setattr(ui_probe, "read_text", lambda c: "line 1\nline 2")
     monkeypatch.setattr(ui_probe, "set_value", lambda c, t: replaced.append(t) or True)
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
-    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "type_text", lambda t: typed_keys.append(t))
     from core import agent_safety
     monkeypatch.setattr(agent_safety, "front", lambda ctx: {"exe": "notepad.exe", "title": "Notepad", "focused": ""})
-    ctx = tools.ToolContext(dry_run=False, controls=[box])
+    monkeypatch.setattr(win, "foreground", lambda: 1)
+    monkeypatch.setattr("hands.app_control._same_box", lambda el: el is box["element"])
+    ctx = tools.ToolContext(dry_run=False, controls=[box], hwnd=1)
     tools.call("type", {"text": ")", "control": 1}, ctx)
     assert not replaced and typed_keys == [")"]
 
@@ -271,7 +273,7 @@ def test_typing_refused_when_the_password_check_fails(make, monkeypatch):
     from hands import apps, win
     typed_keys = []
     monkeypatch.setattr(win, "focused_is_password", lambda: None)          # Windows couldn't tell
-    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "type_text", lambda t: typed_keys.append(t))
     r = tools.call("type", {"text": "hello"}, make())
     assert not r.ok and "couldn't check" in r.say and not typed_keys
 
@@ -283,7 +285,7 @@ def test_a_command_otto_wrote_is_shown_and_never_run_without_a_yes(make, monkeyp
     from hands import apps, win
     typed_keys, pressed = [], []
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
-    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "type_text", lambda t: typed_keys.append(t))
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
     ctx = make("powershell.exe", "Windows PowerShell", "")
     ctx.request = "check my ip address"
@@ -302,7 +304,7 @@ def test_enter_in_a_terminal_needs_a_command_otto_just_typed(make, monkeypatch):
     pressed = []
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
-    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    monkeypatch.setattr(win, "type_text", lambda t: None)
     ctx = make("powershell.exe", "Windows PowerShell", "")
     r = tools.call("keys", {"keys": "enter"}, ctx)                     # nothing typed: whatever is on the line
     assert not r.ok and not r.asks and "only run a command I just typed" in r.say and not pressed
@@ -316,7 +318,7 @@ def test_the_run_box_is_cleared_with_select_all_not_escape(make, monkeypatch):
     pressed = []
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
-    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    monkeypatch.setattr(win, "type_text", lambda t: None)
     assert tools.call("type", {"text": "notepad"}, make("explorer.exe", "Run", "Open:")).ok and pressed == ["ctrl+a"]
 
 
@@ -363,7 +365,7 @@ def test_terminal_commands_are_never_typed_key_by_key(make, monkeypatch):
     from core import tools
     from hands import apps, win
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
-    monkeypatch.setattr(apps, "type_text", lambda t: None)
+    monkeypatch.setattr(win, "type_text", lambda t: None)
     pressed = []
     monkeypatch.setattr(win, "hotkey", lambda k: pressed.append(k))
     ctx = make("powershell.exe", "Windows PowerShell", "")
@@ -431,7 +433,7 @@ def test_typing_stops_if_the_read_window_is_not_in_front_or_the_box_cannot_take_
     from core import tools
     from hands import apps, ui_probe, win
     typed_keys = []
-    monkeypatch.setattr(apps, "type_text", lambda t: typed_keys.append(t))
+    monkeypatch.setattr(win, "type_text", lambda t: typed_keys.append(t))
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     monkeypatch.setattr(ui_probe, "read_text", lambda c: "")
     monkeypatch.setattr(ui_probe, "set_value", lambda c, t: False)

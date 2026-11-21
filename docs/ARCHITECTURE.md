@@ -2,6 +2,8 @@
 
 ## Current design (20 November 2026)
 
+Named WhatsApp replies bind the desktop process, recipient label and editable box before writing. A short follow-up can inspect that recipient's composer. Only an exact draft read-back enters the existing send confirmation flow.
+
 Summary requests for a named kind of open source use `core/reading.py`. The reader records page or message coverage before summarizing. Agent chat approvals use the checked draft sender for questions that name a send. “Sent” requires a cleared draft and a new matching outgoing label in the same chat.
 
 One core. `core/pipeline.py` handles guards (wake word, gibberish, yes/no, cancel, "save that"), questions Otto

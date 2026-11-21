@@ -163,7 +163,9 @@ def read_text(control: dict, limit: int = 200_000) -> str | None:
     try:
         pattern = element.GetCurrentPattern(ids.UIA_TextPatternId)
         if pattern:
-            return pattern.QueryInterface(ids.IUIAutomationTextPattern).DocumentRange.GetText(limit)
+            value = pattern.QueryInterface(ids.IUIAutomationTextPattern).DocumentRange.GetText(limit)
+            if value is not None:
+                return value
     except Exception:
         pass
     try:

@@ -631,6 +631,8 @@ def _type(ctx, text, control=None):
             if back is not None and text.strip() in back:
                 ctx.draft.update(hwnd=ctx.hwnd, name=ctx.app, element=target["element"], text=text)
                 return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
+            return ToolResult(False, "I wrote the field once but couldn't verify its contents.",
+                              {"end": "done"})
         try:
             target["element"].SetFocus()          # type at the cursor in that box, keeping what is there
         except Exception:
@@ -642,7 +644,13 @@ def _type(ctx, text, control=None):
                           "I couldn't check whether the focused box is a password field, so I didn't type.")
     if agent_safety._is_command(agent_safety.front(ctx)):
         _clear_command_line(ctx)             # the line then holds exactly this command, nothing left from before
-    apps.type_text(text)
+    if target is not None:
+        from hands.app_control import _same_box
+        if win.foreground() != ctx.hwnd or not _same_box(target["element"]):
+            return ToolResult(False, "I couldn't confirm focus in the selected box.", {"end": "done"})
+    written = apps.type_text(text)
+    if not written.ok:
+        return ToolResult(False, written.say, {"end": "done"})
     if target is not None:
         back = ui_probe.read_text(target)
         if back is not None and text.strip() in back:

@@ -151,7 +151,7 @@ def test_typing_after_a_save_cancels_saved(notepad):
     from hands import apps, win
     import pytest as _p
     mp = _p.MonkeyPatch()
-    mp.setattr(apps, "type_text", lambda t: None)
+    mp.setattr(win, "type_text", lambda t: None)
     try:
         r = agent.run("save it and add a line", [], Scripted(call("save"), call("type", text="more"),
                                                               call("done", say="Saved it!")), c)

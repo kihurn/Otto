@@ -6,6 +6,7 @@ code can check, act, then look again to confirm. Nothing here is chosen by a mod
 from __future__ import annotations
 
 import time
+import re
 
 from core.tasks import Evidence, Outcome, OutcomeStatus
 from hands.registry import ASK, UNDOABLE, action
@@ -39,6 +40,75 @@ def front_window(app: str):
 
 def _same(a: dict, b: dict) -> bool:
     return (a['type'], a['name'], a['automation_id']) == (b['type'], b['name'], b['automation_id'])
+
+
+def whatsapp_box(who: str):
+    """Locate the open recipient's composer using the desktop app's own accessible label."""
+    from core.sensitive import sensitive
+    from hands import ui_probe, win
+    window = win.find_window("WhatsApp")
+    if not window or window["exe"].casefold() not in {"whatsapp.exe", "whatsapp.root.exe"}:
+        return None, None
+    hwnd = window["hwnd"]
+    if win.foreground() != hwnd and not win.focus(hwnd):
+        return None, None
+    if win.foreground() != hwnd:
+        return None, None
+    pattern = r"(?:type a message to |message to |message [@#])(?:group )?" + re.escape(who)
+    if who.casefold() in {"myself", "yourself"}:
+        pattern = r"(?:message yourself|(?:type a )?message to yourself)"
+    boxes = [c for c in ui_probe.list_controls(hwnd, limit=400)
+             if c["type"] in ui_probe.TEXT_TYPES and c["enabled"] and not c.get("read_only")
+             and not sensitive(c) and re.fullmatch(pattern, " ".join(c["name"].split()), re.I)]
+    return hwnd, boxes[0] if len(boxes) == 1 else None
+
+
+@action("draft_whatsapp", UNDOABLE, {"to": "open recipient", "text": "reply draft"},
+        lambda to, text: f"draft a reply to {to}", for_brain=False)
+def draft_whatsapp(to: str, text: str) -> Outcome:
+    from core.action_runtime import check
+    from hands import apps, ui_probe, win
+    LAST_TYPED.clear()
+    hwnd, box = whatsapp_box(to)
+    if not box or not text.strip() or any(ord(c) < 32 for c in text):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I couldn't verify a safe draft box for {to}.")
+    element = box["element"]
+    element.SetFocus()
+    def ready():
+        return (win.foreground() == hwnd and _same_box(element) and win.focused_is_password() is False
+                and element.CurrentName == box["name"])
+    check()
+    for _ in range(5):
+        if ready():
+            break
+        time.sleep(0.05)
+    else:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I couldn't focus {to}'s message box.")
+    before = ui_probe.read_text(box)
+    if before not in ("", text):
+        reason = "couldn't read the existing draft" if before is None else "found an existing draft"
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I {reason} in {to}'s message box.")
+    if before != text:
+        check()
+        if not ready() or ui_probe.read_text(box) != "":
+            return Outcome(OutcomeStatus.NEEDS_INPUT, "The message box changed before typing.")
+        if not ui_probe.set_value(box, text):
+            if not ready():
+                return Outcome(OutcomeStatus.NEEDS_INPUT, "The message box lost focus before typing.")
+            written = apps.type_text(text)
+            if not written.ok:
+                return Outcome(OutcomeStatus.FAILED, written.say)
+    for _ in range(8):
+        check()
+        if not ready():
+            break
+        if ui_probe.read_text(box) == text:
+            LAST_TYPED.update(hwnd=hwnd, name="WhatsApp", element=element, text=text, composer=box["name"])
+            return Outcome(OutcomeStatus.VERIFIED, f"The draft is in {to}'s message box.",
+                           evidence=[Evidence("uia.text", target={"recipient": to}, observed={"exact": True})])
+        time.sleep(0.15)
+    return Outcome(OutcomeStatus.UNCERTAIN, f"I couldn't verify the draft in {to}'s message box.",
+                   side_effect_possible=True)
 
 
 def _appeared(before: str | None, after: str | None, text: str) -> bool:
@@ -150,7 +220,10 @@ def send_typed(text: str, app: str = '', to: str = '', *, binding: dict | None =
     hwnd, name, box = typed['hwnd'], typed.get('name') or app, typed.get('element')
     info = win.window_info(hwnd)
     place = {'exe': info.get('exe', ''), 'title': info.get('title', ''), 'focused': focused_name()}
-    if _is_command(place) or _search_box(place) or not _is_message(place) or (to and not chat_is_with(hwnd, to)):
+    if typed.get("composer") and place["focused"] != typed["composer"]:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "The conversation changed after drafting.")
+    if (_is_command(place) or _search_box(place) or not _is_message(place)
+            or (to and not typed.get("composer") and not chat_is_with(hwnd, to))):
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but that doesn't look like a message box, "
                                                   "so I didn't send it.")
     held = ui_probe.read_text({'element': box}) if box is not None and _same_box(box) else None

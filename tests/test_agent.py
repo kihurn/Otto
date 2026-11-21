@@ -449,13 +449,17 @@ def test_opening_a_different_app_than_the_one_named_is_refused(ctx, monkeypatch)
 
 def test_same_words_in_a_document_are_typed_again(monkeypatch):
     from core import tools
+    from hands.registry import Result
     monkeypatch.setattr("core.agent_safety.otto_in_front", lambda c: False)
     monkeypatch.setattr("core.agent_safety.front", lambda c: {"hwnd": 1, "exe": "notepad.exe", "title": "notes - Notepad",
                                                              "focused": "Text editor"})
     monkeypatch.setattr("core.agent_safety.focused_text", lambda: "hello there")
     monkeypatch.setattr("hands.win.focused_is_password", lambda: False)
     typed = []
-    monkeypatch.setattr("hands.apps.type_text", lambda t: typed.append(t))
+    def write(text):
+        typed.append(text)
+        return Result(True, "Typed it.")
+    monkeypatch.setattr("hands.apps.type_text", write)
     assert tools.call("type", {"text": "hello there"}, tools.ToolContext(dry_run=False)).ok and typed == ["hello there"]
 
 

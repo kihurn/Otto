@@ -499,6 +499,8 @@ class Otto:
         self.brain.deadline = self.turn_deadline
 
     def _process(self, t: str) -> Reply:
+        previous_chat = getattr(self, "whatsapp_draft", None)
+        self.whatsapp_draft = None
         if self._FRESH.match(t):
             self.history.clear()
             self.pending = None
@@ -528,6 +530,36 @@ class Otto:
         if dictated:
             return self._dictate(t, dictated)
         replying = details.reply_request(t, self.apps)   # "reply ... saying ...": written from the chat
+        named = re.fullmatch(r"(?:(?:you did not write anything yet|oh my god)[, ]+)?"
+                             r"(?:(?:can|could|would) you |please )?(?:just )?"
+                             r"(?:(look at (?:my )?whatsapp and) )?reply to "
+                             r"([\w.'-]+(?: [\w.'-]+){0,3}?)( in whatsapp)?(?: saying (.+?))?[?!.]*", t, re.I)
+        recent = previous_chat and time.monotonic() - previous_chat[2] < self.CONVERSATION_GAP
+        if recent and re.fullmatch(r"(?:please )?check again[.!?]*|you did(?:n't| not) (?:even )?"
+                                   r"(?:write|type)(?: anything| the draft)?(?: yet)?(?:,? please check again)?[.!?]*",
+                                   t, re.I):
+            from hands import app_control, ui_probe
+            who, text, _ = previous_chat
+            self.whatsapp_draft = previous_chat
+            if self.dry_run:
+                return Reply(f"I would check {who}'s message box.")
+            _, box = app_control.whatsapp_box(who)
+            held = ui_probe.read_text(box) if box else None
+            if held is None:
+                return Reply(f"I couldn't read {who}'s message box.")
+            if not held:
+                return Reply(f"{who}'s message box is empty.")
+            return Reply(f"The draft is in {who}'s message box." if held == text else
+                         f"{who}'s message box holds a different draft.")
+        if named and (named[1] or named[3] or recent and named[2].lower() in {"her", "him", "them"}):
+            who = named[2].strip()
+            if who.casefold() in {"her", "him", "them"}:
+                if not recent:
+                    return Reply("Who should I draft the WhatsApp reply for?")
+                who = previous_chat[0]
+            return self._whatsapp_reply(t, who, named[4] or "")
+        if replying and replying["app"].casefold() == "whatsapp" and replying["who"]:
+            return self._whatsapp_reply(t, replying["who"], replying["what"])
         if replying:
             return self._reply(t, replying)
         if (self.last or {}).get("send_attempt") and self._CORRECTION.match(t):
@@ -550,6 +582,30 @@ class Otto:
             self.trace["rule"] = "whole_sentence"
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
+
+    def _whatsapp_reply(self, request: str, who: str, instruction: str) -> Reply:
+        from core import dictation
+        from hands import app_control
+        self.whatsapp_draft = (who, "", time.monotonic())
+        chat = ""
+        if not self.dry_run:
+            hwnd, box = app_control.whatsapp_box(who)
+            if not box:
+                note = f' Proposed reply: "{instruction}"' if instruction else ""
+                return Reply(f"Open {who}'s chat in WhatsApp so I can identify its message box.{note}")
+            chat = app_control.chat_text(hwnd)
+            if not chat and not instruction:
+                return Reply(f"I found {who}'s message box but couldn't read the conversation. What should the reply say?")
+        text, by = dictation.draft_reply(instruction or "Answer the latest message briefly.", who, chat, self.brain)
+        if not instruction and by == "as said":
+            return Reply("I couldn't compose a reply from the conversation.")
+        self.whatsapp_draft = (who, text, time.monotonic())
+        self.trace.update(rule="reply", written_by=by, chat_read=bool(chat))
+        result = self._type_then_ask(request, {"do": "draft_whatsapp", "with": {"to": who, "text": text}},
+                                     text, "WhatsApp", to=who)
+        if not self.pending:
+            result.text += f' Proposed reply: "{text}"'
+        return result
 
     def _summarize_source(self, text: str, source: str) -> Reply:
         from core import agent_safety, reading, tools
