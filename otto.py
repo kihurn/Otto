@@ -478,7 +478,10 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
                         toggle_mute()
                         continue
                     if ears.mode != "push" and dictating(text):     # push-to-talk: you hold the key as long as you need
+                        first = text
                         text, conf = dictate_more(text, conf)
+                        # "and send it" heard in a later breath (could be someone nearby): ask before sending (Codex C3)
+                        otto.send_said_later = text != first and details_send(text) and not details_send(first)
                 else:
                     text = input(f"{BOLD}you>{RESET} ").strip()
             except (KeyboardInterrupt, EOFError):

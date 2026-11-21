@@ -89,7 +89,7 @@ def _type_into(window: dict, name: str, text: str) -> Outcome:
     if win.foreground() != hwnd or win.focused_is_password() is not False:
         return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I did not type.')
     win.type_text(text)
-    LAST_TYPED.update(hwnd=hwnd, text=text, name=name)
+    LAST_TYPED.update(hwnd=hwnd, text=text, name=name, element=target['element'])
     for _ in range(8):
         time.sleep(0.2)
         if _appeared(before, ui_probe.read_text(target), text):
@@ -129,42 +129,68 @@ def type_here(text: str) -> Outcome:
     return _type_into(window, name, text)
 
 
-@action('send_typed', ASK, {'text': 'exactly what was typed', 'app': 'the app it was typed in'},
-        lambda text, app='': f'send "{text}"' + (f' in {app}' if app else ''), for_brain=False)
-def send_typed(text: str, app: str = '') -> Outcome:
-    """Press Enter to send what dictation just typed: only in that same window, still in front, and only when its
-    box holds exactly that text (an unreadable box or extra text: not sent, you are told)."""
+@action('send_typed', ASK, {'text': 'exactly what was typed', 'app': 'the app it was typed in',
+                            'to': 'who it goes to, if known'},
+        lambda text, app='', to='': f'send "{text}"' + (f' to {to}' if to else '') + (f' in {app}' if app else ''),
+        for_brain=False)
+def send_typed(text: str, app: str = '', to: str = '') -> Outcome:
+    """Press Enter to send what was just typed, only when all of this holds (Codex checkpoint C3): the same window is
+    in front, Windows names it a chat/message place (not a terminal, Run box or address bar), the focused box is
+    the very box Otto typed into, and that box holds exactly the text. Otherwise it is left typed, not sent.
+    "Sent" only once the box emptied AND the text shows in the chat."""
     from core.action_runtime import check
-    from core.agent_safety import focused_text
-    from hands import win
+    from core.agent_safety import _is_command, _is_message, focused_name
+    from hands import ui_probe, win
     if LAST_TYPED and win.foreground() in win.OTTO_WINDOWS:     # you typed your yes to Otto: back to the chat
         win.focus(LAST_TYPED['hwnd'])
         time.sleep(0.3)
     if not LAST_TYPED or LAST_TYPED.get('text') != text or win.foreground() != LAST_TYPED.get('hwnd'):
         return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed after typing, so I didn't send it.")
-    from core.agent_safety import _is_command, focused_name
-    info = win.window_info(LAST_TYPED['hwnd'])
-    if _is_command({'exe': info.get('exe', ''), 'title': info.get('title', ''), 'focused': focused_name()}):
-        # The yes was for a message: Enter in a terminal, the Run box or an address bar runs or opens something.
-        return Outcome(OutcomeStatus.NEEDS_INPUT, "That's a place where Enter runs or opens something, so I didn't "
-                                                  "press it.")
-    name = LAST_TYPED.get('name') or app
-    box = focused_text()
-    if box is None or ' '.join(box.split()) != ' '.join(text.split()):
-        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but the box doesn't hold exactly that, so I "
-                                                  "didn't send it. Press Enter yourself if it looks right.")
+    hwnd, name, box = LAST_TYPED['hwnd'], LAST_TYPED.get('name') or app, LAST_TYPED.get('element')
+    info = win.window_info(hwnd)
+    place = {'exe': info.get('exe', ''), 'title': info.get('title', ''), 'focused': focused_name()}
+    if _is_command(place) or not _is_message(place):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but that doesn't look like a message box, "
+                                                  "so I didn't send it.")
+    held = ui_probe.read_text({'element': box}) if box is not None and _same_box(box) else None
+    if held is None or ' '.join(held.split()) != ' '.join(text.split()):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but couldn't check the box holds exactly "
+                                                  "that, so I didn't send it. Press Enter yourself if it looks right.")
     check()
+    if win.foreground() != hwnd:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed just before sending, so I didn't send it.")
     win.hotkey('enter')
     LAST_TYPED.clear()
-    for _ in range(8):
-        time.sleep(0.2)
-        after = focused_text()
-        if after is not None and ' '.join(text.split()) not in ' '.join(after.split()):
+    for _ in range(10):
+        time.sleep(0.3)
+        after = ui_probe.read_text({'element': box})
+        if (after is not None and ' '.join(text.split()) not in ' '.join(after.split())
+                and ' '.join(text.split()) in ' '.join(chat_text(hwnd).split())):
             return Outcome(OutcomeStatus.VERIFIED, f'Sent it in {name}.', {'app': name},
-                           [Evidence('uia.text', target={'app': name}, expected={'box_emptied': True},
-                                     observed={'still_there': False})], side_effect_possible=True)
+                           [Evidence('uia.text', target={'app': name}, expected={'in_chat': True},
+                                     observed={'box_emptied': True, 'in_chat': True})], side_effect_possible=True)
     return Outcome(OutcomeStatus.UNCERTAIN, f"I pressed Enter in {name}, but couldn't confirm it was sent.",
                    side_effect_possible=True)
+
+
+def _same_box(element) -> bool:
+    """Is the focused box the very box Otto typed into (not another chat's box with the same draft)?"""
+    try:
+        from pywinauto.uia_defines import IUIA
+        uia = IUIA()
+        return bool(uia.iuia.CompareElements(element, uia.get_focused_element()))
+    except Exception:
+        return False
+
+
+def chat_is_with(hwnd: int, who: str) -> bool:
+    """Does this chat window name that person (its title, or the focused box: "Message @sarah", "Type a message
+    to Sarah")?"""
+    from core.agent_safety import focused_name
+    from hands import win
+    wanted = who.casefold().strip()
+    shown = f"{win.window_info(hwnd).get('title', '')} {focused_name()}".casefold()
+    return bool(wanted) and wanted in shown
 
 
 MESSAGE_TYPES = {'Text', 'ListItem', 'Group', 'DataItem', 'Document'}

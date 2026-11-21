@@ -502,10 +502,10 @@ def _app_at_end(body: str, apps) -> tuple[str, str, str]:
 
 
 def dictation(text: str, apps=None) -> dict | None:
-    """{"text", "app", "send"} for "type <words> [in <app>] [and send it]" or "type in <app> [that] <words>", from
-    the sentence as said (its own capitals). "send" (no question) only when the sentence ends with "and send it",
-    not "...sign it and send it" (may be the text itself), and not when the app came from a trailing "on <app>"
-    ("type call me on WhatsApp and send it": "on WhatsApp" may be part of the message, so Otto asks)."""
+    """{"text", "app", "send", "ask_send"} for "type <words> [in <app>] [and send it]" or "type in <app> [that]
+    <words>", from the sentence as said (its own capitals). "send" (no question) only when the sentence ends with
+    "and send it" AND names the app with "in <app>" (or starts "type in <app>"); otherwise "ask_send": typed, then
+    a question ("type call me on WhatsApp and send it", "type hello in WorkChat and send it")."""
     s = " ".join((text or "").split())
     s = re.sub(r"^(?:(?:hey|ok|okay|so|um+|uh+|oh|otto)[,.!]?\s+)*(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)?",
                "", s, flags=re.I)
@@ -524,7 +524,9 @@ def dictation(text: str, apps=None) -> dict | None:
     body = body.strip(" ,")
     if not body or app.lower() in _TERMINALS:
         return None
-    # "ask_send": they said "and send it", but it's not clear enough to send without a question.
+    # "ask_send": they said "and send it", but it's not clear enough to send without a question: no app named (the
+    # destination isn't clear, and "sign the form and send it" may be the text itself; Codex C3), or "on <app>".
+    unsure = unsure or not app
     return {"text": body, "app": app, "send": send and not unsure, "ask_send": send and unsure}
 
 

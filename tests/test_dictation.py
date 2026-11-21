@@ -24,6 +24,9 @@ def d(text, app="", send=False, ask_send=False):
     ("can you type I live in London", d("I live in London")),
     # "sign it and send it" may be the text itself: never a send
     ("type please sign it and send it", d("please sign it and send it")),
+    # no app named: "and send it" may be part of the text, and the destination isn't clear -> typed, then asked
+    ("type please sign the form and send it", d("please sign the form", "", False, True)),
+    ("type hello in WorkChat and send it", d("hello in WorkChat", "", False, True)),
     # the user's own sentence (20 Nov log): the app comes first
     ("Can you type in Claude that everything works right now?", d("everything works right now?", "Claude")),
     # the LAST "in <app>" is the place; "on" is part of the message
@@ -85,9 +88,9 @@ def test_and_send_it_adds_the_send_without_a_question(otto):
     assert otto.pending is None
 
 
-def test_send_typed_only_sends_exactly_what_was_typed_in_that_window(monkeypatch):
+def test_send_typed_only_sends_exactly_what_was_typed_in_that_box(monkeypatch):
     from core import agent_safety
-    from hands import app_control, win
+    from hands import app_control, ui_probe, win
     from core.tasks import OutcomeStatus
     pressed = []
     monkeypatch.setattr(win, "hotkey", pressed.append)
@@ -95,21 +98,45 @@ def test_send_typed_only_sends_exactly_what_was_typed_in_that_window(monkeypatch
     monkeypatch.setattr(win, "foreground", lambda: 9)
     monkeypatch.setattr(win, "window_info", lambda h: {"exe": "whatsapp.exe", "title": "WhatsApp"})
     monkeypatch.setattr(agent_safety, "focused_name", lambda: "Type a message")
-    app_control.LAST_TYPED.clear()
-    app_control.LAST_TYPED.update(hwnd=9, text="hello there", name="WhatsApp")
+    same = [True]
+    monkeypatch.setattr(app_control, "_same_box", lambda el: same[0])
     box = ["hello there plus more"]
-    monkeypatch.setattr(agent_safety, "focused_text", lambda: box[0])
-    assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []
+    monkeypatch.setattr(ui_probe, "read_text", lambda c, limit=0: box[0])
+    monkeypatch.setattr(app_control, "chat_text", lambda hwnd: "Me: hello there")
+
+    def armed():
+        app_control.LAST_TYPED.clear()
+        app_control.LAST_TYPED.update(hwnd=9, text="hello there", name="WhatsApp", element=object())
+    armed()
+    assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []   # extra text
     box[0] = None                                                   # can't read it: not sent either
     assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []
+    box[0], same[0] = "hello there", False                          # another box (another chat) has the focus
+    assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []
+    same[0] = True
     monkeypatch.setattr(win, "foreground", lambda: 4)               # another window in front
-    box[0] = "hello there"
     assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []
     monkeypatch.setattr(win, "foreground", lambda: 9)
     reads = iter(["hello there", ""])
-    monkeypatch.setattr(agent_safety, "focused_text", lambda: next(reads, ""))
+    monkeypatch.setattr(ui_probe, "read_text", lambda c, limit=0: next(reads, ""))
     result = app_control.send_typed("hello there")
     assert pressed == ["enter"] and result.status == OutcomeStatus.VERIFIED and result.say == "Sent it in WhatsApp."
+
+
+def test_send_typed_refuses_a_box_that_isnt_a_message_box(monkeypatch):
+    from core import agent_safety
+    from hands import app_control, ui_probe, win
+    from core.tasks import OutcomeStatus
+    pressed = []
+    monkeypatch.setattr(win, "hotkey", pressed.append)
+    monkeypatch.setattr(win, "foreground", lambda: 9)
+    monkeypatch.setattr(win, "window_info", lambda h: {"exe": "chrome.exe", "title": "Cloud Shell - Google Chrome"})
+    monkeypatch.setattr(agent_safety, "focused_name", lambda: "Terminal input")
+    monkeypatch.setattr(app_control, "_same_box", lambda el: True)
+    monkeypatch.setattr(ui_probe, "read_text", lambda c, limit=0: "rm -rf build")
+    app_control.LAST_TYPED.clear()
+    app_control.LAST_TYPED.update(hwnd=9, text="rm -rf build", name="Chrome", element=object())
+    assert app_control.send_typed("rm -rf build").status == OutcomeStatus.NEEDS_INPUT and pressed == []
 
 
 def test_the_live_message_task_never_says_send_it():
@@ -203,5 +230,44 @@ def test_unsure_send_types_then_asks(otto):
 
 
 def test_the_background_words_stay_in_a_dictated_message(otto):
-    otto.handle("type I'll sit in the back and send it")
+    otto.handle("type I'll sit in the back in WhatsApp and send it")
     assert otto.trace["plan"]["steps"][0]["with"]["text"] == "I'll sit in the back"
+
+
+def test_a_model_rewrite_is_shown_before_sending(otto, monkeypatch):
+    # "um I do not agree" -> "I agree" passed the word check (Codex C3): a rewrite never sends without a question.
+    from core import dictation
+    monkeypatch.setattr(dictation, "clean", lambda text, brain: ("I agree", "gemma"))
+    reply = otto.handle("type um I do not agree in WhatsApp and send it")
+    assert reply.text.startswith('Just checking: should I send "I agree"')
+    otto.pending = None
+
+
+def test_send_said_in_a_later_breath_asks(otto):
+    otto.send_said_later = True
+    reply = otto.handle("type see you soon in WhatsApp and send it")
+    assert reply.text.startswith("Just checking") and otto.send_said_later is False
+    otto.pending = None
+
+
+def test_okay_stop_never_confirms_a_misheard_send(otto):
+    assert otto.handle("type hello in WhatsApp and send it", heard_conf=-1.2).text.startswith("Sorry, did you say")
+    assert otto.handle("okay, stop").text == "Okay, I won't."
+    assert otto.pending is None
+
+
+def test_reply_to_someone_needs_their_chat_open(otto, monkeypatch):
+    from hands import app_control
+    otto.dry_run = False
+    monkeypatch.setattr(app_control, "_current_window", lambda: ({"hwnd": 3, "title": "WhatsApp"}, "WhatsApp"))
+    monkeypatch.setattr(app_control, "chat_is_with", lambda hwnd, who: False)
+    assert otto.handle("reply to Sarah saying I'll be late").text == \
+        "I can't see Sarah's chat open; open it first, then ask me again."
+    otto.dry_run = True
+
+
+def test_live_test_counts_a_built_in_send_without_a_question_as_unsafe():
+    from core import live_test
+    ran = {"plan": {"steps": [{"do": "type_here"}, {"do": "send_typed"}]}, "outcome_status": "verified"}
+    asked = {"plan": {"steps": [{"do": "type_here"}]}, "outcome_status": "verified"}
+    assert live_test._ran_without_yes(ran) and not live_test._ran_without_yes(asked)

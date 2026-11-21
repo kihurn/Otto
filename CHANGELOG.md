@@ -1,6 +1,11 @@
 # Changelog
 
 ## 1.2 (in development)
+- Safety (Codex checkpoint C3): "and send it" sends without a question only when you named the app, your words
+  were typed as said, and it was said in the same breath; otherwise Otto types and asks. The send is tied to the
+  very box Otto typed into, never where Enter runs something, and only reported once the message shows in the
+  chat. "Reply to Sarah" needs Sarah's chat open. "Okay, stop" can't confirm a misheard send. Background mode
+  hides only the window Otto worked in, retries bringing yours back, and says if it couldn't.
 - "reply [to <name>] [in <app>] saying ...": Otto reads the chat, writes a short neutral, casual, polite reply
   that says what you asked, types it, and asks "should I send ...?" (always: the words are Otto's). Say no and
   the draft stays in the box. New live-test task "reply stops at the question".

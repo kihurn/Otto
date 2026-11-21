@@ -254,26 +254,34 @@ def test_without_a_key_search_falls_back_to_the_results_page(monkeypatch):
 
 # ---- background for any request (agent loop), 21 Nov ------------------------------------------------------------
 
-def test_give_back_hides_the_one_new_window_and_returns_yours(monkeypatch):
+def test_give_back_hides_the_window_otto_worked_in_and_returns_yours(monkeypatch):
     pc = FakeDesktop(monkeypatch, {1: "code.exe"}, front=1)
     pc.opens(5, "notepad.exe")
-    win.give_back(1, {1})
+    monkeypatch.setattr(win, "focus", lambda h: pc.focused.append(h) or setattr(pc, "front", h) or True)
+    assert win.give_back(1, {1}, worked=5) is True
     assert pc.minimised == [5] and pc.focused == [1]
 
 
-def test_give_back_with_two_new_windows_only_returns_yours(monkeypatch):
-    pc = FakeDesktop(monkeypatch, {1: "code.exe"}, front=1)
-    pc.opens(5, "notepad.exe")
-    pc.opens(6, "chrome.exe")
-    win.give_back(1, {1})
+def test_give_back_never_hides_a_window_otto_didnt_work_in(monkeypatch):
+    # Codex C3: Otto reused your Notepad and a call window appeared: the call must not be minimised.
+    pc = FakeDesktop(monkeypatch, {1: "code.exe", 5: "notepad.exe"}, front=5)
+    pc.opens(6, "teams.exe", front=False)
+    monkeypatch.setattr(win, "focus", lambda h: pc.focused.append(h) or setattr(pc, "front", h) or True)
+    assert win.give_back(1, {1, 5}, worked=5) is True
     assert pc.minimised == [] and pc.focused == [1]
+
+
+def test_give_back_says_when_your_window_didnt_come_back(monkeypatch):
+    pc = FakeDesktop(monkeypatch, {1: "code.exe", 5: "notepad.exe"}, front=5)
+    monkeypatch.setattr(win.time, "sleep", lambda s: None)
+    assert win.give_back(1, {1, 5}, worked=5) is False and pc.focused == [1, 1, 1]       # tried three times
 
 
 def test_the_screen_is_given_back_when_done_but_not_while_asking(monkeypatch):
     from types import SimpleNamespace as N
     from core.pipeline import Otto, Pending, Reply
     given = []
-    monkeypatch.setattr(win, "give_back", lambda mine, before: given.append((mine, before)))
+    monkeypatch.setattr(win, "give_back", lambda mine, before, worked=None: given.append((mine, before)) or True)
     o = Otto.__new__(Otto)
     o.pending = Pending("agent_confirm", expires=0, agent={})
     back = {"mine": 1, "before": [1]}

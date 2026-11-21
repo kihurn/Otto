@@ -294,16 +294,21 @@ class screen_borrowed:
                 pass
 
 
-def give_back(mine: int, before: set[int]) -> None:
-    """After a background request: the one window that appeared meanwhile is minimised (two or more: none, as
-    they can't be told apart from yours), and your window comes back to the front."""
+def give_back(mine: int, before: set[int], worked: int | None = None) -> bool:
+    """After a background request: the window Otto worked in (or left in front) is minimised if it is new, never
+    another window that happened to appear (a call); then your window comes back to the front, retried a few
+    times. Returns whether yours is in front (Codex C3: it used to report success when it wasn't)."""
     if not IS_WINDOWS:
-        return
-    new = [w["hwnd"] for w in windows() if w["hwnd"] not in before]
-    if len(new) == 1:
-        minimise(new[0])
-    if mine and exists(mine) and foreground() != mine:
+        return True
+    target = worked or foreground()
+    if target and target not in before and target != mine and exists(target):
+        minimise(target)
+    for _ in range(3):
+        if not mine or not exists(mine) or foreground() == mine:
+            break
         try:
             focus(mine)
-        except BaseException:          # a cancel while putting the window back: nothing else to do
-            pass
+        except BaseException:          # a cancel while putting the window back: stop trying
+            break
+        time.sleep(0.3)
+    return not mine or not exists(mine) or foreground() == mine

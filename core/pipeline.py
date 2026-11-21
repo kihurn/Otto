@@ -292,6 +292,9 @@ class Otto:
         if p.kind == "heard":
             self.pending = None
             if kind == "yes":
+                sends = (details.dictation(p.text, self.apps) or {}).get("send")
+                if sends and not guards.exact_yes(t):   # "okay, stop" must not confirm a send (Codex C3)
+                    return Reply("Okay, I won't.")
                 return self._process(p.text)
             if re.match(r"(?:no|nope|nah)\b.*\b(?:did not|didn'?t|wasn'?t|not (?:you|talking))\b", t, re.I):
                 return Reply("Okay, never mind.")      # "No I did not": it wasn't for Otto (20 Nov voice run)
@@ -549,6 +552,12 @@ class Otto:
         text, by = dictation.clean(said["text"], self.brain)
         self.trace.update(rule="dictation", cleaned_by=by, typed=text)
         typing = _typing_step(text, said["app"])
+        # No question only for your exact words: a model rewrite could change the meaning ("um I do not agree" ->
+        # "I agree"), a long text is cut, and "and send it" in a later breath may not be yours (Codex C3).
+        later, self.send_said_later = getattr(self, "send_said_later", False), False
+        if said["send"] and (by not in ("as said", "rules") or len(" ".join(said["text"].split())) > dictation.LIMIT
+                             or later):
+            said = dict(said, send=False, ask_send=True)
         if said["ask_send"]:
             return self._type_then_ask(t, typing, text, said["app"])
         steps = [typing] + ([{"do": "send_typed", "with": {"text": text, "app": said["app"]}}] if said["send"] else [])
@@ -556,13 +565,14 @@ class Otto:
         self.trace["plan"] = {"source": plan.source, "steps": plan.steps}
         return self._run(plan, None, t, confirmed=said["send"])
 
-    def _type_then_ask(self, t: str, typing: dict, text: str, app: str, note: str = "") -> Reply:
+    def _type_then_ask(self, t: str, typing: dict, text: str, app: str, note: str = "", to: str = "") -> Reply:
         """Type first, then ask about the send on its own: say no and the text stays in the box for you."""
         self.trace["plan"] = {"source": "builtin", "steps": [typing]}
         typed = self._run(planner.Plan([typing], "builtin"), None, t)
         if self.trace.get("outcome_status") not in ("verified", "simulated"):
             return typed                              # not typed (or not seen): say so, don't offer to send
-        asking = self._run(planner.Plan([{"do": "send_typed", "with": {"text": text, "app": app}}], "builtin"), None, t)
+        send = {"text": text, "app": app, **({"to": to} if to else {})}
+        asking = self._run(planner.Plan([{"do": "send_typed", "with": send}], "builtin"), None, t)
         if note and asking.text.startswith("Just checking"):
             asking.text = f"{asking.text} {note}"
         return asking
@@ -581,12 +591,16 @@ class Otto:
                 problem = "I can't tell which chat you're in."
             if not window:
                 return Reply(problem)
+            if asked["who"] and not app_control.chat_is_with(window["hwnd"], asked["who"]):
+                # Otto types in the chat that is open; it must be theirs (Codex C3).
+                return Reply(f"I can't see {asked['who']}'s chat open; open it first, then ask me again.")
             chat = app_control.chat_text(window["hwnd"])
         text, by = dictation.draft_reply(asked["what"], asked["who"], chat, self.brain)
         self.trace.update(rule="reply", written_by=by, typed=text, chat_read=bool(chat))
         # Always a question before sending ("Just checking: should I send ...?"): the words are the model's.
         return self._type_then_ask(t, _typing_step(text, asked["app"]), text, asked["app"],
-                                   "" if chat else "I couldn't read the chat, so I wrote it from what you said.")
+                                   "" if chat else "I couldn't read the chat, so I wrote it from what you said.",
+                                   to=asked["who"])
 
     APPROVALS = ("agent_confirm", "confirm_plan", "confirm_forget")    # a yes here lets something risky happen
 
@@ -684,6 +698,8 @@ class Otto:
                                stop=self.active_task)
         finally:
             self.active_task = None
+        if give_back:
+            give_back["worked"] = ctx.hwnd
         return self._background_done(self._agent_reply(t, result), result, give_back)
 
     def _agent_resume(self, p: Pending, answer: str | None = None, yes: bool | None = None) -> Reply:
@@ -705,7 +721,8 @@ class Otto:
                 self.pending.agent["give_back"] = give_back
             else:
                 from hands import win
-                win.give_back(give_back["mine"], set(give_back["before"]))
+                if not win.give_back(give_back["mine"], set(give_back["before"]), give_back.get("worked")):
+                    reply.text = f"{reply.text} I couldn't bring your window back to the front.".strip()
         return reply
 
     def _hide_indicator(self) -> None:

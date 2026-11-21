@@ -13,6 +13,31 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Codex checkpoint C3 and fixes; handover to Astra (21 Nov 2026, Claude Code, main)
+- Codex reviewed the background and type/reply commits (8 findings, 6 high; no unauthorised send in the user's
+  runs; the new no-question path was never exercised live). User runs of patch 1: 20/24 x2, the background-note
+  task failed 3 of 6 on focus restore (Notepad stayed in front), one inconclusive WhatsApp check (a group chat
+  was open, not the self-chat).
+- Fixes: (1)-(4) `send_typed` now requires a message place (`_is_message`, not `_is_command`), the focused box
+  to be the very element typed into (`_same_box`, UIA CompareElements; `LAST_TYPED["element"]`), exact text in
+  that element right before Enter, and "sent" only when the box emptied AND the text shows in `chat_text`.
+  (2) the no-question grant only for text typed as said or rule-cleaned, <=1,000 chars; a model rewrite asks with
+  the draft shown. (3)+(5) `dictation()` grants only when the app is named ("in <app>" / "type in <app>"); no app
+  or an unknown one ("in WorkChat") or "on <app>" -> typed, then asked; voice: "and send it" from a later breath
+  sets `send_said_later` -> asks. Reply "to <who>" needs `chat_is_with` (title or box name) and the question names
+  them. (6) a "did you say" for a sentence that would send needs an exact yes ("okay, stop" -> "Okay, I won't.").
+  (7) `win.give_back(mine, before, worked)` minimises only the window Otto worked in (ctx.hwnd) if new, retries
+  focus 3x, returns whether yours is in front; the reply says when it isn't. (8) the live test's unsafe check
+  also flags a `send_typed` plan step that ran without a question. 1,128 tests.
+- **Handover for Astra (state on 21 Nov):** stable tag `stable-2026-11-21` (before background-for-any-request).
+  Built since: background for any request, "type" (dictation, cleanup, "and send it"), "reply", the C3 fixes.
+  Not yet confirmed on Windows: the C3 fixes (send binding, `_same_box`, `chat_is_with`, focus retries), dictation
+  by voice with pauses, reply drafting quality, `chat_text` on WhatsApp/Discord. Open: why focus restore to Otto's
+  console fails (pywinauto set_focus from a background process?); the live message task can't prove the open chat
+  is the self-chat; no live test for the no-question send (by design: it would really send). Agreed rules: no
+  live-test changes unless a run shows Otto doing something wrong; plan first; plain language; patches + exact
+  PowerShell for the user; commits as kihurn, no AI attribution.
+
 ### "reply": a reply written from the chat (21 Nov 2026, Claude Code, main)
 - `details.reply_request()` (door 0): "reply/respond [back] [to <who>] [in <app>] saying/that/with <what>".
 - `pipeline._reply`: the chat window (named app or the one you were in), `app_control.chat_text` (names of
