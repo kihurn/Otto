@@ -403,6 +403,43 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
 
     try:
         awake = {"until": 0.0}     # Otto listens without "Hey Otto" until then (after a reply)
+
+        def dictating(said: str) -> bool:
+            """ "type ..." that may go on: not when it already has its ending ("and send it", "and save it")."""
+            from core import details
+            plain = re.sub(r"^(?:(?:can|could|would) you\s+)?(?:please\s+)?", "", said.strip(), flags=re.I)
+            return (re.match(r"type\b", plain, re.I) is not None and not details._OTHER_STEP.search(plain)
+                    and not details._SEND_IT.search(plain))
+
+        def details_send(said: str) -> bool:
+            from core import details
+            return details._SEND_IT.search(said) is not None
+
+        def dictate_more(first: str, sure: float) -> tuple[str, float]:
+            """Dictation (21 Nov): keep listening through pauses until a longer silence, "that's it" / "done" said on
+            its own, or a minute in all. Other sound stays down meanwhile."""
+            pause = float(settings["listen"].get("dictation_pause_s", 2.5))
+            pieces, worst, end = [first], sure, time.time() + 60
+            duck.acquire("talk", 75)
+            while time.time() < end:
+                more, c, _ = ears.listen(start_within=pause, pause=pause, longest=max(1.0, end - time.time()))
+                if not more or re.fullmatch(r"(?:done|that'?s it|that'?s all|stop typing)[.!]*", more.strip(), re.I):
+                    break
+                last = re.search(r"[,.]?\s*\b(?:that'?s it|that'?s all|stop typing)[.!]*$", more, re.I)
+                pieces.append(more[:last.start()] if last else more)
+                worst = min(worst, c)
+                dim(f"      ...{more}")
+                if last or details_send(more):
+                    break
+            # Whisper ends each piece with a full stop and starts the next with a capital ("Type." + "Hello"): join
+            # them as one sentence.
+            joined = ""
+            for p in (p.strip() for p in pieces if p.strip()):
+                if joined:
+                    joined = joined.rstrip(".") + " " + (p if p.startswith("I ") else p[:1].lower() + p[1:])
+                else:
+                    joined = p
+            return joined, worst
         if ears:
             def early(start: str) -> None:
                 # The first ~1.2 s of a sentence: if it's for Otto ("Hey Otto...", a follow-up, an answer), other
@@ -437,10 +474,11 @@ def run(settings, voice: bool, speak: bool, dry_run: bool, mode: str | None) -> 
                     if ears.mode == "wake":
                         beep()
                     out(f"{BOLD}you:{RESET} {text}  {DIM}({secs:.1f}s, sure {conf:.2f}){RESET}")
-                    import re
                     if re.fullmatch(r"(?:stop listening|mute(?: yourself)?|go to sleep|be quiet)[.!]*", text.strip(), re.I):
                         toggle_mute()
                         continue
+                    if ears.mode != "push" and dictating(text):     # push-to-talk: you hold the key as long as you need
+                        text, conf = dictate_more(text, conf)
                 else:
                     text = input(f"{BOLD}you>{RESET} ").strip()
             except (KeyboardInterrupt, EOFError):

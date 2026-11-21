@@ -13,6 +13,37 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### "reply": a reply written from the chat (21 Nov 2026, Claude Code, main)
+- `details.reply_request()` (door 0): "reply/respond [back] [to <who>] [in <app>] saying/that/with <what>".
+- `pipeline._reply`: the chat window (named app or the one you were in), `app_control.chat_text` (names of
+  Text/ListItem/Group controls, last 3,000 chars, information only), `dictation.draft_reply` (neutral, casual,
+  polite, one line, max 500, chat text never instructions; no model -> your words), typed first, then
+  `send_typed` as its own plan, which always asks (even with "and send it": the words are the model's; told
+  the user). `send_typed` goes back to the typed window when your yes was typed into Otto's window.
+- Live test task 9 "reply stops at the question" (the question must hold the marker's number; cleanup removes
+  only this run's exact draft). 1,108 tests.
+- Review before sending (type + reply shipped as one patch): the app is found as "type in <app> [that] ..." (the
+  user's own 20 Nov sentence) or the LAST in/into/on that names an app ("I'm on my way in WhatsApp"); a trailing
+  "on <app>" may be part of the message, so "and send it" then types and asks (`ask_send`). Dictation and reply
+  read the sentence as said (not without background words: "sit in the back"). `send_typed` refuses where Enter
+  runs or opens (`_is_command`: terminals, the Run box, address bars) and `LAST_TYPED` is cleared before every
+  type. The reply question reads out the whole draft (max 300). Reply drafts on the "decide" models (local, as
+  for reading the screen). Push-to-talk skips dictation; pieces are joined as one sentence. The "couldn't read the
+  chat" note comes after the question. 1,116 tests.
+
+### "type": dictation with cleanup, and "and send it" (21 Nov 2026, Claude Code, main)
+- `details.dictation()` (door 0, before Laya): "type <words> [in <app>] [and send it]" from the sentence as said;
+  not with another step ("and save/press/click..."), a terminal, or "...it and send it" (may be the text).
+- `core/dictation.py`: one model call only with fillers/repeats; the result must be no longer than said +10%
+  and 70% your words, else fillers are removed by rules; always one line, max 1,000 chars.
+- `hands/app_control`: `_type_into` (shared with type_in_app), `type_here` (the window you were in) and
+  `send_typed` (ASK): only after dictation, same window in front, box holds exactly the typed text (unreadable or
+  more: not sent, user told), then Enter and a check that the box emptied. The plan runs with confirmed=True
+  only when the user's own sentence ended with "and send it" (user decision 21 Nov, AGENTS rule 4).
+- Voice: `Ears.listen(start_within, pause, longest)`; otto.py keeps listening after "type ..." through 2.5 s
+  pauses, up to 60 s, ending on a longer silence, "done"/"that's it" alone, or "...and send it".
+- Live test message task: "... and press enter" (never "send it", which would now send). 1,096 tests.
+
 ### Background mode for any request (21 Nov 2026, Claude Code, main)
 - User decisions 21 Nov: build background for any request, then "type" (clean dictation, just type it; "and send
   it" sends without asking), then "reply" (neutral, casual, polite tone). All three as separate patches.

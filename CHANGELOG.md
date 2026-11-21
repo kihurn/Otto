@@ -1,6 +1,13 @@
 # Changelog
 
 ## 1.2 (in development)
+- "reply [to <name>] [in <app>] saying ...": Otto reads the chat, writes a short neutral, casual, polite reply
+  that says what you asked, types it, and asks "should I send ...?" (always: the words are Otto's). Say no and
+  the draft stays in the box. New live-test task "reply stops at the question".
+- "type ..." (dictation): Otto cleans up your words (fillers, repeats, grammar; one quick model call only when
+  needed, checked so it can't add ideas) and types them where you are, or in a named app. By voice it waits
+  through pauses (2.5 s, `listen.dictation_pause_s`) until a longer silence or "that's it". "... and send it"
+  sends without a question. The live test's message task now says "press enter".
 - "In the background" works for any request: Otto waits for a pause in your typing, does the job, minimises the
   one window it opened and puts yours back in front (while it asks you something, the window stays up). New
   live-test task "notepad in the background".

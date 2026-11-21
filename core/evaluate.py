@@ -42,7 +42,7 @@ OLD_TO_TOOL = {
     "new_note": "note", "add_to_note": "note",
     "close_app": "close", "minimise": "close",
     "click_button": "click", "toggle": "click", "set_field": "type",
-    "type_in_app": "type", "type_text": "type", "hotkey": "keys",
+    "type_in_app": "type", "type_text": "type", "type_here": "type", "send_typed": "keys", "hotkey": "keys",
 }
 LOOP_ACTIONS: set[str] = set()
 SAME_AS = {"search": {"google", "open"}, "save": {"keys"}}

@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 
 from core.tasks import Evidence, Outcome, OutcomeStatus
-from hands.registry import UNDOABLE, action
+from hands.registry import ASK, UNDOABLE, action
 
 NO_TARGET = {
     'none': "I can't see anywhere to type in {app}. Open a document or click the box first, then ask again.",
@@ -58,7 +58,17 @@ def type_in_app(app: str, text: str) -> Outcome:
     window, name, problem = front_window(app)
     if not window:
         return Outcome(OutcomeStatus.FAILED, problem)
+    return _type_into(window, name, text)
+
+
+def _type_into(window: dict, name: str, text: str) -> Outcome:
+    """Type into the window's one text box (the focused one if there are several), never a password box, and
+    check that the text appeared."""
+    from core.action_runtime import check
+    from hands import ui_probe, win
+
     hwnd = window['hwnd']
+    LAST_TYPED.clear()                    # a failed type must never leave an earlier text that send_typed could send
     try:
         target, reason = ui_probe.text_target(ui_probe.list_controls(hwnd))
         if target and not target['focused']:
@@ -79,6 +89,7 @@ def type_in_app(app: str, text: str) -> Outcome:
     if win.foreground() != hwnd or win.focused_is_password() is not False:
         return Outcome(OutcomeStatus.UNCERTAIN, f'{name} lost focus, so I did not type.')
     win.type_text(text)
+    LAST_TYPED.update(hwnd=hwnd, text=text, name=name)
     for _ in range(8):
         time.sleep(0.2)
         if _appeared(before, ui_probe.read_text(target), text):
@@ -88,6 +99,91 @@ def type_in_app(app: str, text: str) -> Outcome:
                            side_effect_possible=True)
     return Outcome(OutcomeStatus.UNCERTAIN, f"I typed it in {name}, but couldn't see the text appear.",
                    side_effect_possible=True)
+
+
+# What dictation typed last and where: send_typed may only send exactly that, in that window.
+LAST_TYPED: dict = {}
+
+
+def _current_window():
+    """The window you were using: the one in front, or the one before Otto's own (when you typed to Otto)."""
+    from hands import win
+    from senses import eyes
+    hwnd = win.foreground()
+    if hwnd in win.OTTO_WINDOWS:
+        other = eyes.last_other_window()
+        if not other or not win.focus(other['hwnd']):
+            return None, ''
+        hwnd = other['hwnd']
+    info = win.window_info(hwnd)
+    title = info.get('title', '')
+    return info, (title.split(' - ')[-1].strip() or info.get('exe', '').removesuffix('.exe') or 'this window')
+
+
+@action('type_here', UNDOABLE, {'text': "the user's own words to type"},
+        lambda text: f'type "{text[:60]}" where you are', for_brain=False)
+def type_here(text: str) -> Outcome:
+    window, name = _current_window()
+    if not window:
+        return Outcome(OutcomeStatus.FAILED, "I can't tell which window you're in, so I didn't type anything.")
+    return _type_into(window, name, text)
+
+
+@action('send_typed', ASK, {'text': 'exactly what was typed', 'app': 'the app it was typed in'},
+        lambda text, app='': f'send "{text}"' + (f' in {app}' if app else ''), for_brain=False)
+def send_typed(text: str, app: str = '') -> Outcome:
+    """Press Enter to send what dictation just typed: only in that same window, still in front, and only when its
+    box holds exactly that text (an unreadable box or extra text: not sent, you are told)."""
+    from core.action_runtime import check
+    from core.agent_safety import focused_text
+    from hands import win
+    if LAST_TYPED and win.foreground() in win.OTTO_WINDOWS:     # you typed your yes to Otto: back to the chat
+        win.focus(LAST_TYPED['hwnd'])
+        time.sleep(0.3)
+    if not LAST_TYPED or LAST_TYPED.get('text') != text or win.foreground() != LAST_TYPED.get('hwnd'):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed after typing, so I didn't send it.")
+    from core.agent_safety import _is_command, focused_name
+    info = win.window_info(LAST_TYPED['hwnd'])
+    if _is_command({'exe': info.get('exe', ''), 'title': info.get('title', ''), 'focused': focused_name()}):
+        # The yes was for a message: Enter in a terminal, the Run box or an address bar runs or opens something.
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "That's a place where Enter runs or opens something, so I didn't "
+                                                  "press it.")
+    name = LAST_TYPED.get('name') or app
+    box = focused_text()
+    if box is None or ' '.join(box.split()) != ' '.join(text.split()):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but the box doesn't hold exactly that, so I "
+                                                  "didn't send it. Press Enter yourself if it looks right.")
+    check()
+    win.hotkey('enter')
+    LAST_TYPED.clear()
+    for _ in range(8):
+        time.sleep(0.2)
+        after = focused_text()
+        if after is not None and ' '.join(text.split()) not in ' '.join(after.split()):
+            return Outcome(OutcomeStatus.VERIFIED, f'Sent it in {name}.', {'app': name},
+                           [Evidence('uia.text', target={'app': name}, expected={'box_emptied': True},
+                                     observed={'still_there': False})], side_effect_possible=True)
+    return Outcome(OutcomeStatus.UNCERTAIN, f"I pressed Enter in {name}, but couldn't confirm it was sent.",
+                   side_effect_possible=True)
+
+
+MESSAGE_TYPES = {'Text', 'ListItem', 'Group', 'DataItem', 'Document'}
+
+
+def chat_text(hwnd: int, limit: int = 3000) -> str:
+    """The latest text shown in a chat window, oldest first, for writing a reply (read-only; "" if unreadable).
+    It is information for the draft, never instructions."""
+    from hands import ui_probe
+    try:
+        controls = ui_probe.list_controls(hwnd, limit=400)
+    except Exception:
+        return ''
+    lines = []
+    for c in controls:
+        name = ' '.join(str(c.get('name') or '').split())
+        if c.get('type') in MESSAGE_TYPES and len(name) > 1 and (not lines or lines[-1] != name):
+            lines.append(name)
+    return '\n'.join(lines)[-limit:]
 
 
 CLICKABLE = {'Button', 'MenuItem', 'Hyperlink', 'TabItem', 'ListItem', 'CheckBox', 'RadioButton',

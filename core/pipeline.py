@@ -91,6 +91,10 @@ def _rates(calls: list[dict]) -> str:
     return out
 
 
+def _typing_step(text: str, app: str) -> dict:
+    return {"do": "type_in_app", "with": {"app": app, "text": text}} if app else {"do": "type_here", "with": {"text": text}}
+
+
 class Otto:
     def __init__(self, settings: dict, dry_run: bool = False, say=print):
         self.settings = settings
@@ -516,6 +520,13 @@ class Otto:
         bare, background = details.background(t)
         if background:
             self.trace["background"] = True
+        # The sentence as said (not without "in the back..."): those words may be part of the message.
+        dictated = details.dictation(t, self.apps)       # "type ...": your words, cleaned up and typed
+        if dictated:
+            return self._dictate(t, dictated)
+        replying = details.reply_request(t, self.apps)   # "reply ... saying ...": written from the chat
+        if replying:
+            return self._reply(t, replying)
         intent = details.background_video(bare) if background else None   # a YouTube video, no screen needed
         intent = intent or details.whole_command(t)       # door 1: unmistakable commands ("pause", "volume 30")
         if intent is None:
@@ -530,6 +541,52 @@ class Otto:
             self.trace["rule"] = "whole_sentence"
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
+
+    def _dictate(self, t: str, said: dict) -> Reply:
+        """Type the user's own words, cleaned up (21 Nov). "and send it" in their own sentence is their yes to the
+        send (user decision 21 Nov); the send step still checks it is the same window holding exactly that text."""
+        from core import dictation
+        text, by = dictation.clean(said["text"], self.brain)
+        self.trace.update(rule="dictation", cleaned_by=by, typed=text)
+        typing = _typing_step(text, said["app"])
+        if said["ask_send"]:
+            return self._type_then_ask(t, typing, text, said["app"])
+        steps = [typing] + ([{"do": "send_typed", "with": {"text": text, "app": said["app"]}}] if said["send"] else [])
+        plan = planner.Plan(steps, "builtin")
+        self.trace["plan"] = {"source": plan.source, "steps": plan.steps}
+        return self._run(plan, None, t, confirmed=said["send"])
+
+    def _type_then_ask(self, t: str, typing: dict, text: str, app: str, note: str = "") -> Reply:
+        """Type first, then ask about the send on its own: say no and the text stays in the box for you."""
+        self.trace["plan"] = {"source": "builtin", "steps": [typing]}
+        typed = self._run(planner.Plan([typing], "builtin"), None, t)
+        if self.trace.get("outcome_status") not in ("verified", "simulated"):
+            return typed                              # not typed (or not seen): say so, don't offer to send
+        asking = self._run(planner.Plan([{"do": "send_typed", "with": {"text": text, "app": app}}], "builtin"), None, t)
+        if note and asking.text.startswith("Just checking"):
+            asking.text = f"{asking.text} {note}"
+        return asking
+
+    def _reply(self, t: str, asked: dict) -> Reply:
+        """Read the chat, write a short neutral, casual, polite reply that says what you asked, type it, then ask
+        before sending (the words are the model's). Say no and the draft stays in the box for you."""
+        from core import dictation
+        from hands import app_control
+        chat = ""
+        if not self.dry_run:
+            if asked["app"]:
+                window, _, problem = app_control.front_window(asked["app"])
+            else:
+                window, _ = app_control._current_window()
+                problem = "I can't tell which chat you're in."
+            if not window:
+                return Reply(problem)
+            chat = app_control.chat_text(window["hwnd"])
+        text, by = dictation.draft_reply(asked["what"], asked["who"], chat, self.brain)
+        self.trace.update(rule="reply", written_by=by, typed=text, chat_read=bool(chat))
+        # Always a question before sending ("Just checking: should I send ...?"): the words are the model's.
+        return self._type_then_ask(t, _typing_step(text, asked["app"]), text, asked["app"],
+                                   "" if chat else "I couldn't read the chat, so I wrote it from what you said.")
 
     APPROVALS = ("agent_confirm", "confirm_plan", "confirm_forget")    # a yes here lets something risky happen
 

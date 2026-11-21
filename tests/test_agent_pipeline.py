@@ -98,7 +98,7 @@ def test_maths_answered_locally(new, monkeypatch):
                                   "type 2+2 in notepad", "open 7-zip"])
 def test_only_whole_questions_are_answered_locally(new, text):
     s = script(new, call("done", say="agent"))
-    assert new.handle(text).text in ("agent", "") or new.trace.get("rule") == "whole_sentence"
+    assert new.handle(text).text in ("agent", "") or new.trace.get("rule") in ("whole_sentence", "dictation")
     assert new.trace.get("answer_by") != "local"
 
 

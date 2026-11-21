@@ -468,6 +468,88 @@ def background_video(text: str) -> Intent | None:
     return Intent("media", "play_video", {"query": q}, full_match=True)
 
 
+# "type ..." (dictation, 21 Nov): the user's own words, cleaned up and typed. Anything with another step ("and save
+# it", "then press enter") or a terminal goes to the agent as before.
+_OTHER_STEP = re.compile(r"\b(?:and|then)\s+(?:also\s+)?(?:save|press|hit|click|open|close|search|run|enter)\b", re.I)
+_SEND_IT = re.compile(r"[,.]?\s+and\s+send\s+(?:it|that)[.!?]*$", re.I)
+_TERMINALS = {"powershell", "windows powershell", "command prompt", "cmd", "terminal", "windows terminal", "run"}
+
+
+def _app_named(words: str, apps) -> str:
+    found = apps.match_exact(" ".join(words.lower().split())) if apps is not None and words else None
+    return found["name"] if found else ""
+
+
+def _app_in_front(body: str, apps) -> tuple[str, str]:
+    """ "in Claude that everything works" -> ("Claude", "everything works") (the user's own way, 20 Nov log)."""
+    m = re.match(r"(?:in|into|on)\s+(?:the\s+)?(.+)$", body, re.I)
+    words = m[1].split() if m else []
+    for n in (3, 2, 1):                       # the longest app name first ("Windows PowerShell")
+        app = _app_named(" ".join(words[:n]), apps) if len(words) > n else ""
+        if app:
+            rest = re.sub(r"^(?:that|saying|:|,)\s*", "", " ".join(words[n:]), flags=re.I)
+            return app, rest
+    return "", body
+
+
+def _app_at_end(body: str, apps) -> tuple[str, str, str]:
+    """ "I'm on my way in WhatsApp" -> ("WhatsApp", "I'm on my way", "in"): the LAST in/into/on that names an app."""
+    for m in reversed(list(re.finditer(r"\s+(in|into|on)\s+(?:the\s+)?", body, re.I))):
+        app = _app_named(body[m.end():].strip(" .!?"), apps)
+        if app:
+            return app, body[:m.start()].strip(), m[1].lower()
+    return "", body, ""
+
+
+def dictation(text: str, apps=None) -> dict | None:
+    """{"text", "app", "send"} for "type <words> [in <app>] [and send it]" or "type in <app> [that] <words>", from
+    the sentence as said (its own capitals). "send" (no question) only when the sentence ends with "and send it",
+    not "...sign it and send it" (may be the text itself), and not when the app came from a trailing "on <app>"
+    ("type call me on WhatsApp and send it": "on WhatsApp" may be part of the message, so Otto asks)."""
+    s = " ".join((text or "").split())
+    s = re.sub(r"^(?:(?:hey|ok|okay|so|um+|uh+|oh|otto)[,.!]?\s+)*(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)?",
+               "", s, flags=re.I)
+    m = re.match(r"type\b[:,]?\s*(.*)$", s, re.I | re.S)
+    if not m or _OTHER_STEP.search(m[1]):
+        return None
+    app, body = _app_in_front(m[1].strip(), apps)
+    send = unsure = False
+    for _ in range(2):                      # "... in WhatsApp and send it" and "... and send it in WhatsApp"
+        sent = _SEND_IT.search(body)
+        if sent and not send and not re.search(r"\b(?:it|them|this|that)$", body[:sent.start()].strip(), re.I):
+            body, send = body[:sent.start()].strip(), True
+        if not app:
+            app, body, how = _app_at_end(body, apps)
+            unsure = how == "on"
+    body = body.strip(" ,")
+    if not body or app.lower() in _TERMINALS:
+        return None
+    # "ask_send": they said "and send it", but it's not clear enough to send without a question.
+    return {"text": body, "app": app, "send": send and not unsure, "ask_send": send and unsure}
+
+
+def reply_request(text: str, apps=None) -> dict | None:
+    """{"what", "who", "app"} for "reply [to <who>] [in <app>] saying/that <what> [in <app>]" (21 Nov). Otto writes
+    the reply from the chat; it always asks before sending (the words are the model's, not the user's)."""
+    s = " ".join((text or "").split())
+    s = re.sub(r"^(?:(?:hey|ok|okay|so|um+|uh+|oh|otto)[,.!]?\s+)*(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)?",
+               "", s, flags=re.I)
+    m = re.match(r"(?:reply|respond|answer)(?:\s+back)?(?:\s+to\s+(?P<who>[\w.'-]+(?:\s+[\w.'-]+)?))?"
+                 r"(?:\s+(?:in|on)\s+(?P<app1>[\w.]+))?[,:]?\s+(?:saying|that|to say|and say|and tell (?:him|her|them)|"
+                 r"telling (?:him|her|them)|with)\s+(?P<what>.+)$", s, re.I)
+    if not m or _OTHER_STEP.search(m["what"]):
+        return None
+    what = _SEND_IT.sub("", m["what"]).strip(" ,.")
+    app = _app_named(m["app1"] or "", apps)
+    if not app:
+        app, what, _ = _app_at_end(what, apps)
+    who = (m["who"] or "").strip()
+    if who.lower() in ("him", "her", "them", "this", "that", "it", "me"):
+        who = ""
+    what = what.strip(" ,.")
+    return {"what": what, "who": who, "app": app} if what and app.lower() not in _TERMINALS else None
+
+
 def whole_command(text: str) -> Intent | None:
     """Unmistakable commands that need no Laya: media keys, volume, what's playing, a timer with a length."""
     t = _t(text)

@@ -169,20 +169,29 @@ class Ears:
         conf = sum(s.avg_logprob * max(0.01, s.end - s.start) for s in segments) / total
         return text, float(conf)
 
-    def listen(self) -> tuple[str, float, float]:
+    def listen(self, start_within: float | None = None, pause: float | None = None,
+               longest: float = MAX_UTTER_S) -> tuple[str, float, float]:
         """Wait for one sentence. Returns (text, confidence, seconds of speech).
-        Confidence is Whisper's average log-probability: near 0 = sure, below about -1 = unsure."""
+        Confidence is Whisper's average log-probability: near 0 = sure, below about -1 = unsure.
+        Dictation: `start_within` gives up ("", 0, 0) if no speech starts that soon, `pause` is the silence that ends
+        the sentence (default end_silence_s), `longest` caps its length."""
         if self.mode == "push":
             return self._listen_push()
+        end_silence = pause or self.end_silence
+        give_up = time.time() + start_within if start_within else None
         pre: deque = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         speech: list[np.ndarray] = []
         quiet, early_done = 0.0, False
         while True:
-            block = self._next()
+            block = self._next(0.25 if give_up else None)
             if block is None:
+                if give_up and not speech and time.time() > give_up:
+                    return "", 0.0, 0.0
                 continue
             level = _rms(block)
             if not speech:
+                if give_up and time.time() > give_up:
+                    return "", 0.0, 0.0
                 if level >= self.threshold:
                     speech = list(pre) + [block]
                     quiet, early_done = 0.0, False
@@ -198,7 +207,7 @@ class Ears:
                     self.on_early(self._transcribe(np.concatenate(speech))[0])
                 except Exception:
                     pass
-            if quiet < self.end_silence and length < MAX_UTTER_S:
+            if quiet < end_silence and length < longest:
                 continue
             audio = np.concatenate(speech)
             speech, pre = [], deque(maxlen=pre.maxlen)
