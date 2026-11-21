@@ -2,6 +2,8 @@
 
 ## Current design (20 November 2026)
 
+Summary requests for a named kind of open source use `core/reading.py`. The reader records page or message coverage before summarizing. Agent chat approvals use the checked draft sender for questions that name a send. “Sent” requires a cleared draft and a new matching outgoing label in the same chat.
+
 One core. `core/pipeline.py` handles guards (wake word, gibberish, yes/no, cancel, "save that"), questions Otto
 is waiting on, and then either the **quick path** (Laya is sure and a whole-sentence rule in `core/details.py`
 covers the request: planner -> `core/safety.py` -> `hands/`, no model) or the **agent loop** (`core/agent.py`):

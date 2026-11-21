@@ -175,6 +175,20 @@ def read_text(control: dict, limit: int = 200_000) -> str | None:
     return None
 
 
+def reading_elements(hwnd: int, types: tuple[str, ...], parent=None) -> list:
+    """Find document and message elements without the interactive-control shortlist."""
+    uia = _uia()
+    ids = uia.UIA_dll
+    root = parent if parent is not None else uia.iuia.ElementFromHandle(hwnd)
+    condition = None
+    for kind in types:
+        match = uia.iuia.CreatePropertyCondition(ids.UIA_ControlTypePropertyId,
+                                                getattr(ids, f"UIA_{kind}ControlTypeId"))
+        condition = match if condition is None else uia.iuia.CreateOrCondition(condition, match)
+    items = root.FindAll(ids.TreeScope_Descendants, condition)
+    return [items.GetElement(i) for i in range(min(items.Length, 500))]
+
+
 def _pattern(control: dict, pattern_id: str, interface: str):
     """One of the standard ways Windows lets a program operate a control, or None if this control lacks it."""
     from pywinauto.uia_defines import IUIA

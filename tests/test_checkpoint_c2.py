@@ -50,6 +50,7 @@ def test_the_claude_trace_now_stops_at_the_question(monkeypatch):
     monkeypatch.setattr(agent_safety, "blocked", lambda name, args, ctx: None)
     ctx = tools.ToolContext(dry_run=False)
     ctx.history.append({"tool": "type", "args": {"text": "everything works right now"}, "ok": True})
+    ctx.draft = {"text": "everything works right now"}
     r = agent.run("can you type in claude that everything works right now", [],
                   Scripted(call("keys", keys="enter"), call("done", say="I've sent that message for you.")), ctx)
     assert r.status == "confirm" and r.say.startswith("send")
@@ -63,7 +64,9 @@ def test_a_sent_claim_needs_a_send_you_approved_whatever_the_request_said():
     request = "can you type in claude that everything works right now"
     assert _unbacked_claim("I've sent that message for you.", [typed, unasked_enter], request) == "Nothing was sent."
     assert _unbacked_claim("Your message was sent.", [typed], request) == "Nothing was sent."
-    assert _unbacked_claim("I've sent that message for you.", [typed, approved_enter], request) == ""
+    assert _unbacked_claim("I've sent that message for you.", [typed, approved_enter], request) == (
+        "I couldn't confirm it was sent.")
+    assert _unbacked_claim("I've sent that message for you.", [typed, dict(approved_enter, sent=True)], request) == ""
     assert _unbacked_claim("Ellee sent a clip earlier.", [], "what is on my discord") == ""   # not Otto's own claim
 
 

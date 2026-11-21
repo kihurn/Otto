@@ -165,10 +165,13 @@ def test_look_returns_information_and_remembers_the_region(monkeypatch):
 def test_coordinate_click_on_a_send_button_asks(monkeypatch):
     from core import agent_safety, tools
     monkeypatch.setattr(agent_safety, "name_at", lambda x, y: "Send")
+    monkeypatch.setattr(agent_safety, "front",
+                        lambda ctx: {"exe": "whatsapp.exe", "title": "WhatsApp", "focused": "Type a message"})
+    monkeypatch.setattr(agent_safety, "focused_text", lambda: "A sample draft")
     c = tools.ToolContext()
     c.look = {"region": (0, 0, 1280, 720), "scale": 1.0}
     q = agent_safety.check("click", {"x": 100, "y": 200}, c)
-    assert q and "Send" in q
+    assert q == 'send "A sample draft" in WhatsApp'
 
 
 def test_coordinate_click_on_unknown_with_send_reason_asks(monkeypatch):

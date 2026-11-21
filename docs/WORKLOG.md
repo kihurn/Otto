@@ -3,6 +3,8 @@
 Shared by every agent (Claude Code, Codex) and the user. Newest first inside each section.
 
 ## In progress
+
+- [codex] Summary coverage and WhatsApp send repairs – started 2026-11-22. Windows acceptance and attachment handoff remain open.
 <!-- Claim before starting: - [agent] task – started YYYY-MM-DD (files you expect to touch) -->
 - [claude] Checkpoint C fixes built 20 Nov (patch l). Next: the user's live + voice run, Codex's look at patch l, then background mode (step 4c).
 
@@ -12,6 +14,11 @@ delete the old core, teaching mode. MCP (Gmail/Calendar) moved to "Later". Older
 goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
+
+### Summary coverage and send evidence (22 Nov 2026, Codex)
+
+- Common summary requests use a source reader. It reports clipped or missing material and refuses an unidentified PDF. Text PDFs opened from a local file use page-by-page extraction. Chrome article text and chat message lists depend on the Windows accessibility data the app exposes.
+- Agent chat sends use the checked draft operation after approval. A successful Enter alone cannot earn “sent,” and send attempts are excluded from saved examples. The Send-button unit test uses a fake window and draft.
 
 ### Codex checkpoint C3 and fixes; handover to Astra (21 Nov 2026, Claude Code, main)
 - Codex reviewed the background and type/reply commits (8 findings, 6 high; no unauthorised send in the user's

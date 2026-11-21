@@ -58,6 +58,7 @@ class ToolContext:
     why: str = ""                                    # the model's reason for the current call (safety reads it)
     request: str = ""                                # the user's request (some tools check what was asked)
     approved: str = ""                               # the question the user said yes to (for the final check)
+    draft: dict = field(default_factory=dict)        # box and exact text verified after typing this turn
 
 
 @dataclass
@@ -166,6 +167,10 @@ def _call(name: str, args: dict, ctx: ToolContext) -> ToolResult:
         return ToolResult(False, refused, {"blocked": True})
     question = agent_safety.check(name, clean, ctx)
     if question:
+        if (not ctx.dry_run and question.startswith("send ") and agent_safety._last_typed(ctx)
+                and not ctx.draft):
+            return ToolResult(False, "I couldn't verify the draft. Check the message box before sending.",
+                              {"end": "done"})
         return ToolResult(False, f"Waiting for a yes: {question}.", asks=question)
     from core.safety import NeedsConfirm
     had_controls = bool(ctx.controls)
@@ -589,6 +594,7 @@ def _point(ctx, control=None, x=None, y=None):
 def _type(ctx, text, control=None):
     from core.sensitive import sensitive
     from hands import ui_probe
+    ctx.draft.clear()
     target = _control(ctx, control) if control is not None else None
     if control is not None and not target:
         if ctx.controls:
@@ -623,6 +629,7 @@ def _type(ctx, text, control=None):
             # Only an empty box is filled directly: setting a value replaces everything already in it.
             back = ui_probe.read_text(target)
             if back is not None and text.strip() in back:
+                ctx.draft.update(hwnd=ctx.hwnd, name=ctx.app, element=target["element"], text=text)
                 return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
         try:
             target["element"].SetFocus()          # type at the cursor in that box, keeping what is there
@@ -639,6 +646,7 @@ def _type(ctx, text, control=None):
     if target is not None:
         back = ui_probe.read_text(target)
         if back is not None and text.strip() in back:
+            ctx.draft.update(hwnd=ctx.hwnd, name=ctx.app, element=target["element"], text=text)
             return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
     return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True})
 

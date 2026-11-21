@@ -123,6 +123,9 @@ def test_tools_call_runs_the_safety_check_first(make, monkeypatch):
     monkeypatch.setattr(win, "focused_is_password", lambda: False)
     ctx = make("discord.exe", "Discord", "Message @John", [READ, typed("hi")])
     r = tools.call("keys", {"keys": "enter"}, ctx)
+    assert not r.asks and "couldn't verify the draft" in r.say and not pressed
+    ctx.draft = {"text": "hi"}
+    r = tools.call("keys", {"keys": "enter"}, ctx)
     assert r.asks and not pressed
     ctx.confirmed = True
     assert tools.call("keys", {"keys": "enter"}, ctx).ok and pressed == ["enter"]
@@ -353,7 +356,7 @@ def test_a_changed_draft_is_asked_about_again(monkeypatch):
     assert r2.status == "confirm" and "bring the money" in r2.say and not pressed
     brain.replies.append(call("done", say="Sent."))
     r3 = agent.resume(r2.pending, brain, yes=True)
-    assert pressed == ["enter"] and r3.status == "done"
+    assert not pressed and r3.status == "stopped" and "verify the draft" in r3.say
 
 
 def test_terminal_commands_are_never_typed_key_by_key(make, monkeypatch):

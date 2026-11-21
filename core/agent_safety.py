@@ -158,7 +158,7 @@ def blocked(name: str, args: dict, ctx) -> str | None:
         # Enter in a terminal runs exactly the command Otto just typed, nothing else (Codex checkpoint C, 20 Nov).
         return None if command_just_typed(ctx) else (
             "Not run. I only run a command I just typed: type the whole command, then press enter.")
-    if not _is_message(w) or _read_since_moved(ctx):
+    if not _is_message(w) or _search_box(w) or _read_since_moved(ctx):
         return None
     return ("Not sent. First use read_window (or look) to check that the right chat is open and what the message "
             "box holds, then press enter again without clicking anything in between.")
@@ -272,6 +272,12 @@ EDITOR_EXE = {"notepad.exe", "wordpad.exe", "winword.exe", "excel.exe", "powerpn
               "notepad++.exe", "obsidian.exe"}
 PASTE_KEYS = {"ctrl+v", "shift+insert", "ctrl+shift+v"}
 SEARCH_FIELD = re.compile(r"\b(search|address|find|url|filter|go to)\b", re.I)
+CHAT_SEARCH = re.compile(r"(?:search(?: or start a new chat| chats)?|find in (?:this )?chat)",
+                         re.I)
+
+
+def _search_box(w: dict) -> bool:
+    return bool(CHAT_SEARCH.fullmatch(w["focused"].strip()))
 
 
 def _typed_this_turn(ctx) -> bool:
@@ -331,7 +337,8 @@ def check(name: str, args: dict, ctx) -> str | None:
                 return question
         if final == "enter" and _is_command(w):
             return f'run "{command_just_typed(ctx)}" in {_app_name(w)}'
-        if final == "enter" and (_is_message(w) or (_typed_this_turn(ctx) and not _harmless_enter(w))):
+        if final == "enter" and not _search_box(w) and (
+                _is_message(w) or (_typed_this_turn(ctx) and not _harmless_enter(w))):
             return _send_question(ctx, w, _last_typed(ctx))
         if final in {"delete", "backspace"} and _selected_all(ctx):
             return f"delete everything selected in {_app_name(w)}"

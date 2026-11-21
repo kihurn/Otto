@@ -102,7 +102,8 @@ def test_send_typed_only_sends_exactly_what_was_typed_in_that_box(monkeypatch):
     monkeypatch.setattr(app_control, "_same_box", lambda el: same[0])
     box = ["hello there plus more"]
     monkeypatch.setattr(ui_probe, "read_text", lambda c, limit=0: box[0])
-    monkeypatch.setattr(app_control, "chat_text", lambda hwnd: "Me: hello there")
+    messages = iter(["Me: hello there", "Me: hello there\nMe: hello there"])
+    monkeypatch.setattr(app_control, "chat_text", lambda hwnd: next(messages, ""))
 
     def armed():
         app_control.LAST_TYPED.clear()
@@ -117,7 +118,7 @@ def test_send_typed_only_sends_exactly_what_was_typed_in_that_box(monkeypatch):
     monkeypatch.setattr(win, "foreground", lambda: 4)               # another window in front
     assert app_control.send_typed("hello there").status == OutcomeStatus.NEEDS_INPUT and pressed == []
     monkeypatch.setattr(win, "foreground", lambda: 9)
-    reads = iter(["hello there", ""])
+    reads = iter(["hello there", "hello there", ""])
     monkeypatch.setattr(ui_probe, "read_text", lambda c, limit=0: next(reads, ""))
     result = app_control.send_typed("hello there")
     assert pressed == ["enter"] and result.status == OutcomeStatus.VERIFIED and result.say == "Sent it in WhatsApp."

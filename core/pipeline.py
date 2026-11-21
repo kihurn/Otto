@@ -530,6 +530,12 @@ class Otto:
         replying = details.reply_request(t, self.apps)   # "reply ... saying ...": written from the chat
         if replying:
             return self._reply(t, replying)
+        if (self.last or {}).get("send_attempt") and self._CORRECTION.match(t):
+            return Reply("Check the conversation before trying again. I can't tell from your correction what arrived.")
+        from core import reading
+        source = reading.summary_kind(t)
+        if source:
+            return self._summarize_source(t, source)
         intent = details.background_video(bare) if background else None   # a YouTube video, no screen needed
         intent = intent or details.whole_command(t)       # door 1: unmistakable commands ("pause", "volume 30")
         if intent is None:
@@ -544,6 +550,29 @@ class Otto:
             self.trace["rule"] = "whole_sentence"
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
+
+    def _summarize_source(self, text: str, source: str) -> Reply:
+        from core import agent_safety, reading, tools
+        from core.action_runtime import ActionInterrupted
+        from hands import win
+        if self.dry_run:
+            return Reply(f"I would read the {source} and summarize the material I could verify.")
+        if (source == "pdf" and re.search(r"\b(?:sent|shared|posted)\b.*\b(?:group|chat)\b", text, re.I)
+                and not re.search(r"\b(?:open|opened|this)\b", text, re.I)):
+            return Reply("Open the attachment itself so I can identify which PDF to read.")
+        agent_safety.back_to_user_window(tools.ToolContext())
+        hwnd = win.foreground()
+        if source != "clipboard" and (not hwnd or hwnd in win.OTTO_WINDOWS):
+            return Reply("Open the source first so I can read it.")
+        try:
+            content, coverage = reading.collect(hwnd, source, scroll=True)
+            if not content.strip():
+                return Reply(coverage if coverage.startswith("I couldn't") else f"No readable text. {coverage}.")
+            return Reply(f"{coverage}. {reading.summarize(content, text, self.brain)}")
+        except ActionInterrupted:
+            raise
+        except Exception:
+            return Reply("I couldn't read the source or finish its summary.")
 
     def _dictate(self, t: str, said: dict) -> Reply:
         """Type the user's own words, cleaned up (21 Nov). "and send it" in their own sentence is their yes to the
@@ -765,8 +794,10 @@ class Otto:
             return Reply(f"Just checking: should I {result.say}?")
         # Saveable only if it really ran (not a dry run), finished, and every step that acted worked.
         saveable = (not self.dry_run and result.status == "done" and result.ok and bool(acting)
-                    and all(c.get("ok") for c in acting) and not agent.unverified_save(calls))
+                    and all(c.get("ok") for c in acting) and not agent.unverified_save(calls)
+                    and not any(c.get("send_attempt") for c in calls))
         self.last = {"text": t, "intent": None, "plan": None, "ok": saveable,
+                     "send_attempt": any(c.get("send_attempt") for c in calls),
                      "agent": [c for c in calls if c.get("ok") and not c.get("asked")]}
         return Reply(result.say or ("Done." if result.ok else ""))
 

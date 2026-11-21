@@ -58,6 +58,10 @@ def similar(request: str, k: int = 5) -> list[dict]:
         return []
     scored = []
     for index, item in enumerate(load()):
+        if any(call.get("tool") == "done"
+               and re.search(r"\b(?:sent|posted|submitted)\b", call.get("args", {}).get("say", ""), re.I)
+               for call in item["calls"]):
+            continue   # legacy records contain claims and keypresses, without delivery evidence
         have = _words(item["request"])
         overlap = len(want & have) / len(want | have) if have else 0.0
         if overlap > 0:

@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.2 (in development)
+
+- Summaries report source coverage for readable chat history, Chrome page text, copied text, and text PDFs opened locally.
+- Agent chat sends check the typed draft and look for new outgoing evidence after approval. Searching a recognized chat search field no longer asks to send.
 - Safety (Codex checkpoint C3): "and send it" sends without a question only when you named the app, your words
   were typed as said, and it was said in the same breath; otherwise Otto types and asks. The send is tied to the
   very box Otto typed into, never where Enter runs something, and only reported once the message shows in the

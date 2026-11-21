@@ -17,6 +17,7 @@ psutil
 pycaw
 comtypes
 rapidfuzz
+pypdf
 wordfreq
 winotify
 pynput

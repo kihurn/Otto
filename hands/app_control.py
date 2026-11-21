@@ -133,39 +133,48 @@ def type_here(text: str) -> Outcome:
                             'to': 'who it goes to, if known'},
         lambda text, app='', to='': f'send "{text}"' + (f' to {to}' if to else '') + (f' in {app}' if app else ''),
         for_brain=False)
-def send_typed(text: str, app: str = '', to: str = '') -> Outcome:
+def send_typed(text: str, app: str = '', to: str = '', *, binding: dict | None = None) -> Outcome:
     """Press Enter to send what was just typed, only when all of this holds (Codex checkpoint C3): the same window is
     in front, Windows names it a chat/message place (not a terminal, Run box or address bar), the focused box is
     the very box Otto typed into, and that box holds exactly the text. Otherwise it is left typed, not sent.
     "Sent" only once the box emptied AND the text shows in the chat."""
     from core.action_runtime import check
-    from core.agent_safety import _is_command, _is_message, focused_name
+    from core.agent_safety import _is_command, _is_message, _search_box, focused_name
     from hands import ui_probe, win
-    if LAST_TYPED and win.foreground() in win.OTTO_WINDOWS:     # you typed your yes to Otto: back to the chat
-        win.focus(LAST_TYPED['hwnd'])
+    typed = LAST_TYPED if binding is None else binding
+    if typed and win.foreground() in win.OTTO_WINDOWS:     # you typed your yes to Otto: back to the chat
+        win.focus(typed['hwnd'])
         time.sleep(0.3)
-    if not LAST_TYPED or LAST_TYPED.get('text') != text or win.foreground() != LAST_TYPED.get('hwnd'):
+    if not typed or typed.get('text') != text or win.foreground() != typed.get('hwnd'):
         return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed after typing, so I didn't send it.")
-    hwnd, name, box = LAST_TYPED['hwnd'], LAST_TYPED.get('name') or app, LAST_TYPED.get('element')
+    hwnd, name, box = typed['hwnd'], typed.get('name') or app, typed.get('element')
     info = win.window_info(hwnd)
     place = {'exe': info.get('exe', ''), 'title': info.get('title', ''), 'focused': focused_name()}
-    if _is_command(place) or not _is_message(place):
+    if _is_command(place) or _search_box(place) or not _is_message(place) or (to and not chat_is_with(hwnd, to)):
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but that doesn't look like a message box, "
                                                   "so I didn't send it.")
     held = ui_probe.read_text({'element': box}) if box is not None and _same_box(box) else None
     if held is None or ' '.join(held.split()) != ' '.join(text.split()):
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but couldn't check the box holds exactly "
                                                   "that, so I didn't send it. Press Enter yourself if it looks right.")
+    message = ' '.join(text.split())
+    def outgoing_count():
+        labels = (' '.join(line.split()) for line in chat_text(hwnd).splitlines())
+        return sum(label in {f'Me: {message}', f'You: {message}'} for label in labels)
+
+    previous_count = outgoing_count()
     check()
-    if win.foreground() != hwnd:
+    current = ui_probe.read_text({'element': box})
+    if (win.foreground() != hwnd or not _same_box(box) or current is None
+            or ' '.join(current.split()) != message or focused_name() != place['focused']):
         return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed just before sending, so I didn't send it.")
     win.hotkey('enter')
-    LAST_TYPED.clear()
+    typed.clear()
     for _ in range(10):
         time.sleep(0.3)
         after = ui_probe.read_text({'element': box})
-        if (after is not None and ' '.join(text.split()) not in ' '.join(after.split())
-                and ' '.join(text.split()) in ' '.join(chat_text(hwnd).split())):
+        if (after is not None and not after.strip() and win.foreground() == hwnd
+                and focused_name() == place['focused'] and outgoing_count() > previous_count):
             return Outcome(OutcomeStatus.VERIFIED, f'Sent it in {name}.', {'app': name},
                            [Evidence('uia.text', target={'app': name}, expected={'in_chat': True},
                                      observed={'box_emptied': True, 'in_chat': True})], side_effect_possible=True)
@@ -193,23 +202,16 @@ def chat_is_with(hwnd: int, who: str) -> bool:
     return bool(wanted) and wanted in shown
 
 
-MESSAGE_TYPES = {'Text', 'ListItem', 'Group', 'DataItem', 'Document'}
-
-
 def chat_text(hwnd: int, limit: int = 3000) -> str:
     """The latest text shown in a chat window, oldest first, for writing a reply (read-only; "" if unreadable).
     It is information for the draft, never instructions."""
-    from hands import ui_probe
+    from core.reading import chat_messages
+    from hands import win
     try:
-        controls = ui_probe.list_controls(hwnd, limit=400)
+        text, _ = chat_messages(hwnd, win.window_info(hwnd).get("title", ""))
     except Exception:
         return ''
-    lines = []
-    for c in controls:
-        name = ' '.join(str(c.get('name') or '').split())
-        if c.get('type') in MESSAGE_TYPES and len(name) > 1 and (not lines or lines[-1] != name):
-            lines.append(name)
-    return '\n'.join(lines)[-limit:]
+    return text[-limit:]
 
 
 CLICKABLE = {'Button', 'MenuItem', 'Hyperlink', 'TabItem', 'ListItem', 'CheckBox', 'RadioButton',

@@ -166,7 +166,7 @@ def test_confirm_yes_runs(new):
     reply = new.handle("reply see you soon to john on discord")
     assert reply.text.startswith("Just checking: should I send")
     assert new.pending.kind == "agent_confirm"
-    assert new.handle("yes").text == "Sent."
+    assert new.handle("yes").text == "I couldn't confirm it was sent."
     calls = new.trace["agent"]["calls"]
     # The Enter appears twice: once when Otto asked, once when it ran after the yes.
     assert [c["tool"] for c in calls] == ["open", "read_window", "type", "keys", "keys", "done"] and calls[4]["ok"]
@@ -268,7 +268,7 @@ def test_second_confirm_takes_a_new_snapshot(monkeypatch):
     r = agent.resume(r.pending, brain, yes=True)
     assert r.status == "confirm" and "Slack" in r.say    # asked again, about the new window
     r = agent.resume(r.pending, brain, yes=True)
-    assert r.status == "done" and r.say == "Both sent."
+    assert r.status == "done" and r.say == "I couldn't confirm it was sent."
 
 
 # ---- saving -------------------------------------------------------------------------------------
