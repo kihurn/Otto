@@ -40,7 +40,7 @@ def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     visible = uia.iuia.CreatePropertyCondition(ids.UIA_IsOffscreenPropertyId, False)
     wanted = uia.iuia.CreateAndCondition(types, visible)
     cache = uia.iuia.CreateCacheRequest()
-    for prop in (ids.UIA_NamePropertyId, ids.UIA_ControlTypePropertyId, ids.UIA_AutomationIdPropertyId,
+    for prop in (ids.UIA_RuntimeIdPropertyId, ids.UIA_NamePropertyId, ids.UIA_ControlTypePropertyId, ids.UIA_AutomationIdPropertyId,
                  ids.UIA_BoundingRectanglePropertyId, ids.UIA_IsPasswordPropertyId, ids.UIA_IsEnabledPropertyId,
                  ids.UIA_HasKeyboardFocusPropertyId, ids.UIA_IsValuePatternAvailablePropertyId,
                  ids.UIA_ValueIsReadOnlyPropertyId, ids.UIA_IsTogglePatternAvailablePropertyId,
@@ -49,11 +49,16 @@ def list_controls(hwnd: int, limit: int = MAX_CONTROLS) -> list[dict]:
     # One round trip to the app: Windows returns every match with the properties above already filled in.
     found = uia.iuia.ElementFromHandle(hwnd).FindAllBuildCache(ids.TreeScope_Descendants, wanted, cache)
     controls = []
+    seen = set()
     for index in range(found.Length):
         if len(controls) >= limit:
             break
         element = found.GetElement(index)
         try:
+            identity = tuple(element.GetCachedPropertyValue(ids.UIA_RuntimeIdPropertyId) or ())
+            if identity and identity in seen:
+                continue
+            seen.add(identity)
             box = element.CachedBoundingRectangle
             if box.right - box.left <= 0 or box.bottom - box.top <= 0:
                 continue
@@ -160,6 +165,11 @@ def read_text(control: dict, limit: int = 200_000) -> str | None:
 
     ids = IUIA().UIA_dll
     element = control['element']
+    # Chromium's text range includes placeholder text even when its editable value is empty.
+    if control.get("type") in {"Edit", "ComboBox"}:
+        value = _pattern(control, "UIA_ValuePatternId", "IUIAutomationValuePattern")
+        if value is not None:
+            return value.CurrentValue
     try:
         pattern = element.GetCurrentPattern(ids.UIA_TextPatternId)
         if pattern:
@@ -201,6 +211,48 @@ def _pattern(control: dict, pattern_id: str, interface: str):
         return found.QueryInterface(getattr(ids, interface)) if found else None
     except Exception:
         return None
+
+
+def unique_elements(elements):
+    """WebView can expose the same Windows control through several descendant paths."""
+    seen = set()
+    for element in elements:
+        identity = tuple(element.GetRuntimeId())
+        if identity and identity not in seen:
+            seen.add(identity)
+            yield element
+
+
+def whatsapp_rows(hwnd, *, sidebar):
+    """Read one accessible range per row. Sidebar rows belong to the named Chat list grid."""
+    docs = list(unique_elements(reading_elements(hwnd, ("Document",))))
+    if len(docs) != 1:
+        return []
+    document = _pattern({"element": docs[0]}, "UIA_TextPatternId", "IUIAutomationTextPattern")
+    grids = [e for e in reading_elements(hwnd, ("DataGrid",), parent=docs[0])
+             if e.CurrentName.casefold().rstrip(".") in {"chat list", "search results"}]
+    if not document or len(grids) != 1:
+        return []
+    chat_rows = reading_elements(hwnd, ("DataItem",), parent=grids[0])
+    excluded = set() if sidebar else {tuple(e.GetRuntimeId()) for e in chat_rows}
+    elements = chat_rows if sidebar else reading_elements(hwnd, ("DataItem",), parent=docs[0])
+    rows = []
+    chat_section = grids[0].CurrentName.casefold() == "chat list"
+    for row in unique_elements(elements):
+        if row.CurrentAriaRole != "row" or tuple(row.GetRuntimeId()) in excluded:
+            continue
+        if sidebar and grids[0].CurrentName.casefold() != "chat list":
+            if row.CurrentName.strip().casefold() in {"chats", "groups", "contacts", "messages"}:
+                chat_section = row.CurrentName.strip().casefold() in {"chats", "groups", "contacts"}
+                continue
+            if not chat_section:
+                continue
+        if row.CurrentIsOffscreen:
+            continue
+        value = document.RangeFromChild(row).GetText(4000).strip()
+        if value and (sidebar or value.splitlines()[0].endswith(":")):
+            rows.append((row, value))
+    return rows
 
 
 def press(control: dict) -> bool:

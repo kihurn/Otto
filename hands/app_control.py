@@ -42,6 +42,10 @@ def _same(a: dict, b: dict) -> bool:
     return (a['type'], a['name'], a['automation_id']) == (b['type'], b['name'], b['automation_id'])
 
 
+def composer_recipient(label: str) -> str:
+    return re.sub(r"^(?:type a message to |message to |message [@#])(?:group )?", "", label, flags=re.I)
+
+
 def whatsapp_box(who: str):
     """Locate the open recipient's composer using the desktop app's own accessible label."""
     from core.sensitive import sensitive
@@ -54,13 +58,93 @@ def whatsapp_box(who: str):
         return None, None
     if win.foreground() != hwnd:
         return None, None
-    pattern = r"(?:type a message to |message to |message [@#])(?:group )?" + re.escape(who)
+    pattern = r"(?:type a message to |message to |message [@#])(?:group )?" + (re.escape(who) if who else r".+")
     if who.casefold() in {"myself", "yourself"}:
-        pattern = r"(?:message yourself|(?:type a )?message to yourself)"
+        own = [value.splitlines()[0].strip() for _, value in ui_probe.whatsapp_rows(hwnd, sidebar=True)
+               if _self_chat_row(value)]
+        recipient = re.escape(own[0]) if len(own) == 1 else "yourself"
+        pattern = rf"(?:message yourself|(?:type a )?message to (?:yourself|{recipient}))"
     boxes = [c for c in ui_probe.list_controls(hwnd, limit=400)
              if c["type"] in ui_probe.TEXT_TYPES and c["enabled"] and not c.get("read_only")
              and not sensitive(c) and re.fullmatch(pattern, " ".join(c["name"].split()), re.I)]
     return hwnd, boxes[0] if len(boxes) == 1 else None
+
+
+@action("find_chat", UNDOABLE, {"to": "exact WhatsApp conversation name"},
+        lambda to: f"find {to} in WhatsApp", for_brain=False)
+def find_chat(to: str) -> Outcome:
+    from core.action_runtime import check
+    from hands import ui_probe, win
+    hwnd, box = whatsapp_box(to)
+    if not hwnd:
+        window, _, problem = front_window("WhatsApp")
+        if not window:
+            return Outcome(OutcomeStatus.NEEDS_INPUT, problem)
+        hwnd, box = whatsapp_box(to)
+        if not hwnd:
+            return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't identify WhatsApp's desktop window.")
+    if box:
+        opened = True
+    else:
+        opened = _open_chat_row(hwnd, to)
+    if opened is False:
+        controls = ui_probe.list_controls(hwnd, limit=400)
+        fields = [c for c in controls if c["type"] in {"Edit", "ComboBox", "Document"} and c["enabled"] and not c.get("password")
+                  and c["name"].casefold() in {"search", "search or start a new chat", "search chats"}]
+        check()
+        if len(fields) != 1:
+            return Outcome(OutcomeStatus.NEEDS_INPUT, f"I found {len(fields)} matching WhatsApp search boxes.")
+        if win.foreground() != hwnd and not win.focus(hwnd):
+            return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't activate WhatsApp's chat search.")
+        if not _replace_value(hwnd, fields[0], to):
+            return Outcome(OutcomeStatus.NEEDS_INPUT, "WhatsApp's search box didn't accept the search text.")
+        for _ in range(10):
+            check()
+            if win.foreground() != hwnd:
+                break
+            opened = _open_chat_row(hwnd, to)
+            if opened is not False:
+                break
+            time.sleep(0.15)
+    if opened is None:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"Several chats match {to}. Open the one you mean.")
+    if opened and not box:
+        for _ in range(8):
+            check()
+            if win.foreground() != hwnd:
+                break
+            _, box = whatsapp_box(to)
+            if box:
+                break
+            time.sleep(0.15)
+    if not box:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I couldn't verify {to} as the open conversation.")
+    return Outcome(OutcomeStatus.VERIFIED, f"Opened {to}.", evidence=[Evidence("uia.composer", target={"to": to})])
+
+
+def _self_chat_row(value):
+    parts = value.splitlines()
+    return len(parts) > 1 and parts[1].strip().casefold() == "(you)"
+
+
+def _open_chat_row(hwnd, to):
+    from hands import mouse, ui_probe, win
+    own = to.casefold() in {"myself", "yourself"}
+    rows = [row for row, value in ui_probe.whatsapp_rows(hwnd, sidebar=True)
+            if (_self_chat_row(value) if own else value.splitlines()[0].strip().casefold() == to.casefold())]
+    if len(rows) > 1:
+        return None
+    if not rows or (win.foreground() != hwnd and not win.focus(hwnd)) or win.foreground() != hwnd:
+        return False
+    row = rows[0]
+    if ui_probe.press({"element": row}):
+        return True
+    rect = row.CurrentBoundingRectangle
+    x, y = (rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2
+    if win.window_at(x, y) != hwnd:
+        return False
+    mouse.click_at(x, y)
+    return True
 
 
 @action("draft_whatsapp", UNDOABLE, {"to": "open recipient", "text": "reply draft"},
@@ -85,19 +169,17 @@ def draft_whatsapp(to: str, text: str) -> Outcome:
     else:
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I couldn't focus {to}'s message box.")
     before = ui_probe.read_text(box)
-    if before not in ("", text):
+    if before not in ("", "\n", text):
         reason = "couldn't read the existing draft" if before is None else "found an existing draft"
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I {reason} in {to}'s message box.")
     if before != text:
         check()
-        if not ready() or ui_probe.read_text(box) != "":
+        if not ready() or ui_probe.read_text(box) != before:
             return Outcome(OutcomeStatus.NEEDS_INPUT, "The message box changed before typing.")
-        if not ui_probe.set_value(box, text):
-            if not ready():
-                return Outcome(OutcomeStatus.NEEDS_INPUT, "The message box lost focus before typing.")
-            written = apps.type_text(text)
-            if not written.ok:
-                return Outcome(OutcomeStatus.FAILED, written.say)
+        # WhatsApp's WebView can acknowledge SetValue and leave the composer empty.
+        written = apps.type_text(text)
+        if not written.ok:
+            return Outcome(OutcomeStatus.FAILED, written.say)
     for _ in range(8):
         check()
         if not ready():
@@ -108,6 +190,88 @@ def draft_whatsapp(to: str, text: str) -> Outcome:
                            evidence=[Evidence("uia.text", target={"recipient": to}, observed={"exact": True})])
         time.sleep(0.15)
     return Outcome(OutcomeStatus.UNCERTAIN, f"I couldn't verify the draft in {to}'s message box.",
+                   side_effect_possible=True)
+
+
+def _replace_value(hwnd, box, text):
+    from core.action_runtime import check
+    from hands import win, ui_probe
+    element, label = box["element"], box["name"]
+    def ready():
+        return (win.foreground() == hwnd and _same_box(element) and element.CurrentName == label
+                and win.focused_is_password() is False)
+    check()
+    if win.foreground() != hwnd or any(ord(c) < 32 for c in text):
+        return False
+    element.SetFocus()
+    if not ready():
+        return False
+    if ui_probe.set_value(box, text) and ui_probe.read_text(box) == text:
+        return True
+    if not ready() or box["type"] not in {"Edit", "ComboBox"}:
+        return False
+    win.hotkey("ctrl+a")
+    check()
+    if not ready():
+        return False
+    win.type_text(text)
+    return True
+
+
+@action("edit_input", UNDOABLE, {"field": "search or draft", "text": "replacement text", "site": "optional preceding site"},
+        lambda field, text, site="": f"replace the {field} field", for_brain=False)
+def edit_input(field: str, text: str, site: str = "") -> Outcome:
+    from urllib.parse import urlsplit
+    from core.sensitive import sensitive
+    from hands import ui_probe, web, win
+    if field not in {"search", "draft"} or any(ord(c) < 32 for c in text):
+        return Outcome(OutcomeStatus.FAILED, "I need one line of text for the input.")
+    window, _ = _current_window()
+    if site == "google":
+        def google_home(w):
+            return w and w.get("exe", "").casefold() == "chrome.exe" and any(
+                web.same_page(address, "https://www.google.com") for address in web.chrome_addresses(only=w["hwnd"]))
+        if not google_home(window):
+            targets = [w for w in win.windows() if google_home(w)]
+            if len(targets) != 1 or not win.focus(targets[0]["hwnd"]):
+                return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't identify one Google window for that search.")
+            window = targets[0]
+    if not window:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't identify the active window.")
+    hwnd, exe = window["hwnd"], window["exe"].casefold()
+    boxes = [c for c in ui_probe.list_controls(hwnd, limit=400)
+             if c["type"] in {"Edit", "Document", "ComboBox"} and c["enabled"]
+             and not c.get("read_only") and not sensitive(c)]
+    if exe == "chrome.exe":
+        addresses = web.chrome_addresses(only=hwnd)
+        url = addresses[0] if addresses else ""
+        host = urlsplit(url if "://" in url else "https://" + url).hostname
+        if field == "search":
+            # Prefer Google's page search field over the browser address bar.
+            fields = [c for c in boxes if host in {"google.com", "www.google.com"}
+                      and c["name"].casefold() == "search"]
+            boxes = fields or [c for c in boxes if c["name"].casefold() == "address and search bar"
+                               and web.is_browser_address_field(c["element"])]
+        else:
+            boxes = [c for c in boxes if host == "gemini.google.com"
+                     and re.fullmatch(r"(?:enter a prompt(?: here| for gemini)?|ask gemini|prompt(?: for gemini)?)",
+                                      c["name"], re.I)]
+    elif exe in {"whatsapp.exe", "whatsapp.root.exe"} and field == "draft":
+        _, box = whatsapp_box("")
+        boxes = [box] if box else []
+    else:
+        boxes = []
+    if len(boxes) != 1:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, f"I found {len(boxes)} matching {field} fields in {exe}.")
+    box = boxes[0]
+    if not _replace_value(hwnd, box, text):
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't select the contents of just that field.")
+    for _ in range(8):
+        if win.foreground() == hwnd and _same_box(box["element"]) and ui_probe.read_text(box) == text:
+            return Outcome(OutcomeStatus.VERIFIED, f'The {field} field now reads "{text}".',
+                           evidence=[Evidence("uia.value", observed={"exact": True})])
+        time.sleep(0.12)
+    return Outcome(OutcomeStatus.UNCERTAIN, "I couldn't verify the complete replacement text.",
                    side_effect_possible=True)
 
 
@@ -226,18 +390,25 @@ def send_typed(text: str, app: str = '', to: str = '', *, binding: dict | None =
             or (to and not typed.get("composer") and not chat_is_with(hwnd, to))):
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but that doesn't look like a message box, "
                                                   "so I didn't send it.")
-    held = ui_probe.read_text({'element': box}) if box is not None and _same_box(box) else None
+    field = {'element': box, 'type': 'Edit'} if typed.get('composer') else {'element': box}
+    held = ui_probe.read_text(field) if box is not None and _same_box(box) else None
     if held is None or ' '.join(held.split()) != ' '.join(text.split()):
         return Outcome(OutcomeStatus.NEEDS_INPUT, f"I typed it in {name}, but couldn't check the box holds exactly "
                                                   "that, so I didn't send it. Press Enter yourself if it looks right.")
     message = ' '.join(text.split())
     def outgoing_count():
+        if composer_bound:
+            rows = ui_probe.whatsapp_rows(hwnd, sidebar=False)
+            return sum(len(lines) >= 3 and lines[0] in {"You:", "Me:"} and lines[1] == text
+                       and re.fullmatch(r"\d{1,2}:\d{2}(?:\s*[ap]m)?(?:\s+(?:read|delivered|sent))?", lines[2], re.I) is not None
+                       for _, row in rows if (lines := row.splitlines()))
         labels = (' '.join(line.split()) for line in chat_text(hwnd).splitlines())
         return sum(label in {f'Me: {message}', f'You: {message}'} for label in labels)
 
+    composer_bound = bool(typed.get("composer"))
     previous_count = outgoing_count()
     check()
-    current = ui_probe.read_text({'element': box})
+    current = ui_probe.read_text(field)
     if (win.foreground() != hwnd or not _same_box(box) or current is None
             or ' '.join(current.split()) != message or focused_name() != place['focused']):
         return Outcome(OutcomeStatus.NEEDS_INPUT, "The window changed just before sending, so I didn't send it.")
@@ -245,7 +416,7 @@ def send_typed(text: str, app: str = '', to: str = '', *, binding: dict | None =
     typed.clear()
     for _ in range(10):
         time.sleep(0.3)
-        after = ui_probe.read_text({'element': box})
+        after = ui_probe.read_text(field)
         if (after is not None and not after.strip() and win.foreground() == hwnd
                 and focused_name() == place['focused'] and outgoing_count() > previous_count):
             return Outcome(OutcomeStatus.VERIFIED, f'Sent it in {name}.', {'app': name},

@@ -276,6 +276,9 @@ def _after_call(state: dict, call: dict, result: tools.ToolResult) -> AgentResul
     end = result.observed.get("end")
     calls.append(dict(call, ok=result.ok, say=result.say, asked=bool(result.asks),
                       blocked=bool(result.observed.get("blocked"))))
+    calls[-1]["verified"] = bool(result.observed.get("verified") or result.observed.get("searched")
+                                 or result.observed.get("saved") or result.observed.get("playing")
+                                 or result.observed.get("outcome_status") == "verified")
     if "saved" in result.observed:
         calls[-1]["saved"] = result.observed["saved"]          # the save skill's own check
     if "playing" in result.observed:

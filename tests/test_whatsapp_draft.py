@@ -77,8 +77,8 @@ def test_delayed_readback_does_not_type_twice(chat, monkeypatch):
     assert chat.writes == ["Next semester."]
 
 
-def test_direct_write_waits_without_keyboard_retry(chat, monkeypatch):
-    monkeypatch.setattr(ui_probe, "set_value", lambda box, text: True)
+def test_missing_readback_never_retypes(chat, monkeypatch):
+    monkeypatch.setattr(ui_probe, "read_text", lambda box: "\n")
     monkeypatch.setattr(app_control.time, "sleep", lambda seconds: None)
     assert not app_control.draft_whatsapp("Hayley", "Next semester.").ok
-    assert chat.writes == []
+    assert chat.writes == ["Next semester."]

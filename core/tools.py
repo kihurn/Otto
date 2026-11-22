@@ -618,6 +618,19 @@ def _type(ctx, text, control=None):
         return ToolResult(False, "The window in front isn't the one I read, so I didn't type. Read the window again.")
     before = ui_probe.read_text(target) if target is not None else _focused_text()
     from core import agent_safety
+    if target and ctx.hwnd and target.get("name", "").casefold() in {"address and search bar", "search"}:
+        if win.window_info(ctx.hwnd).get("exe", "").casefold() == "chrome.exe":
+            from hands import app_control, web
+            from urllib.parse import urlsplit
+            native = target["name"].casefold() == "address and search bar" and web.is_browser_address_field(target["element"])
+            google = target["name"].casefold() == "search" and any(
+                urlsplit(url if "://" in url else "https://" + url).hostname in {"google.com", "www.google.com"}
+                for url in web.chrome_addresses(only=ctx.hwnd))
+            if native or google:
+                verified = (app_control._replace_value(ctx.hwnd, target, text) and win.foreground() == ctx.hwnd
+                            and app_control._same_box(target["element"]) and ui_probe.read_text(target) == text)
+                return ToolResult(verified, "Typed it." if verified else "I couldn't verify the full search field.",
+                                  {"typed": verified, "verified": verified})
     flat, box = " ".join(text.split()), " ".join((before or "").split())
     if (len(flat) >= 3 and flat in box and len(box) <= 3 * len(flat) + 20
             and agent_safety._is_message(agent_safety.front(ctx))):
@@ -628,7 +641,7 @@ def _type(ctx, text, control=None):
         if before == "" and ui_probe.set_value(target, text):
             # Only an empty box is filled directly: setting a value replaces everything already in it.
             back = ui_probe.read_text(target)
-            if back is not None and text.strip() in back:
+            if back == text:
                 ctx.draft.update(hwnd=ctx.hwnd, name=ctx.app, element=target["element"], text=text)
                 return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
             return ToolResult(False, "I wrote the field once but couldn't verify its contents.",
@@ -653,7 +666,8 @@ def _type(ctx, text, control=None):
         return ToolResult(False, written.say, {"end": "done"})
     if target is not None:
         back = ui_probe.read_text(target)
-        if back is not None and text.strip() in back:
+        if back == text or (before and back and len(back) == len(before) + len(text)
+                            and back.count(text) > before.count(text)):
             ctx.draft.update(hwnd=ctx.hwnd, name=ctx.app, element=target["element"], text=text)
             return ToolResult(True, "Typed it.", {"typed": True, "verified": True})
     return ToolResult(True, "Typed it (could not read it back to check).", {"typed": True})

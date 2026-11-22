@@ -108,6 +108,7 @@ class Otto:
         self.last: dict | None = None
         self.trace: dict = {}
         self.history: deque = deque(maxlen=8)   # recent exchanges, for follow-ups and the brief
+        self._verified_chat = ""
         self.active_task = None
         self.progress = lambda message: None
         self.last_web_query = None
@@ -125,7 +126,9 @@ class Otto:
     def start(self) -> None:
         from senses import eyes
         from hands import win
-        win.remember_otto_window()
+        import sys
+        if sys.stdin is not None and sys.stdin.isatty():
+            win.remember_otto_window()  # redirected input has no interactive Otto window
         self.apps.refresh_in_background()
         eyes.start()
         self.router.load(say=self.say)
@@ -263,6 +266,19 @@ class Otto:
                 p.task.cancel.set()
             self.pending = None
             return Reply("Okay, cancelled.")
+
+        if p.kind in {"offer_chat_reply", "chat_words"}:
+            self.pending = None
+            if guards.exact_yes(t):
+                self._set_pending("chat_words", text=p.text)
+                return Reply(f"What would you like to say to {p.text}?")
+            if kind == "no":
+                return Reply("Okay.")
+            if p.kind == "chat_words" and not re.match(
+                    r"(?:open (?:whatsapp|google|chrome)|find .+ (?:group|chat)|(?:please )?check again|"
+                    r"what are they talking about|summari[sz]e (?:the|this) chat)\b", t, re.I):
+                return self._chat_words(p.text, t)
+            return None
 
         if p.kind in self.APPROVALS and kind == "yes" and not guards.exact_yes(t):
             # "okay stop", "ok cancel", "yeah wait": not a clear yes, so nothing is approved; the question stays.
@@ -526,6 +542,55 @@ class Otto:
         if background:
             self.trace["background"] = True
         # The sentence as said (not without "in the back..."): those words may be part of the message.
+        from core import reading
+        recent = previous_chat and time.monotonic() - previous_chat[2] < self.CONVERSATION_GAP
+        find = re.fullmatch(r"(?:(?:can|could) you |please )?find (?:the )?[\"“']?(.+?)[\"”']? "
+                            r"(?:group(?: chat)?|chat)(?: (?:in|on) whatsapp)?(?: and reply to it)?[?.!]*", t, re.I)
+        if find:
+            who = find[1].strip()
+            self._verified_chat = ""
+            result = self._run(planner.Plan([{"do": "find_chat", "with": {"to": who}}], "builtin"), None, t)
+            if self.trace.get("outcome_status") not in {"simulated", "verified"}:
+                return result
+            return self._chat_summary(t, who)
+        if reading.summary_kind(t) == "chat":
+            if not recent and not self.dry_run:
+                from hands import app_control
+                window, _ = app_control._current_window()
+                if not window or window.get("exe", "").casefold() not in {"whatsapp.exe", "whatsapp.root.exe"}:
+                    return self._summarize_source(t, "chat")
+            return self._chat_summary(t, previous_chat[0] if recent else "")
+        current_reply = re.fullmatch(r"(?:(?:ok fine|okay|ok),? )?(?:how about you |can you )?"
+                                     r"reply in this chat saying (?:that )?(.+)", t, re.I)
+        if current_reply and not self.dry_run:
+            from hands import app_control
+            window, _ = app_control._current_window()
+            if window and window.get("exe", "").casefold() in {"whatsapp.exe", "whatsapp.root.exe"}:
+                _, box = app_control.whatsapp_box("")
+                if not box:
+                    return Reply("I couldn't identify the open WhatsApp chat.")
+                return self._whatsapp_reply(t, app_control.composer_recipient(box["name"]), current_reply[1])
+        self_chat = re.fullmatch(r"(?:ok(?:ay)?[, ]+)?now i['’]?m in my own chat[, ]+(?:can you )?"
+                                 r"type (?:in )?(.+)", t, re.I)
+        if recent and self_chat and previous_chat[0].casefold() in {"myself", "yourself"}:
+            return self._chat_words(previous_chat[0], self_chat[1])
+        words = re.fullmatch(r"(?:type|say) (.+)", t, re.I)
+        if (recent and words and re.search(r" and send it[.!?]*$", words[1], re.I)
+                and not re.search(r"\b(?:in|on|to|then|don't|never|do not)\b", words[1], re.I)):
+            return self._chat_words(previous_chat[0], words[1])
+        field = re.fullmatch(r"(?:(?:so )?yes,? |(?:ok|okay)(?: good)?,? (?:now )?)?"
+                             r"(?:type in the search bar,? (.+)|type (.+?) in the search bar|"
+                             r"(?:delete|clear|replace) (?:that|the draft|everything) and type (.+))", t, re.I)
+        if field:
+            kind = "draft" if field[3] else "search"
+            value = field[3] or field[2] or field[1]
+            params = {"field": kind, "text": value}
+            last = self.last or {}
+            if kind == "search" and last.get("ok") and last.get("plan") and last["plan"].steps == [
+                    {"do": "open_site", "with": {"site": "google"}}]:
+                params["site"] = "google"
+            return self._run(planner.Plan([{"do": "edit_input", "with": params}],
+                                          "builtin"), None, t)
         dictated = details.dictation(t, self.apps)       # "type ...": your words, cleaned up and typed
         if dictated:
             return self._dictate(t, dictated)
@@ -534,7 +599,6 @@ class Otto:
                              r"(?:(?:can|could|would) you |please )?(?:just )?"
                              r"(?:(look at (?:my )?whatsapp and) )?reply to "
                              r"([\w.'-]+(?: [\w.'-]+){0,3}?)( in whatsapp)?(?: saying (.+?))?[?!.]*", t, re.I)
-        recent = previous_chat and time.monotonic() - previous_chat[2] < self.CONVERSATION_GAP
         if recent and re.fullmatch(r"(?:please )?check again[.!?]*|you did(?:n't| not) (?:even )?"
                                    r"(?:write|type)(?: anything| the draft)?(?: yet)?(?:,? please check again)?[.!?]*",
                                    t, re.I):
@@ -547,7 +611,7 @@ class Otto:
             held = ui_probe.read_text(box) if box else None
             if held is None:
                 return Reply(f"I couldn't read {who}'s message box.")
-            if not held:
+            if held in ("", "\n"):
                 return Reply(f"{who}'s message box is empty.")
             return Reply(f"The draft is in {who}'s message box." if held == text else
                          f"{who}'s message box holds a different draft.")
@@ -564,7 +628,6 @@ class Otto:
             return self._reply(t, replying)
         if (self.last or {}).get("send_attempt") and self._CORRECTION.match(t):
             return Reply("Check the conversation before trying again. I can't tell from your correction what arrived.")
-        from core import reading
         source = reading.summary_kind(t)
         if source:
             return self._summarize_source(t, source)
@@ -583,19 +646,72 @@ class Otto:
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
 
+    def _chat_summary(self, request: str, who: str) -> Reply:
+        from core import reading
+        from hands import app_control, win
+        if self.dry_run:
+            if not who:
+                return Reply("I would identify the open chat and read its recent messages.")
+            answer = f"I would read {who}'s recent messages."
+        else:
+            hwnd, box = app_control.whatsapp_box(who)
+            if not box:
+                return Reply("I couldn't identify the open WhatsApp conversation.")
+            who = who or app_control.composer_recipient(box["name"])
+            shown, coverage = reading.chat_messages(hwnd, win.window_info(hwnd).get("title", ""), scroll=True)
+            after, same = app_control.whatsapp_box(who)
+            if after != hwnd or not same or same["name"] != box["name"]:
+                return Reply("The conversation changed while I was reading.")
+            if not shown:
+                return Reply(coverage)
+            from core.brain import NoBrainAvailable
+            try:
+                summary = reading.summarize(shown, "What are the participants discussing in these messages? "
+                                            "Mention the latest question or decision if there is one.", self.brain)
+            except NoBrainAvailable:
+                return Reply(f"I read {who}'s messages, but the summary model is unavailable.")
+            answer = f"{who}. {coverage}. {summary}"
+        self.whatsapp_draft = (who, "", time.monotonic())
+        self._verified_chat = who.casefold()
+        self._set_pending("offer_chat_reply", text=who)
+        return Reply(answer + " Want to reply?")
+
+    def _chat_words(self, who: str, words: str) -> Reply:
+        from core import dictation
+        suffix = re.search(r" and send it[.!?]*$", words, re.I)
+        text = words[:suffix.start()].strip() if suffix else words.strip()
+        if not text or len(text) > dictation.LIMIT or any(ord(c) < 32 for c in text):
+            return Reply("Give me one short line to draft.")
+        typing = {"do": "draft_whatsapp", "with": {"to": who, "text": text}}
+        self.whatsapp_draft = (who, text, time.monotonic())
+        later, self.send_said_later = getattr(self, "send_said_later", False), False
+        if (suffix and not later and self._verified_chat == who.casefold()
+                and not re.search(r"\b(?:don't|don’t|do not|never) send\b", text, re.I)):
+            steps = [typing, {"do": "send_typed", "with": {"text": text, "app": "WhatsApp", "to": who}}]
+            return self._run(planner.Plan(steps, "builtin"), None, words, confirmed=True)
+        return self._type_then_ask(words, typing, text, "WhatsApp", to=who)
+
     def _whatsapp_reply(self, request: str, who: str, instruction: str) -> Reply:
         from core import dictation
         from hands import app_control
+        self._verified_chat = ""
         self.whatsapp_draft = (who, "", time.monotonic())
         chat = ""
         if not self.dry_run:
             hwnd, box = app_control.whatsapp_box(who)
             if not box:
-                note = f' Proposed reply: "{instruction}"' if instruction else ""
-                return Reply(f"Open {who}'s chat in WhatsApp so I can identify its message box.{note}")
+                found = self._run(planner.Plan([{"do": "find_chat", "with": {"to": who}}], "builtin"), None, request)
+                if self.trace.get("outcome_status") != "verified":
+                    return found
+                hwnd, box = app_control.whatsapp_box(who)
+                if not box:
+                    return Reply(f"I couldn't verify {who}'s chat after opening it.")
             chat = app_control.chat_text(hwnd)
+            self._verified_chat = who.casefold()
             if not chat and not instruction:
                 return Reply(f"I found {who}'s message box but couldn't read the conversation. What should the reply say?")
+        if instruction and re.search(r" and send it[.!?]*$", instruction, re.I):
+            return self._chat_words(who, instruction)
         text, by = dictation.draft_reply(instruction or "Answer the latest message briefly.", who, chat, self.brain)
         if not instruction and by == "as said":
             return Reply("I couldn't compose a reply from the conversation.")
@@ -850,7 +966,7 @@ class Otto:
             return Reply(f"Just checking: should I {result.say}?")
         # Saveable only if it really ran (not a dry run), finished, and every step that acted worked.
         saveable = (not self.dry_run and result.status == "done" and result.ok and bool(acting)
-                    and all(c.get("ok") for c in acting) and not agent.unverified_save(calls)
+                    and all(c.get("ok") and c.get("verified") for c in acting) and not agent.unverified_save(calls)
                     and not any(c.get("send_attempt") for c in calls))
         self.last = {"text": t, "intent": None, "plan": None, "ok": saveable,
                      "send_attempt": any(c.get("send_attempt") for c in calls),

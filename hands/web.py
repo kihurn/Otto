@@ -109,6 +109,12 @@ def chrome_control_ok(control) -> bool:
     return kind in CHROME_CONTROLS.get(name, set()) and not inside_web_page(control)
 
 
+def is_browser_address_field(element) -> bool:
+    from pywinauto.controls.uiawrapper import UIAWrapper
+    from pywinauto.uia_element_info import UIAElementInfo
+    return chrome_control_ok(UIAWrapper(UIAElementInfo(element)))
+
+
 def chrome_addresses(only: int | None = None) -> list[str]:
     """What the address bar of each open Chrome window shows right now (or only window `only`). Read-only."""
     from hands import win

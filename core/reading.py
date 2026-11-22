@@ -16,6 +16,9 @@ SUMMARY = re.compile(r"\b(?:summari[sz]e|give me a summary of|what did the group
 
 
 def summary_kind(request: str) -> str:
+    if re.fullmatch(r"(?:can you (?:tell me )?)?(?:what (?:are they talking about|is (?:this|the) "
+                    r"(?:group|chat) (?:saying|talking about))|what did they say)[?.! ]*", request, re.I):
+        return "chat"
     if re.search(r"\b(?:view|read|summari[sz]e)\b.*\b(?:pdf|attachment)\b", request, re.I):
         return "pdf"
     if not SUMMARY.search(request):
@@ -35,8 +38,10 @@ def summarize(text: str, request: str, brain) -> str:
         return str(reply.data["summary"]).strip()[:limit]
 
     if len(text) <= 5000:
-        return ask(text, "Summarize the source in order. Preserve speakers, decisions and dates when present.")
-    parts = [ask(text[i:i + 5500], "Extract the facts relevant to a summary in source order.", limit=450)
+        return ask(text, "Summarize the source in order. Distinguish quoted speakers from new replies. "
+                   "Include the question, decisions and outstanding work when present. Never infer a chat title.")
+    parts = [ask(text[i:i + 5500], "Extract facts, questions and decisions in order. Distinguish quoted "
+                 "messages from the current speaker's reply.", limit=450)
              for i in range(0, len(text), 5000)]
     return ask("\n".join(parts), "Combine these notes in order. Merge overlap and preserve key facts.")
 
@@ -90,6 +95,11 @@ def chat_messages(hwnd: int, title: str, limit: int = 30, *, scroll: bool = Fals
     panes = [p for p in ui_probe.reading_elements(hwnd, ("List", "Pane", "Group"))
              if not p.CurrentIsOffscreen and CHAT_PANE.fullmatch(p.CurrentName.strip())]
     if len(panes) != 1:
+        if win.window_info(hwnd).get("exe", "").casefold() in {"whatsapp.exe", "whatsapp.root.exe"}:
+            rows = ui_probe.whatsapp_rows(hwnd, sidebar=False)
+            if rows:
+                selected = rows[-limit:]
+                return "\n\n".join(value for _, value in selected), f"{len(selected)} visible messages"
         return "", "I couldn't identify the message history for this chat."
     pane = panes[0]
     messages = visible = _visible_messages(hwnd, pane)

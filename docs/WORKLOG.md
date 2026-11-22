@@ -15,6 +15,10 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ## Done
 
+### Conversation targets and field replacement (22 November 2026)
+
+The Windows check found repeated accessibility IDs, a detached WhatsApp input window and chat rows exposed as grids. Group lookup checks the exact name and composer. A reply offer asks for the words on yes. Google field replacement checks the complete value before reporting success. See [the Phase 1 review](PHASE1_ENGINE_REVIEW.md) for acceptance criteria and memory boundaries.
+
 ### Summary coverage and send evidence (22 Nov 2026, Codex)
 
 - Follow-up for the Hayley trace: named WhatsApp drafts verify desktop window, recipient, focus and draft contents. A correction can inspect the same box. Automated checks use fake windows; real WhatsApp draft entry still needs a self-chat check.

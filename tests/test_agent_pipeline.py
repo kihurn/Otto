@@ -275,8 +275,8 @@ def test_second_confirm_takes_a_new_snapshot(monkeypatch):
 
 def _finished(o, ok=True, step_ok=True):
     from core import agent
-    calls = [{"tool": "open", "args": {"what": "youtube"}, "ok": True, "why": ""},
-             {"tool": "click", "args": {"control": 1}, "ok": step_ok, "why": ""},
+    calls = [{"tool": "open", "args": {"what": "youtube"}, "ok": True, "verified": True, "why": ""},
+             {"tool": "click", "args": {"control": 1}, "ok": step_ok, "verified": True, "why": ""},
              {"tool": "done", "args": {"say": "Playing."}, "ok": ok, "why": ""}]
     return o._agent_reply("open youtube and play the first video", agent.AgentResult("done", "Playing.", calls, ok))
 
@@ -301,7 +301,7 @@ def test_save_that_refuses_unverified_runs(new):
     assert examples.load() == []
 
 
-def test_save_that_after_a_yes_saves_each_step_once(new):
+def test_save_that_after_a_yes_still_needs_evidence(new):
     from core import agent, examples
     new.dry_run = False
     calls = [{"tool": "type", "args": {"text": "hi"}, "ok": True},
@@ -309,8 +309,8 @@ def test_save_that_after_a_yes_saves_each_step_once(new):
              {"tool": "keys", "args": {"keys": "enter"}, "ok": True},
              {"tool": "done", "args": {"say": "Sent."}, "ok": True}]
     new._agent_reply("say hi to john", agent.AgentResult("done", "Sent.", calls, True))
-    assert "Saved" in new.handle("save that").text
-    assert [c["tool"] for c in examples.load()[-1]["calls"]] == ["type", "keys", "done"]
+    assert "won't save" in new.handle("save that").text
+    assert not examples.load()
 
 
 def test_forget_removes_the_saved_example(new):
@@ -501,7 +501,7 @@ def test_failed_steps_are_not_saved(new):
     new.dry_run = False
     calls = [{"tool": "read_window", "args": {"app": "Chrome"}, "ok": False},
              {"tool": "read_window", "args": {}, "ok": True},
-             {"tool": "click", "args": {"control": 2}, "ok": True},
+             {"tool": "click", "args": {"control": 2}, "ok": True, "verified": True},
              {"tool": "done", "args": {"say": "Done."}, "ok": True}]
     new._agent_reply("click the first link", agent.AgentResult("done", "Done.", calls, True))
     new.handle("save that")

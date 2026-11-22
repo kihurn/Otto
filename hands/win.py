@@ -26,8 +26,29 @@ def press_vk(code: int, times: int = 1) -> None:
         time.sleep(0.02)
 
 
+def _app_window(hwnd: int) -> int:
+    """Map WhatsApp's detached WebView input window to its unique owning app window."""
+    if hwnd:
+        import win32gui
+        try:
+            if win32gui.GetClassName(hwnd) != "Chrome_WidgetWin_1":
+                return hwnd
+            import psutil
+            import win32process
+            process = psutil.Process(win32process.GetWindowThreadProcessId(hwnd)[1])
+            if process.name().casefold() == "msedgewebview2.exe":
+                parent = process.parent()
+                if parent and parent.name().casefold() in {"whatsapp.exe", "whatsapp.root.exe"}:
+                    owned = [w["hwnd"] for w in windows() if w["pid"] == parent.pid]
+                    if len(owned) == 1:
+                        return owned[0]
+        except Exception:
+            pass
+    return hwnd
+
+
 def foreground() -> int:
-    return ctypes.windll.user32.GetForegroundWindow() if IS_WINDOWS else 0
+    return _app_window(ctypes.windll.user32.GetForegroundWindow()) if IS_WINDOWS else 0
 
 
 def remember_otto_window() -> None:
@@ -190,7 +211,7 @@ def window_at(x: int, y: int) -> int:
     try:
         import win32gui
         hwnd = win32gui.WindowFromPoint((int(x), int(y)))
-        return win32gui.GetAncestor(hwnd, 2) if hwnd else 0     # GA_ROOT: the whole window, not a part of it
+        return _app_window(win32gui.GetAncestor(hwnd, 2)) if hwnd else 0
     except Exception:
         return 0
 

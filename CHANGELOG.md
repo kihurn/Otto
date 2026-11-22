@@ -2,6 +2,8 @@
 
 ## 1.2 (in development)
 
+- WhatsApp group lookup verifies the open composer and reads recent message rows. Reply follow-ups keep the recipient. Search and draft replacement check the entire field before reporting success.
+
 - Summaries report source coverage for readable chat history, Chrome page text, copied text, and text PDFs opened locally.
 - Named WhatsApp replies check the recipient and focus, write the draft once, and show the proposed text when verification fails. “Check again” reads the same conversation's draft.
 - Agent chat sends check the typed draft and look for new outgoing evidence after approval. Searching a recognized chat search field no longer asks to send.

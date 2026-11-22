@@ -26,13 +26,16 @@ def _words(text: str) -> set[str]:
 
 def save(request: str, calls: list[dict]) -> bool:
     """Store a verified run. Only the tool names and arguments are kept."""
+    from core.agent import ACTING
     kept = [{"tool": c["tool"], "args": c.get("args", {})} for c in calls if c.get("tool")]
     if not request.strip() or not kept:
         return False
     path = _file()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"request": request.strip(), "calls": kept}, ensure_ascii=False) + "\n")
+        f.write(json.dumps({"request": request.strip(), "calls": kept,
+                            "verified": all(c.get("verified") for c in calls if c.get("tool") in ACTING)},
+                           ensure_ascii=False) + "\n")
     return True
 
 
@@ -58,6 +61,8 @@ def similar(request: str, k: int = 5) -> list[dict]:
         return []
     scored = []
     for index, item in enumerate(load()):
+        if not item.get("verified") and any(c.get("tool") in {"type", "keys", "click"} for c in item["calls"]):
+            continue
         if any(call.get("tool") == "done"
                and re.search(r"\b(?:sent|posted|submitted)\b", call.get("args", {}).get("say", ""), re.I)
                for call in item["calls"]):

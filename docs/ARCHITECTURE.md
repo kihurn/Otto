@@ -2,6 +2,8 @@
 
 ## Current design (20 November 2026)
 
+The group conversation flow binds an exact sidebar result to the recipient's composer. A pending reply offer carries the recipient into dictation. Windows can expose multiple paths to the same control and can deliver focus to WhatsApp's child WebView process. Otto checks runtime identity and process ownership. Search and draft edits use whole-field read-back. See [the Phase 1 engine review](PHASE1_ENGINE_REVIEW.md).
+
 Named WhatsApp replies bind the desktop process, recipient label and editable box before writing. A short follow-up can inspect that recipient's composer. Only an exact draft read-back enters the existing send confirmation flow.
 
 Summary requests for a named kind of open source use `core/reading.py`. The reader records page or message coverage before summarizing. Agent chat approvals use the checked draft sender for questions that name a send. “Sent” requires a cleared draft and a new matching outgoing label in the same chat.
