@@ -37,6 +37,101 @@ def test_search_field_request_passes_registry_validation(otto):
     assert otto.trace["outcome_status"] == "simulated"
 
 
+def test_named_group_word_order(otto):
+    reply = otto.handle("in whatsapp, can you find the group chat called date ideas and reply to it?")
+    assert "date ideas" in reply.text and otto.pending.text == "date ideas"
+
+
+def test_unread_choice_is_bound_before_reading(otto, monkeypatch):
+    from core.pipeline import Reply
+    otto.dry_run = False
+    names = ["Yusri", "Hayley"]
+    monkeypatch.setattr(app_control, "unread_chats", lambda: names)
+    summary = []
+    run = otto._run
+    monkeypatch.setattr(otto, "_run", lambda plan, *args: run(plan, *args)
+                        if plan.steps[0]["do"] == "list_unread_chats" else
+                        otto.trace.update(outcome_status="needs_input") or Reply("Wrong chat"))
+    monkeypatch.setattr(otto, "_chat_summary", lambda *args: summary.append(args))
+    assert "Yusri" in otto.handle("do i have any incoming messages?").text
+    assert "Which unread chat?" in otto.handle("can you open that and summarize what is it saying").text
+    assert otto.handle("Yusri").text == "Wrong chat"
+    assert not summary
+    names.pop()
+    otto.handle("do i have any incoming messages?")
+    assert otto.handle("can you open that and summarize what is it saying").text == "Wrong chat"
+
+
+def test_targeted_summary_excludes_self_other_people_and_quotes(monkeypatch):
+    rows = [(1, "You:\nI want a 5060"), (2, "Yusri:\nWhat is your budget?"),
+            (3, "Gabriel:\nBuy a GPU"), (4, "Yusri:\nGabriel: Buy a GPU\nOK")]
+    monkeypatch.setattr(ui_probe, "whatsapp_rows", lambda *a, **kw: rows)
+    monkeypatch.setattr(ui_probe, "reading_elements", lambda hwnd, types, parent:
+                        [SimpleNamespace(CurrentName="Quoted message")] if parent == 4 else [])
+    text, coverage = reading.attributed_messages(8, "yusri")
+    assert text == "Yusri (incoming): What is your budget?" and "1 quoted" in coverage
+    assert "You (outgoing)" in reading.attributed_messages(8)[0]
+
+
+def test_reply_to_him_after_manual_switch_stops(otto, monkeypatch):
+    from core import details
+    import time
+    request = "can you reply to him saying that yea 2026 is fucked with the gpu prices"
+    assert details.reply_request(request)["who"] == ""
+    otto.dry_run = False
+    otto.whatsapp_draft = ("Yusri", "", time.monotonic())
+    monkeypatch.setattr(app_control, "whatsapp_box", lambda who: (1, None))
+    monkeypatch.setattr(otto, "_whatsapp_reply", lambda *a: pytest.fail("Wrong conversation"))
+    assert "still the open conversation" in otto.handle(request).text
+
+
+def test_unread_from_self_chat_then_question_and_pronoun_reply(otto, monkeypatch):
+    from core.pipeline import Reply
+    active = ["@kihurn"]
+    otto.dry_run = False
+    monkeypatch.setattr(app_control, "unread_chats", lambda: ["Yusri"])
+    original_run = otto._run
+    def run(plan, intent, request):
+        step, = plan.steps
+        if step["do"] == "list_unread_chats":
+            return original_run(plan, intent, request)
+        assert step == {"do": "find_chat", "with": {"to": "Yusri"}}
+        active[0] = "Yusri"
+        otto.trace["outcome_status"] = "verified"
+        return Reply("Opened Yusri.")
+    monkeypatch.setattr(otto, "_run", run)
+    monkeypatch.setattr(app_control, "whatsapp_box", lambda who:
+                        (42, {"name": "Type a message to Yusri"} if active[0] == who else None))
+    speakers = []
+    def read(hwnd, speaker):
+        assert hwnd == 42 and active == ["Yusri"]
+        speakers.append(speaker)
+        return "Yusri (incoming): Which card did you buy?", "1 attributed visible message"
+    monkeypatch.setattr(reading, "attributed_messages", read)
+    monkeypatch.setattr(reading, "summarize", lambda text, prompt, brain: "He asks which card you bought.")
+    assert "Yusri" in otto.handle("do i have any incoming messages?").text and active == ["@kihurn"]
+    assert "Yusri" in otto.handle("can you open that and summarize what is it saying").text
+    assert "which card" in otto.handle("ok what does yusri want then?").text
+    assert speakers == ["", "yusri"]
+    monkeypatch.setattr(otto, "_whatsapp_reply", lambda request, who, words: Reply(f"{who}: {words}"))
+    assert otto.handle("can you reply to him saying that prices are high").text == "Yusri: prices are high"
+
+
+def test_group_sender_button_without_colon(monkeypatch):
+    def el(i, role, name):
+        return SimpleNamespace(GetRuntimeId=lambda: (i,), CurrentAriaRole=role, CurrentName=name,
+                               CurrentIsOffscreen=False)
+    doc, grid, row = el(1, "document", ""), el(2, "grid", "Chat list"), el(3, "row", "")
+    def elements(hwnd, kinds, parent=None):
+        if kinds == ("DataItem",):
+            return [row] if parent is doc else []
+        return {"Document": [doc], "DataGrid": [grid], "Group": [el(4, "button", "Gabriel")]}[kinds[0]]
+    monkeypatch.setattr(ui_probe, "reading_elements", elements)
+    monkeypatch.setattr(ui_probe, "_pattern", lambda *args: SimpleNamespace(
+        RangeFromChild=lambda e: SimpleNamespace(GetText=lambda n: "Gabriel\nWho's coming?\n8:14 pm")))
+    assert ui_probe.whatsapp_rows(1, sidebar=False)[0][1].startswith("Gabriel:\nWho's coming?")
+
+
 def test_literal_send_uses_the_verified_recipient(otto, monkeypatch):
     otto.handle('find "date ideas" group chat')
     otto.handle("yes")

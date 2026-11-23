@@ -536,7 +536,7 @@ def reply_request(text: str, apps=None) -> dict | None:
     s = " ".join((text or "").split())
     s = re.sub(r"^(?:(?:hey|ok|okay|so|um+|uh+|oh|otto)[,.!]?\s+)*(?:(?:can|could|would) you\s+(?:please\s+)?|please\s+)?",
                "", s, flags=re.I)
-    m = re.match(r"(?:reply|respond|answer)(?:\s+back)?(?:\s+to\s+(?P<who>[\w.'-]+(?:\s+[\w.'-]+)?))?"
+    m = re.match(r"(?:reply|respond|answer)(?:\s+back)?(?:\s+to\s+(?P<who>[\w.'-]+(?:\s+[\w.'-]+)??))?"
                  r"(?:\s+(?:in|on)\s+(?P<app1>[\w.]+))?[,:]?\s+(?:saying|that|to say|and say|and tell (?:him|her|them)|"
                  r"telling (?:him|her|them)|with)\s+(?P<what>.+)$", s, re.I)
     if not m or _OTHER_STEP.search(m["what"]):

@@ -267,6 +267,36 @@ class Otto:
             self.pending = None
             return Reply("Okay, cancelled.")
 
+        if p.kind == "unread_chat":
+            self.pending = None
+            text = t.casefold().strip(" ?.!")
+            names = [name for name in p.files if text == name.casefold() or
+                     re.search(r"\b(?:from|open) " + re.escape(name.casefold()) + r"\b", text)]
+            follow = re.fullmatch(r"(?:(?:yes|ok)[, ]+)?(?:(?:can|could) you )?(?:click on|open|expand) "
+                                  r"(?:that|it|the unread)(?: (?:one|chat|message))?(?: .*)?", text)
+            if names or follow or guards.exact_yes(t):
+                matches = names or p.files
+                if len(matches) == 1:
+                    return self._open_and_read_chat(t, matches[0])
+                if len({n.casefold() for n in matches}) == 1:
+                    return Reply("Several unread chats have that name. Open the one you mean.")
+                self._set_pending("unread_chat", files=p.files)
+                return Reply("Which unread chat? " + ", ".join(p.files))
+            return None
+
+        if p.kind == "reply_destination":
+            self.pending = None
+            if re.fullmatch(r"(?:in |to )?(?:this |the )?group(?: chat)?", t, re.I):
+                from hands import app_control
+                _, box = app_control.whatsapp_box(p.text)
+                if not box:
+                    return Reply("The group changed before I could draft the reply.")
+                return self._whatsapp_reply(t, p.text, p.area)
+            private = re.fullmatch(r"(?:privately to|private chat with|in private to) (.+?)[.!?]*", t, re.I)
+            if private:
+                return self._whatsapp_reply(t, private[1], p.area)
+            return None
+
         if p.kind in {"offer_chat_reply", "chat_words"}:
             self.pending = None
             if guards.exact_yes(t):
@@ -418,6 +448,8 @@ class Otto:
             from hands import indicator
             indicator.hide()
         self.trace['outcome_status'] = res.data.get('outcome_status')
+        if res.ok and res.data.get("unread_chats"):
+            self._set_pending("unread_chat", files=res.data["unread_chats"])
         if intent and intent.action in {'get_volume', 'set_volume', 'volume_up', 'volume_down'}:
             from hands import media
             if res.ok or (self.dry_run and res.data.get('outcome_status') == 'simulated'):
@@ -544,15 +576,52 @@ class Otto:
         # The sentence as said (not without "in the back..."): those words may be part of the message.
         from core import reading
         recent = previous_chat and time.monotonic() - previous_chat[2] < self.CONVERSATION_GAP
+        if re.fullmatch(r"(?:(?:do i have|are there|show me|check|list) )?(?:any |my |the )?"
+                        r"(?:unread|incoming) (?:messages|chats)(?: (?:in|on) whatsapp)?[?.!]*", t, re.I):
+            return self._run(planner.Plan([{"do": "list_unread_chats", "with": {}}], "builtin"), None, t)
+        named_first = re.fullmatch(r"(?:(?:in|on) whatsapp,? )?(?:(?:can|could) you |please )?"
+                                   r"find (?:the )?(?:group chat|group|chat) (?:called|named) "
+                                   r"[“\"']?(.+?)[”\"']?(?: and reply to it)?(?: in whatsapp)?[?.!]*", t, re.I)
         find = re.fullmatch(r"(?:(?:can|could) you |please )?find (?:the )?[\"“']?(.+?)[\"”']? "
                             r"(?:group(?: chat)?|chat)(?: (?:in|on) whatsapp)?(?: and reply to it)?[?.!]*", t, re.I)
-        if find:
-            who = find[1].strip()
-            self._verified_chat = ""
-            result = self._run(planner.Plan([{"do": "find_chat", "with": {"to": who}}], "builtin"), None, t)
-            if self.trace.get("outcome_status") not in {"simulated", "verified"}:
-                return result
-            return self._chat_summary(t, who)
+        if named_first or find:
+            return self._open_and_read_chat(t, (named_first or find)[1].strip())
+        named_unread = re.search(r"\bunread (?:message|chat) from ([\w.' -]+?),? (?:can you |please )?"
+                                 r"(?:click|open)\b", t, re.I)
+        if named_unread:
+            return self._open_and_read_chat(t, named_unread[1].strip())
+        if recent and re.fullmatch(r"(?:(?:yes|ok)[, ]+)?(?:can you )?(?:click on|open|expand) "
+                                   r"(?:that|the) chat(?: to expand)?[?.!]*", t, re.I):
+            return self._open_and_read_chat(t, previous_chat[0])
+        if recent and re.fullmatch(r"(?:it is|it's) (?:already )?open(?:ed)?[.!?]*", t, re.I):
+            return self._chat_summary(t, previous_chat[0])
+        question = re.search(r"\bwhat does ([\w.'-]+(?: [\w.'-]+)?) want(?: then)?[?.!]*$", t, re.I)
+        he_said = re.search(r"\bsummari[sz]e what (?:is (?:he|she)|(?:he|she) is) saying[?.!]*$", t, re.I)
+        if question or he_said:
+            from hands import app_control
+            window = None if recent or self.dry_run else app_control._current_window()[0]
+            if recent or window and window.get("exe", "").casefold() in {"whatsapp.exe", "whatsapp.root.exe"}:
+                speaker = question[1] if question and question[1].casefold() not in {"he", "she", "they"} else None
+                return self._chat_summary(t, previous_chat[0] if recent else "", speaker=speaker)
+        pronoun = re.fullmatch(r"(?:(?:can|could) you |please )?reply to (him|her|them) "
+                               r"(?:saying|to say|that) (?:that )?(.+)", t, re.I)
+        if pronoun and recent:
+            from hands import app_control
+            who = previous_chat[0]
+            if not self.dry_run:
+                _, box = app_control.whatsapp_box(who)
+                if not box:
+                    return Reply(f"I couldn't verify that {who} is still the open conversation.")
+                if app_control.is_group_box(box):
+                    words = re.sub(r" and send it[.!?]*$", "", pronoun[2], flags=re.I)
+                    self._set_pending("reply_destination", text=who, area=words)
+                    return Reply(f"Do you mean a reply in {who}, or a private chat? Name the destination.")
+            return self._whatsapp_reply(t, who, pronoun[2])
+        if pronoun and not recent and not self.dry_run:
+            from hands import app_control
+            window, _ = app_control._current_window()
+            if window and window.get("exe", "").casefold() in {"whatsapp.exe", "whatsapp.root.exe"}:
+                return Reply("Which WhatsApp chat do you want to reply to?")
         if reading.summary_kind(t) == "chat":
             if not recent and not self.dry_run:
                 from hands import app_control
@@ -646,9 +715,17 @@ class Otto:
             return self._do_area(t, intent.area, intent=intent, via="fast")
         return self._agent(t)
 
-    def _chat_summary(self, request: str, who: str) -> Reply:
+    def _open_and_read_chat(self, request, who):
+        self._verified_chat = ""
+        self.whatsapp_draft = (who, "", time.monotonic())
+        result = self._run(planner.Plan([{"do": "find_chat", "with": {"to": who}}], "builtin"), None, request)
+        if self.trace.get("outcome_status") not in {"simulated", "verified"}:
+            return result
+        return self._chat_summary(request, who)
+
+    def _chat_summary(self, request: str, who: str, speaker="") -> Reply:
         from core import reading
-        from hands import app_control, win
+        from hands import app_control
         if self.dry_run:
             if not who:
                 return Reply("I would identify the open chat and read its recent messages.")
@@ -658,16 +735,23 @@ class Otto:
             if not box:
                 return Reply("I couldn't identify the open WhatsApp conversation.")
             who = who or app_control.composer_recipient(box["name"])
-            shown, coverage = reading.chat_messages(hwnd, win.window_info(hwnd).get("title", ""), scroll=True)
+            if speaker is None:
+                if app_control.is_group_box(box):
+                    return Reply(f"Whose messages in {who} should I summarize?")
+                speaker = who
+            shown, coverage = reading.attributed_messages(hwnd, speaker)
             after, same = app_control.whatsapp_box(who)
             if after != hwnd or not same or same["name"] != box["name"]:
                 return Reply("The conversation changed while I was reading.")
+            self.whatsapp_draft = (who, "", time.monotonic())
             if not shown:
-                return Reply(coverage)
+                return Reply(f"In {who}, I couldn't attribute any visible messages to {speaker or 'a sender'}. {coverage}.")
             from core.brain import NoBrainAvailable
             try:
-                summary = reading.summarize(shown, "What are the participants discussing in these messages? "
-                                            "Mention the latest question or decision if there is one.", self.brain)
+                prompt = (f"What does {speaker} say or ask for? If there is no explicit request, say so."
+                          if speaker else "What are the participants discussing in these messages? "
+                          "Mention the latest question or decision if there is one.")
+                summary = reading.summarize(shown, prompt, self.brain)
             except NoBrainAvailable:
                 return Reply(f"I read {who}'s messages, but the summary model is unavailable.")
             answer = f"{who}. {coverage}. {summary}"

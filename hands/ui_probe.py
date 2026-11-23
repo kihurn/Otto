@@ -223,6 +223,23 @@ def unique_elements(elements):
             yield element
 
 
+def contains_point(element, x, y):
+    """Confirm the control under a click still belongs to this row."""
+    from ctypes.wintypes import POINT
+    uia = _uia().iuia
+    try:
+        at = uia.ElementFromPoint(POINT(x, y))
+        for _ in range(16):
+            if not at:
+                break
+            if uia.CompareElements(at, element):
+                return True
+            at = uia.ControlViewWalker.GetParentElement(at)
+    except Exception:
+        pass
+    return False
+
+
 def whatsapp_rows(hwnd, *, sidebar):
     """Read one accessible range per row. Sidebar rows belong to the named Chat list grid."""
     docs = list(unique_elements(reading_elements(hwnd, ("Document",))))
@@ -250,8 +267,22 @@ def whatsapp_rows(hwnd, *, sidebar):
         if row.CurrentIsOffscreen:
             continue
         value = document.RangeFromChild(row).GetText(4000).strip()
-        if value and (sidebar or value.splitlines()[0].endswith(":")):
-            rows.append((row, value))
+        if not value:
+            continue
+        if not sidebar:
+            heading, separator, body = value.partition("\n")
+            labels = reading_elements(hwnd, ("Group", "Button"), parent=row)
+            first = next((e for e in labels if e.CurrentName.strip()), None)
+            if not separator or first is None or first.CurrentName.strip() != heading:
+                continue
+            # Direct chats expose "Yusri:" as a group. Group messages expose a sender button "Gabriel".
+            if not heading.endswith(":"):
+                if first.CurrentAriaRole != "button":
+                    continue
+                if heading.casefold() in {"you", "me"}:
+                    heading += " (contact)"
+            value = heading.rstrip(":") + ":\n" + body
+        rows.append((row, value))
     return rows
 
 

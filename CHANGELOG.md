@@ -2,6 +2,8 @@
 
 ## 1.2 (in development)
 
+- Unread WhatsApp follow-ups open the selected conversation before reading. Group summaries distinguish outgoing messages and individual participants. Named-speaker questions and pronoun replies recheck the open destination.
+
 - WhatsApp group lookup verifies the open composer and reads recent message rows. Reply follow-ups keep the recipient. Search and draft replacement check the entire field before reporting success.
 
 - Summaries report source coverage for readable chat history, Chrome page text, copied text, and text PDFs opened locally.

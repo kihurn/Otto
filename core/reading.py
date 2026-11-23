@@ -128,6 +128,31 @@ def chat_messages(hwnd: int, title: str, limit: int = 30, *, scroll: bool = Fals
     return "\n".join(selected), f"{len(selected)} readable messages from {title} near the open view"
 
 
+def attributed_messages(hwnd, speaker=""):
+    """Use the row's sender label. Quoted rows need a reliable quote boundary before attribution."""
+    messages = []
+    skipped = 0
+    for row, value in ui_probe.whatsapp_rows(hwnd, sidebar=False)[-30:]:
+        sender, separator, body = value.partition("\n")
+        sender = sender.strip().removesuffix(":").strip()
+        if not separator or not sender or (speaker and sender.casefold() != speaker.casefold()):
+            continue
+        buttons = ui_probe.reading_elements(hwnd, ("Button",), parent=row)
+        if any(b.CurrentName.casefold() == "quoted message" for b in buttons):
+            skipped += 1
+            continue
+        author = "You (outgoing)" if sender.casefold() in {"you", "me"} else f"{sender} (incoming)"
+        body = body.replace("\ufffc", "").strip()
+        body = re.sub(r"\n\d{1,2}:\d{2}(?:\s*[ap]m)?(?:\s+(?:read|sent|delivered))?\s*$",
+                      "", body, flags=re.I).strip()
+        if body:
+            messages.append(f"{author}: {body}")
+    coverage = f"{len(messages)} attributed visible message" + ("" if len(messages) == 1 else "s")
+    if skipped:
+        coverage += f", {skipped} quoted row" + ("" if skipped == 1 else "s") + " omitted"
+    return "\n\n".join(messages), coverage
+
+
 def collect(hwnd: int, kind: str, *, scroll: bool = False) -> tuple[str, str]:
     if kind == "clipboard":
         from senses import eyes

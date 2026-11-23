@@ -17,6 +17,9 @@ goal-mode reruns, slice 4) are replaced by that plan.
 
 ### Conversation targets and field replacement (22 November 2026)
 
+- The unread workflow verifies the selected sidebar filter, carries candidate names forward, and checks the opened composer before reading. The live Windows run verified the empty unread state, switching to All chats, and a group with incoming sender buttons and outgoing labels. A fake-window regression starts in self-chat and exercises opening Yusri, answering about his messages, and resolving the reply recipient.
+- Windows acceptance on 23 November verified the self-chat and then Yusri's composer, with five visible messages attributed to Yusri. A group run summarized seven visible messages and omitted one quote. The follow-up about Gabriel used four of his messages. No message was sent. There was no real unread chat available for the positive unread-selection test.
+
 The Windows check found repeated accessibility IDs, a detached WhatsApp input window and chat rows exposed as grids. Group lookup checks the exact name and composer. A reply offer asks for the words on yes. Google field replacement checks the complete value before reporting success. See [the Phase 1 review](PHASE1_ENGINE_REVIEW.md) for acceptance criteria and memory boundaries.
 
 ### Summary coverage and send evidence (22 Nov 2026, Codex)

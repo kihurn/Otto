@@ -46,6 +46,10 @@ def composer_recipient(label: str) -> str:
     return re.sub(r"^(?:type a message to |message to |message [@#])(?:group )?", "", label, flags=re.I)
 
 
+def is_group_box(box):
+    return bool(re.match(r"(?:type a message to |message to )group ", box["name"], re.I))
+
+
 def whatsapp_box(who: str):
     """Locate the open recipient's composer using the desktop app's own accessible label."""
     from core.sensitive import sensitive
@@ -88,9 +92,11 @@ def find_chat(to: str) -> Outcome:
     else:
         opened = _open_chat_row(hwnd, to)
     if opened is False:
+        if not _chat_filter(hwnd, "All"):
+            return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't verify the All chats list in WhatsApp.")
         controls = ui_probe.list_controls(hwnd, limit=400)
         fields = [c for c in controls if c["type"] in {"Edit", "ComboBox", "Document"} and c["enabled"] and not c.get("password")
-                  and c["name"].casefold() in {"search", "search or start a new chat", "search chats"}]
+                  and c["name"].casefold() in {"search or start a new chat", "search chats"}]
         check()
         if len(fields) != 1:
             return Outcome(OutcomeStatus.NEEDS_INPUT, f"I found {len(fields)} matching WhatsApp search boxes.")
@@ -127,6 +133,55 @@ def _self_chat_row(value):
     return len(parts) > 1 and parts[1].strip().casefold() == "(you)"
 
 
+def _chat_filter(hwnd, label):
+    from core.action_runtime import check
+    from hands import ui_probe, win
+    for attempt in range(5):
+        check()
+        if win.foreground() != hwnd:
+            return False
+        filters = [c for c in ui_probe.list_controls(hwnd, limit=400)
+                   if c["type"] == "Button" and c["name"] == label and c["enabled"]
+                   and c.get("checked") is not None]
+        if len(filters) != 1:
+            return False
+        if filters[0]["checked"]:
+            return True
+        if attempt == 0 and not ui_probe.press(filters[0]):
+            return False
+        time.sleep(0.15)
+    return False
+
+
+def unread_chats():
+    """The visible conversations in the verified Unread list. None means unreadable."""
+    from hands import ui_probe, win
+    hwnd, _ = whatsapp_box("")
+    if not hwnd or not _chat_filter(hwnd, "Unread"):
+        return None
+    grids = ui_probe.unique_elements(ui_probe.reading_elements(hwnd, ("DataGrid",)))
+    if not any(g.CurrentName.casefold() == "chat list" and not g.CurrentIsOffscreen for g in grids):
+        empty = any(e.CurrentName == "No unread chats" and not e.CurrentIsOffscreen
+                    for e in ui_probe.reading_elements(hwnd, ("Text",)))
+        if empty and _chat_filter(hwnd, "Unread"):
+            return []
+        return None
+    rows = ui_probe.whatsapp_rows(hwnd, sidebar=True)
+    if win.foreground() != hwnd or not _chat_filter(hwnd, "Unread"):
+        return None
+    return [value.splitlines()[0].strip() for _, value in rows] or None
+
+
+@action("list_unread_chats", UNDOABLE, {}, lambda: "check unread WhatsApp chats", for_brain=False)
+def list_unread_chats():
+    names = unread_chats()
+    if names is None:
+        return Outcome(OutcomeStatus.NEEDS_INPUT, "I couldn't verify WhatsApp's unread chat list.")
+    message = "Visible unread chats: " + ", ".join(names) + "." if names else "WhatsApp shows no unread chats."
+    return Outcome(OutcomeStatus.VERIFIED, message, {"unread_chats": names},
+                   [Evidence("uia.unread_filter", observed={"visible_chats": len(names)})])
+
+
 def _open_chat_row(hwnd, to):
     from hands import mouse, ui_probe, win
     own = to.casefold() in {"myself", "yourself"}
@@ -137,14 +192,12 @@ def _open_chat_row(hwnd, to):
     if not rows or (win.foreground() != hwnd and not win.focus(hwnd)) or win.foreground() != hwnd:
         return False
     row = rows[0]
-    if ui_probe.press({"element": row}):
-        return True
     rect = row.CurrentBoundingRectangle
     x, y = (rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2
-    if win.window_at(x, y) != hwnd:
-        return False
-    mouse.click_at(x, y)
-    return True
+    if win.window_at(x, y) == hwnd and ui_probe.contains_point(row, x, y):
+        mouse.click_at(x, y)
+        return True
+    return ui_probe.press({"element": row})
 
 
 @action("draft_whatsapp", UNDOABLE, {"to": "open recipient", "text": "reply draft"},
@@ -197,16 +250,22 @@ def _replace_value(hwnd, box, text):
     from core.action_runtime import check
     from hands import win, ui_probe
     element, label = box["element"], box["name"]
+    sidebar = label.casefold() in {"search or start a new chat", "search chats"}
     def ready():
-        return (win.foreground() == hwnd and _same_box(element) and element.CurrentName == label
+        return (win.foreground() == hwnd and _same_box(element) and (element.CurrentName == label
+                or sidebar and not element.CurrentName)
                 and win.focused_is_password() is False)
     check()
     if win.foreground() != hwnd or any(ord(c) < 32 for c in text):
         return False
     element.SetFocus()
+    for _ in range(4):
+        if ready():
+            break
+        time.sleep(0.06)
     if not ready():
         return False
-    if ui_probe.set_value(box, text) and ui_probe.read_text(box) == text:
+    if not sidebar and ui_probe.set_value(box, text) and ui_probe.read_text(box) == text:
         return True
     if not ready() or box["type"] not in {"Edit", "ComboBox"}:
         return False

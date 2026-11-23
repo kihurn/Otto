@@ -2,6 +2,8 @@
 
 ## Current design (20 November 2026)
 
+An unread lookup keeps visible sidebar names as candidates until opening a chat verifies its composer. For WhatsApp summaries, the reader identifies a row author from its Windows control and message range. Questions naming a participant filter the source rows before inference. Rows containing a quoted-message control are omitted from attribution and counted in coverage.
+
 The group conversation flow binds an exact sidebar result to the recipient's composer. A pending reply offer carries the recipient into dictation. Windows can expose multiple paths to the same control and can deliver focus to WhatsApp's child WebView process. Otto checks runtime identity and process ownership. Search and draft edits use whole-field read-back. See [the Phase 1 engine review](PHASE1_ENGINE_REVIEW.md).
 
 Named WhatsApp replies bind the desktop process, recipient label and editable box before writing. A short follow-up can inspect that recipient's composer. Only an exact draft read-back enters the existing send confirmation flow.
